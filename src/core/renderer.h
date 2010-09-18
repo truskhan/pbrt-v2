@@ -30,6 +30,7 @@
 
 // core/renderer.h*
 #include "pbrt.h"
+#include "spectrum.h"
 
 // Renderer Declarations
 class Renderer {
@@ -43,6 +44,12 @@ public:
     virtual Spectrum Transmittance(const Scene *scene,
         const RayDifferential &ray, const Sample *sample,
         RNG &rng, MemoryArena &arena) const = 0;
+    virtual void Li(const Scene* scene, const RayDifferential* ray,
+      const Sample* sample, RNG &rng, MemoryArena &arena,
+      Intersection *isect, Spectrum* T,
+      Spectrum *Ls, float* rayWeight, int count) const {
+        Severe("Called Li for more rays with unsupported renderer!");
+      }
 };
 
 

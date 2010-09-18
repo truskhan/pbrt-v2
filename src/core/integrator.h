@@ -38,6 +38,7 @@
 #include "material.h"
 #include "probes.h"
 #include "renderer.h"
+#include "spectrum.h"
 
 // Integrator Declarations
 class Integrator {
@@ -59,6 +60,12 @@ public:
     virtual Spectrum Li(const Scene *scene, const Renderer *renderer,
         const RayDifferential &ray, const Intersection &isect,
         const Sample *sample, RNG &rng, MemoryArena &arena) const = 0;
+    virtual void Li(const Scene * scene, const Renderer *renderer,
+      const RayDifferential *ray, const Intersection *isect,
+      const Sample *sample, RNG &rng, MemoryArena &arena, float* rayWeight,
+      Spectrum* L, bool *hit, const size_t &count) const {
+        Severe("Called Li for more rays with unsoppurted surface integrator!");
+      }
 };
 
 
@@ -67,6 +74,12 @@ Spectrum UniformSampleAllLights(const Scene *scene, const Renderer *renderer,
     float rayEpsilon, float time, BSDF *bsdf, const Sample *sample, RNG &rng,
     const LightSampleOffsets *lightSampleOffsets,
     const BSDFSampleOffsets *bsdfSampleOffsets);
+void UniformSampleAllLights(const Scene *scene, const Renderer* renderer,
+    MemoryArena &arena, const RayDifferential *ray, const Intersection *isect,
+    const Sample *sample, RNG &rng,
+    const LightSampleOffsets * lightSampleOffsets,
+    const BSDFSampleOffsets *bsdfSampleOffsets,
+    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count);
 Spectrum UniformSampleOneLight(const Scene *scene, const Renderer *renderer,
     MemoryArena &arena, const Point &p, const Normal &n, const Vector &wo,
     float rayEpsilon, float time, BSDF *bsdf,
@@ -78,6 +91,12 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
     const Normal &n, const Vector &wo, float rayEpsilon, float time, const BSDF *bsdf,
     RNG &rng, const LightSample &lightSample, const BSDFSample &bsdfSample,
     BxDFType flags);
+void EstimateDirect(const Scene* scene, const Renderer* renderer,
+    MemoryArena &arena, const Light* light, const RayDifferential *ray,
+    const Intersection *isect,
+    RNG &rng, const LightSample* lightSample,
+    const BSDFSample *bsdfSample, Spectrum* Ld, const bool* hit,
+    const unsigned int count);
 Spectrum SpecularReflect(const RayDifferential &ray, BSDF *bsdf, RNG &rng,
     const Intersection &isect, const Renderer *renderer, const Scene *scene,
     const Sample *sample, MemoryArena &arena);

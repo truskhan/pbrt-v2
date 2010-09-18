@@ -114,6 +114,7 @@ struct Options {
     bool quiet, verbose;
     bool openWindow;
     string imageFile;
+    char* pbrtPath;
 };
 
 

@@ -57,6 +57,10 @@ int main(int argc, char *argv[]) {
         else filenames.push_back(argv[i]);
     }
 
+    size_t len = strlen(argv[0]) - 4; // minus name of the program "pbrt"
+    options.pbrtPath = new char[len];
+    strncpy(options.pbrtPath, argv[0], len);
+
     // Print welcome banner
     if (!options.quiet) {
         printf("pbrt version %s of %s at %s [Detected %d core(s)]\n",

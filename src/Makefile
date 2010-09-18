@@ -18,15 +18,29 @@ HAVE_DTRACE=0
 DEFS=-DPBRT_HAS_OPENEXR
 
 # 32 bit
-#MARCH=-m32 -msse2 -mfpmath=sse
+MARCH=-m32 -msse2 -mfpmath=sse
 
 # 64 bit
-MARCH=-m64
+#MARCH=-m64
 
 # change this to -g3 for debug builds
-OPT=-O2
+#OPT=-O2
+OPT=-g3
 # comment out this line to enable assertions at runtime
-DEFS += -DNDEBUG
+#DEFS += -DNDEBUG
+
+# common locations for the OpenCL libraries; needed by rayhierarchy accelerator
+HAVE_ATI = 0
+ATISTREAMSDKROOT=$(HOME)/ati-stream-sdk-v2.2-lnx32
+NVIDIASDKROOT=$(HOME)/NVIDIA_GPU_Computing_SDK
+
+ifeq ($(HAVE_ATI),1)
+	OPENCLINCLUDE=-I$(ATISTREAMSDKROOT)/include
+	OPENCLLIBS=-L$(ATISTREAMSDKROOT)/lib/x86 -lOpenCL
+else
+	OPENCLINCLUDE=-I$(NVIDIASDKROOT)/shared/inc -I$(NVIDIASDKROOT)/OpenCL/common/inc
+	OPENCLLIBS=-L$(NVIDIASDKROOT)/OpenCL/common/lib -L$(NVIDIASDKROOT)/shared/lib -loclUtil -lOpenCL  -lshrutil
+endif
 
 #########################################################################
 # nothing below this line should need to be changed (usually)
@@ -58,17 +72,20 @@ endif
 CC=gcc
 CXX=g++
 LD=$(CXX) $(OPT) $(MARCH)
-INCLUDE=-I. -Icore $(EXR_INCLUDES) $(TIFF_INCLUDES)
+INCLUDE=-I. -Icore $(EXR_INCLUDES) $(TIFF_INCLUDES) $(OPENCLINCLUDE)
 WARN=-Wall
 CWD=$(shell pwd)
 CXXFLAGS=$(OPT) $(MARCH) $(INCLUDE) $(WARN) $(DEFS)
 CCFLAGS=$(CXXFLAGS)
-LIBS=$(LEXLIB) $(EXR_LIBDIR) $(EXRLIBS) -lm 
+LIBS=$(LEXLIB) $(EXR_LIBDIR) $(EXRLIBS) $(OPENCLLIBS) -lm 
 
 LIBSRCS=$(wildcard core/*.cpp) core/pbrtlex.cpp core/pbrtparse.cpp
 LIBSRCS += $(wildcard accelerators/*.cpp cameras/*.cpp film/*.cpp filters/*.cpp )
 LIBSRCS += $(wildcard integrators/*.cpp lights/*.cpp materials/*.cpp renderers/*.cpp )
 LIBSRCS += $(wildcard samplers/*.cpp shapes/*.cpp textures/*.cpp volumes/*.cpp)
+ifeq ($(HAVE_ATI),1)
+LIBSRCS += $(wildcard cl/cmd_arg_reader.cpp cl/stopwatch.cpp cl/stopwatch_linux.cpp)
+endif
 
 LIBOBJS=$(addprefix objs/, $(subst /,_,$(LIBSRCS:.cpp=.o)))
 
@@ -95,6 +112,10 @@ $(LIBOBJS): $(HEADERS)
 objs/libpbrt.a: $(LIBOBJS)
 	@echo "Building the core rendering library (libpbrt.a)"
 	@ar rcs $@ $(LIBOBJS)
+
+objs/cl_%.o: cl/%.cpp
+	@echo "Building object $@"
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 objs/accelerators_%.o: accelerators/%.cpp
 	@echo "Building object $@"

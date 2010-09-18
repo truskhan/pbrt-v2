@@ -32,6 +32,8 @@
 #include "pbrt.h"
 #include "primitive.h"
 #include "integrator.h"
+#include "intersection.h"
+#include "accelerators/rayhierarchy.h"
 
 // Scene Declarations
 class Scene {
@@ -45,11 +47,26 @@ public:
         PBRT_FINISHED_RAY_INTERSECTION(const_cast<Ray *>(&ray), isect, int(hit));
         return hit;
     }
+    void Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
+      float* rayWeight, int & count, const unsigned int & xRes, const unsigned int & yRes,
+      const unsigned int & samplesPerPixel
+      #ifdef STAT_RAY_TRIANGLE
+      , Spectrum *Ls
+      #endif
+      ) const;
+    unsigned int MaxRaysPerCall() const;
     bool IntersectP(const Ray &ray) const {
         PBRT_STARTED_RAY_INTERSECTIONP(const_cast<Ray *>(&ray));
         bool hit = aggregate->IntersectP(ray);
         PBRT_FINISHED_RAY_INTERSECTIONP(const_cast<Ray *>(&ray), int(hit));
         return hit;
+    }
+    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count) const {
+      RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
+      if ( rh != NULL)
+        rh->IntersectP(ray, occluded, count);
+      else
+        Severe("Called IntersectP with unsupported aggregate!");
     }
     const BBox &WorldBound() const;
 

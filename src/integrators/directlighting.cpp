@@ -109,6 +109,32 @@ Spectrum DirectLightingIntegrator::Li(const Scene *scene,
     return L;
 }
 
+void DirectLightingIntegrator::Li(const Scene *scene, const Renderer *renderer,
+    const RayDifferential *ray, const Intersection *isect,
+    const Sample *sample, RNG &rng, MemoryArena &arena,
+    float* rayWeight, Spectrum* L, bool *hit, const size_t &count) const {
+
+  UniformSampleAllLights(scene, renderer, arena, ray, isect, sample, rng,
+    lightSampleOffsets, bsdfSampleOffsets, rayWeight, L, hit, count);
+  //Evaluate BSDF at hit point
+  for ( size_t i = 0; i < count; i++){
+    if (!hit[i]) continue;
+    BSDF *bsdf = isect[i].GetBSDF(ray[i], arena);
+    Vector wo = -(ray[i].d);
+    //Compute emitted light if ray hit an area light source
+    L[i] += isect[i].Le(wo);
+
+    if ( ray[i].depth + 1 < maxDepth) {
+      Vector wi;
+      //Trace rays for specular reflection and refraction
+      L[i] += SpecularReflect(ray[i], bsdf, rng, isect[i], renderer, scene,
+                &sample[i], arena);
+      L[i] += SpecularTransmit(ray[i], bsdf, rng, isect[i], renderer, scene,
+                &sample[i], arena);
+    }
+  }
+
+}
 
 DirectLightingIntegrator *CreateDirectLightingIntegrator(const ParamSet &params) {
     int maxDepth = params.FindOneInt("maxdepth", 5);

@@ -52,6 +52,32 @@ Scene::Scene(Primitive *accel, const vector<Light *> &lts,
     if (volumeRegion) bound = Union(bound, volumeRegion->WorldBound());
 }
 
+unsigned int Scene::MaxRaysPerCall() const {
+  RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
+  if ( rh != NULL)
+    return rh->MaxRaysPerCall();
+  else
+    Severe("Called MaxRaysPerCall with unsoppurted aggregate!");
+  return 1;
+}
+
+void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
+  float* rayWeight, int & count, const unsigned int & xRes, const unsigned int & yRes,
+  const unsigned int & samplesPerPixel
+  #ifdef STAT_RAY_TRIANGLE
+  , Spectrum *Ls
+  #endif
+  ) const {
+    RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
+    if ( rh != NULL)
+      rh->Intersect(ray, isect, rayWeight, hit, count, xRes, yRes, samplesPerPixel
+      #ifdef STAT_RAY_TRIANGLE
+        ,Ls
+      #endif
+      );
+    else
+      Severe("Called Intersect with unsupported aggregate!");
+  }
 
 const BBox &Scene::WorldBound() const {
     return bound;

@@ -70,6 +70,49 @@ Spectrum UniformSampleAllLights(const Scene *scene,
     return L;
 }
 
+void UniformSampleAllLights(const Scene *scene, const Renderer* renderer,
+    MemoryArena &arena, const RayDifferential *ray, const Intersection *isect,
+    const Sample *sample, RNG &rng,
+    const LightSampleOffsets * lightSampleOffsets,
+    const BSDFSampleOffsets *bsdfSampleOffsets,
+    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count){
+
+  Spectrum* Ld = new Spectrum[count];
+  LightSample* lightSample = new LightSample[count];
+  BSDFSample* bsdfSample = new BSDFSample[count];
+
+  for ( size_t i = 0; i < scene->lights.size(); ++i){
+    Light *light = scene->lights[i];
+    int nSamples = lightSampleOffsets ?
+                    lightSampleOffsets[i].nSamples : 1;
+    for ( size_t j = 0; j < nSamples; j++){
+      for ( size_t it = 0; it < count; it++){
+        if ( rayWeight[it] <= 0.f || !hit[it]) continue;
+        //find light and BSDF sample values for direct lighting estimate
+        if ( lightSampleOffsets != NULL && bsdfSampleOffsets != NULL ) {
+          lightSample[it] = LightSample(&sample[it], lightSampleOffsets[i],j);
+          bsdfSample[it] = BSDFSample(&sample[it], bsdfSampleOffsets[i], j);
+        }
+        else {
+          lightSample[it] = LightSample(rng);
+          bsdfSample[it] = BSDFSample(rng);
+        }
+      }
+
+      EstimateDirect(scene, renderer, arena, light, ray, isect, rng,lightSample,
+          bsdfSample, Ld, hit, count);
+      }
+    }
+    for ( size_t it = 0; it < count; it++){
+      if ( rayWeight[it] <= 0.f || !hit[it] ) continue;
+      L[it] += Ld[it];
+    }
+
+  delete [] Ld;
+  delete [] lightSample;
+  delete [] bsdfSample;
+}
+
 
 Spectrum UniformSampleOneLight(const Scene *scene,
         const Renderer *renderer, MemoryArena &arena, const Point &p,
@@ -165,6 +208,93 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
     return Ld;
 }
 
+void EstimateDirect(const Scene* scene, const Renderer* renderer,
+    MemoryArena &arena, const Light* light, const RayDifferential *ray,
+    const Intersection *isect,
+    RNG &rng, const LightSample* lightSample,
+    const BSDFSample *bsdfSample, Spectrum* Ld, const bool* hit,
+    const unsigned int count){
+
+  Vector* wi = new Vector[count];
+  float* lightPdf = new float[count];
+  VisibilityTester* visibility = new VisibilityTester[count];
+  Ray *shadowRay = new Ray[count];
+  Spectrum* Li = new Spectrum[count];
+  BSDF* bsdf;
+  Point p;
+
+  for ( size_t i = 0; i < count; i++) {
+    if (!hit[i]) continue;
+    bsdf = isect[i].GetBSDF(ray[i],arena);
+    p = bsdf->dgShading.p;
+    //Sample light source with multiple importance sampling
+    Li[i] = light->Sample_L(p, isect[i].rayEpsilon, lightSample[i], ray[i].time,
+                    &wi[i], &lightPdf[i], &visibility[i]);
+    shadowRay[i] = visibility[i].r;
+  }
+  unsigned char* occluded = new unsigned char[count];
+  //TODO: filter out rays that didn't intersect the scene
+  scene->IntersectP(shadowRay, occluded, count);
+
+  Normal n;
+  Vector wo;
+
+  for ( size_t i = 0; i < count; i++) {
+    if (!hit[i]) continue;
+    bsdf = isect[i].GetBSDF(ray[i], arena);
+    p = bsdf->dgShading.p;
+    n = bsdf->dgShading.nn;
+    wo = -ray[i].d;
+    float bsdfPdf;
+    if (lightPdf[i] > 0. && !Li[i].IsBlack()) {
+        Spectrum f = bsdf->f(wo, wi[i]);
+        if (!f.IsBlack() && occluded[i]=='0') {
+            // Add light's contribution to reflected radiance
+            Li[i] *= visibility[i].Transmittance(scene, renderer, NULL, rng, arena);
+            if (light->IsDeltaLight())
+                Ld[i] += f * Li[i] * AbsDot(wi[i], n) / lightPdf[i];
+            else {
+                bsdfPdf = bsdf->Pdf(wo, wi[i]);
+                float weight = PowerHeuristic(1, lightPdf[i], 1, bsdfPdf);
+                Ld[i] += f * Li[i] * AbsDot(wi[i], n) * weight / lightPdf[i];
+            }
+        }
+    }
+
+    // Sample BSDF with multiple importance sampling
+    if (!light->IsDeltaLight()) {
+        BxDFType flags = BxDFType(BSDF_ALL & ~BSDF_SPECULAR);
+        Spectrum f = bsdf->Sample_f(wo, &wi[i], bsdfSample[i], &bsdfPdf, flags);
+        if (!f.IsBlack() && bsdfPdf > 0.) {
+            lightPdf[i] = light->Pdf(p, wi[i]);
+            if (lightPdf[i] > 0.) {
+                // Add light contribution from BSDF sampling
+                float weight = PowerHeuristic(1, bsdfPdf, 1, lightPdf[i]);
+                Intersection lightIsect;
+                Li[i] = Spectrum(0.f);
+                RayDifferential rays(p, wi[i], isect[i].rayEpsilon, INFINITY, ray[i].time);
+                if (scene->Intersect(rays, &lightIsect)) {
+                    if (lightIsect.primitive->GetAreaLight() == light)
+                        Li[i] = lightIsect.Le(-wi[i]);
+                }
+                else
+                    Li[i] = light->Le(rays);
+                if (!Li[i].IsBlack()) {
+                    Li[i] *= renderer->Transmittance(scene, rays, NULL, rng, arena);
+                    Ld[i] += f * Li[i] * AbsDot(wi[i], n) * weight / bsdfPdf;
+                }
+            }
+        }
+    }
+
+    }
+    delete [] wi;
+    delete [] lightPdf;
+    delete [] visibility;
+    delete [] shadowRay;
+    delete [] Li;
+}
+
 
 Spectrum SpecularReflect(const RayDifferential &ray, BSDF *bsdf,
         RNG &rng, const Intersection &isect, const Renderer *renderer,
@@ -222,22 +352,22 @@ Spectrum SpecularTransmit(const RayDifferential &ray, BSDF *bsdf,
             rd.hasDifferentials = true;
             rd.rxOrigin = p + isect.dg.dpdx;
             rd.ryOrigin = p + isect.dg.dpdy;
-        
+
             float eta = bsdf->eta;
             Vector w = -wo;
             if (Dot(wo, n) < 0) eta = 1.f / eta;
-        
+
             Normal dndx = bsdf->dgShading.dndu * bsdf->dgShading.dudx + bsdf->dgShading.dndv * bsdf->dgShading.dvdx;
             Normal dndy = bsdf->dgShading.dndu * bsdf->dgShading.dudy + bsdf->dgShading.dndv * bsdf->dgShading.dvdy;
-        
+
             Vector dwodx = -ray.rxDirection - wo, dwody = -ray.ryDirection - wo;
             float dDNdx = Dot(dwodx, n) + Dot(wo, dndx);
             float dDNdy = Dot(dwody, n) + Dot(wo, dndy);
-        
+
             float mu = eta * Dot(w, n) - Dot(wi, n);
             float dmudx = (eta - (eta*eta*Dot(w,n))/Dot(wi, n)) * dDNdx;
             float dmudy = (eta - (eta*eta*Dot(w,n))/Dot(wi, n)) * dDNdy;
-        
+
             rd.rxDirection = wi + eta * dwodx - Vector(mu * dndx + dmudx * n);
             rd.ryDirection = wi + eta * dwody - Vector(mu * dndy + dmudy * n);
         }

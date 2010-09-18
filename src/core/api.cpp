@@ -38,6 +38,7 @@
 #include "accelerators/bvh.h"
 #include "accelerators/grid.h"
 #include "accelerators/kdtreeaccel.h"
+#include "accelerators/rayhierarchy.h"
 #include "cameras/environment.h"
 #include "cameras/orthographic.h"
 #include "cameras/perspective.h"
@@ -81,6 +82,7 @@
 #include "materials/translucent.h"
 #include "materials/uber.h"
 #include "renderers/aggregatetest.h"
+#include "renderers/breadth-first.h"
 #include "renderers/createprobes.h"
 #include "renderers/metropolis.h"
 #include "renderers/samplerrenderer.h"
@@ -581,6 +583,8 @@ Primitive *MakeAccelerator(const string &name,
         accel = CreateGridAccelerator(prims, paramSet);
     else if (name == "kdtree")
         accel = CreateKdTreeAccelerator(prims, paramSet);
+    else if (name == "rayhierarchy")
+        accel = CreateRayHieararchy(prims, paramSet);
     else
         Warning("Accelerator \"%s\" unknown.", name.c_str());
     paramSet.ReportUnused();
@@ -1043,7 +1047,7 @@ void pbrtShape(const string &name, const ParamSet &params) {
             Warning("Area lights not supported with object instancing");
         renderOptions->currentInstance->push_back(prim);
     }
-    
+
     else {
         renderOptions->primitives.push_back(prim);
         if (area != NULL) {
@@ -1236,6 +1240,20 @@ Renderer *RenderOptions::MakeRenderer() const {
         Point pCamera = camera->CameraToWorld(camera->shutterOpen, Point(0, 0, 0));
         renderer = CreateSurfacePointsRenderer(RendererParams, pCamera, camera->shutterOpen);
         RendererParams.ReportUnused();
+    }
+    else if (RendererName == "breadth-first"){
+        RendererParams.ReportUnused();
+        Sampler *sampler = MakeSampler(SamplerName, SamplerParams, camera->film, camera);
+        if (!sampler) Severe("Unable to create sampler.");
+        // Create surface and volume integrators
+        SurfaceIntegrator *surfaceIntegrator = MakeSurfaceIntegrator(SurfIntegratorName,
+            SurfIntegratorParams);
+        if (!surfaceIntegrator) Severe("Unable to create surface integrator.");
+        VolumeIntegrator *volumeIntegrator = MakeVolumeIntegrator(VolIntegratorName,
+            VolIntegratorParams);
+        if (!volumeIntegrator) Severe("Unable to create volume integrator.");
+        renderer = new breadthFirst(sampler, camera, surfaceIntegrator,
+            volumeIntegrator);
     }
     else {
         if (RendererName != "sampler")

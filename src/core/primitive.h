@@ -41,6 +41,11 @@ public:
     virtual ~Primitive();
     virtual BBox WorldBound() const = 0;
     virtual bool CanIntersect() const;
+    virtual void Intersect(const RayDifferential *r, Intersection *in,
+      float* rayWeight, bool* hit, int counter) const {
+        Severe("Called Intersect for more rays with unsoppurted aggregate!");
+        return;
+    }
     virtual bool Intersect(const Ray &r, Intersection *in) const = 0;
     virtual bool IntersectP(const Ray &r) const = 0;
     virtual void Refine(vector<Reference<Primitive> > &refined) const;
@@ -76,6 +81,7 @@ public:
                   const Transform &ObjectToWorld, MemoryArena &arena) const;
     BSSRDF *GetBSSRDF(const DifferentialGeometry &dg,
                       const Transform &ObjectToWorld, MemoryArena &arena) const;
+    const Shape* GetShapePtr() const { return shape.GetPtr();}
 private:
     // GeometricPrimitive Private Data
     Reference<Shape> shape;

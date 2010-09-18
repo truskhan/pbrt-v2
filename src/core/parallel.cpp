@@ -37,7 +37,7 @@
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <errno.h>
-#endif 
+#endif
 #include <list>
 
 // Parallel Local Declarations
@@ -45,7 +45,7 @@
 static HANDLE *threads;
 #elif !defined(PBRT_USE_GRAND_CENTRAL_DISPATCH)
 static pthread_t *threads;
-#endif 
+#endif
 #ifdef PBRT_USE_GRAND_CENTRAL_DISPATCH
 static dispatch_queue_t gcdQueue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
 static dispatch_group_t gcdGroup = dispatch_group_create();
@@ -460,20 +460,20 @@ void RWMutexLock::DowngradeToRead() {
 }
 
 
-#endif 
+#endif
 #if !defined(PBRT_IS_WINDOWS)
-Semaphore::Semaphore() {
+Semaphore::Semaphore(unsigned int value) {
 #ifdef __OpenBSD__
     sem = (sem_t *)malloc(sizeof(sem_t));
     if (!sem)
         Severe("Error from sem_open");
-    int err = sem_init(sem, 0, 0);
+    int err = sem_init(sem, 0, value);
     if (err == -1)
         Severe("Error from sem_init: %s", strerror(err));
 #else
     char name[32];
     sprintf(name, "pbrt.%d-%d", (int)getpid(), count++);
-    sem = sem_open(name, O_CREAT, S_IRUSR|S_IWUSR, 0);
+    sem = sem_open(name, O_CREAT, S_IRUSR|S_IWUSR, value);
     if (!sem)
         Severe("Error from sem_open: %s", strerror(errno));
 #endif // !__OpenBSD__
@@ -482,8 +482,8 @@ Semaphore::Semaphore() {
 
 #endif // !PBRT_IS_WINDOWS
 #if defined(PBRT_IS_WINDOWS)
-Semaphore::Semaphore() {
-    handle = CreateSemaphore(NULL, 0, 65535,  NULL);
+Semaphore::Semaphore(unsigned int value) {
+    handle = CreateSemaphore(NULL, value, 65535,  NULL);
     if (!handle)
         Severe("Error from CreateSemaphore: %d", GetLastError());
 }

@@ -131,17 +131,21 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
   // Create the program
   cpPrograms[i] = clCreateProgramWithSource(cxContext, 1, (const char **)&cSourceCL, &szKernelLength, &ciErrNum);
 
-  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,0,NULL,NULL);
- /* #ifdef STAT_TRIANGLE_CONE
-  "-DSTAT_TRIANGLE_CONE",
-  #else
-      #ifdef STAT_RAY_TRIANGLE
-      "-DSTAT_RAY_TRIANGLE",
-      #else
-      "-g",
-      #endif
+  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
+  #ifdef STAT_RAY_TRIANGLE
+   "-DSTAT_RAY_TRIANGLE",
+  #endif
+  #ifdef STAT_PRAY_TRIANGLE
+    "-DSTAT_PRAY_TRIANGLE",
+  #endif
+  #ifdef STAT_TRIANGLE_CONE
+    "-DSTAT_TRIANGLE_CONE",
+  #endif
+  #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
+    0,
   #endif
   NULL, NULL);//"-g", NULL, NULL);*/
+
   if (ciErrNum != CL_SUCCESS){
     // write out standard error, Build Log and PTX, then cleanup and exit
     shrLog(LOGBOTH | ERRORMSG, ciErrNum, STDERROR);
@@ -379,7 +383,7 @@ bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data){
 bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
-  ciErrNum = clEnqueueReadBuffer(queue, cmBuffers[it], CL_TRUE, 0, sizeBuff[it] , odata, 1, &kernelEvent, &writeEvents[writeENum++]);
+  ciErrNum = clEnqueueReadBuffer(queue, cmBuffers[it], CL_TRUE, 0, sizeBuff[it] , odata, 1, &kernelEvent, &readEvents[readENum++]);
   if ( ciErrNum != CL_SUCCESS){
     cout << "failed read " << it << " buffer " << ciErrNum << " " << stringError(ciErrNum)<< endl;
     //cleanup();

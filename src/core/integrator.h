@@ -63,7 +63,11 @@ public:
     virtual void Li(const Scene * scene, const Renderer *renderer,
       const RayDifferential *ray, const Intersection *isect,
       const Sample *sample, RNG &rng, MemoryArena &arena, float* rayWeight,
-      Spectrum* L, bool *hit, const size_t &count) const {
+      Spectrum* L, bool *hit, const size_t &count
+      #ifdef STAT_PRAY_TRIANGLE
+      , Spectrum *Ls
+      #endif
+      ) const {
         Severe("Called Li for more rays with unsoppurted surface integrator!");
       }
 };
@@ -79,7 +83,11 @@ void UniformSampleAllLights(const Scene *scene, const Renderer* renderer,
     const Sample *sample, RNG &rng,
     const LightSampleOffsets * lightSampleOffsets,
     const BSDFSampleOffsets *bsdfSampleOffsets,
-    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count);
+    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    );
 Spectrum UniformSampleOneLight(const Scene *scene, const Renderer *renderer,
     MemoryArena &arena, const Point &p, const Normal &n, const Vector &wo,
     float rayEpsilon, float time, BSDF *bsdf,
@@ -96,7 +104,11 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
     const Intersection *isect,
     RNG &rng, const LightSample* lightSample,
     const BSDFSample *bsdfSample, Spectrum* Ld, const bool* hit,
-    const unsigned int count);
+    const unsigned int count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    );
 Spectrum SpecularReflect(const RayDifferential &ray, BSDF *bsdf, RNG &rng,
     const Intersection &isect, const Renderer *renderer, const Scene *scene,
     const Sample *sample, MemoryArena &arena);

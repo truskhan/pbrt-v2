@@ -23,7 +23,11 @@ public:
     );
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
-    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count);
+    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    );
     unsigned int MaxRaysPerCall();
 
 private:

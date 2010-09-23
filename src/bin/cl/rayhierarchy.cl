@@ -2,12 +2,19 @@
 #define EPS 0.000002f
 
 void intersectPAllLeaves (const __global float* dir, const __global float* o, const __global float* bounds,
-__global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex
+__global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex,
+#ifdef STAT_PRAY_TRIANGLE
+ __global int* stat_rayTriangle
+#endif
 ){
     float4 s1, s2, d, rayd, rayo;
     float divisor, invDivisor, t, b1, b2;
     // process all rays in the cone
     for ( int i = 0; i < chunk; i++){
+      #ifdef STAT_PRAY_TRIANGLE
+       ++stat_rayTriangle[rindex + i];
+      #endif
+
       rayd = (float4)(dir[3*rindex + 3*i], dir[3*rindex + 3*i+1], dir[3*rindex + 3*i+2],0);
       rayo = (float4)(o[3*rindex + 3*i], o[3*rindex +3*i+1], o[3*rindex + 3*i+2],0);
       s1 = cross(rayd, e2);
@@ -109,7 +116,8 @@ float4 e1, float4 e2, int chunk, int rindex ){
       t = dot(e2, s2) * invDivisor;
       if (t < bounds[2*rindex + i*2]) continue;
 
-      if (t > tHit[rindex + i]) continue;
+      //if (t >= tHit[rindex + i]) continue;
+      if ( t > tHit[rindex + i] || index[rindex+i] == get_global_id(0)) continue;
         tHit[rindex + i] = t;
         index[rindex + i] = get_global_id(0);
         changed[get_global_id(0)] = rindex + i;
@@ -442,7 +450,7 @@ __kernel void IntersectionR (
           len = length(center-a);
           if ( len < EPS || acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
           {
-            #ifdef STAT_PICTURE
+            #ifdef STAT_TRIANGLE_CONE
              ++stat_triangleCone[iGID];
             #endif
             child = computeChild(threadsCount,i);
@@ -601,7 +609,12 @@ __kernel void YetAnotherIntersection (
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
  const __global float* cones, const __global float* bounds,
-__global unsigned char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount)
+__global unsigned char* tHit,
+#ifdef STAT_PRAY_TRIANGLE
+ __global int* stat_rayTriangle,
+#endif
+__local int* stack, int count, int size, int height,unsigned int threadsCount
+)
 {
     int iGID = get_global_id(0);
     int iLID = get_local_id(0);
@@ -667,7 +680,11 @@ __global unsigned char* tHit, __local int* stack, int count, int size, int heigh
             //if the cones is at level 0 - check leaves
             if ( child < 0){
               rindex = computeRIndex(i,cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[7],rindex);
+              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[7],rindex
+              #ifdef STAT_PRAY_TRIANGLE
+               ,stat_rayTriangle
+              #endif
+              );
             }
             else {
               //save the intersected cone to the stack
@@ -683,7 +700,11 @@ __global unsigned char* tHit, __local int* stack, int count, int size, int heigh
             //if the cone is at level 0 - check leaves
             if ( child < 0) {
               rindex = computeRIndex(i + 8, cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+15],rindex);
+              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+15],rindex
+              #ifdef STAT_PRAY_TRIANGLE
+               ,stat_rayTriangle
+              #endif
+              );
             }
             else {
               stack[iLID*height + SPindex++] = child;

@@ -61,10 +61,18 @@ public:
         PBRT_FINISHED_RAY_INTERSECTIONP(const_cast<Ray *>(&ray), int(hit));
         return hit;
     }
-    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count) const {
+    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count
+      #ifdef STAT_PRAY_TRIANGLE
+      , Spectrum *Ls
+      #endif
+    ) const {
       RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
       if ( rh != NULL)
-        rh->IntersectP(ray, occluded, count);
+        rh->IntersectP(ray, occluded, count
+          #ifdef STAT_PRAY_TRIANGLE
+          , Ls
+          #endif
+        );
       else
         Severe("Called IntersectP with unsupported aggregate!");
     }

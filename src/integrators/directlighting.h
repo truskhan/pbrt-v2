@@ -46,7 +46,11 @@ public:
     void Li(const Scene *scene, const Renderer *renderer,
         const RayDifferential *ray, const Intersection *isect,
         const Sample *sample, RNG &rng, MemoryArena &arena,
-        float* rayWeight, Spectrum* L, bool *hit, const size_t &count) const;
+        float* rayWeight, Spectrum* L, bool *hit, const size_t &count
+        #ifdef STAT_PRAY_TRIANGLE
+        , Spectrum *Ls
+        #endif
+        ) const;
     void RequestSamples(Sampler *sampler, Sample *sample, const Scene *scene);
 private:
     // DirectLightingIntegrator Private Data

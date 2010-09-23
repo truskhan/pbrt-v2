@@ -75,7 +75,11 @@ void UniformSampleAllLights(const Scene *scene, const Renderer* renderer,
     const Sample *sample, RNG &rng,
     const LightSampleOffsets * lightSampleOffsets,
     const BSDFSampleOffsets *bsdfSampleOffsets,
-    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count){
+    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    ){
 
   Spectrum* Ld = new Spectrum[count];
   LightSample* lightSample = new LightSample[count];
@@ -100,7 +104,11 @@ void UniformSampleAllLights(const Scene *scene, const Renderer* renderer,
       }
 
       EstimateDirect(scene, renderer, arena, light, ray, isect, rng,lightSample,
-          bsdfSample, Ld, hit, count);
+          bsdfSample, Ld, hit, count
+          #ifdef STAT_PRAY_TRIANGLE
+          , Ls
+          #endif
+          );
       }
     }
     for ( size_t it = 0; it < count; it++){
@@ -213,7 +221,11 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
     const Intersection *isect,
     RNG &rng, const LightSample* lightSample,
     const BSDFSample *bsdfSample, Spectrum* Ld, const bool* hit,
-    const unsigned int count){
+    const unsigned int count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    ){
 
   Vector* wi = new Vector[count];
   float* lightPdf = new float[count];
@@ -234,7 +246,11 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
   }
   unsigned char* occluded = new unsigned char[count];
   //TODO: filter out rays that didn't intersect the scene
-  scene->IntersectP(shadowRay, occluded, count);
+  scene->IntersectP(shadowRay, occluded, count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Ls
+    #endif
+  );
 
   Normal n;
   Vector wo;

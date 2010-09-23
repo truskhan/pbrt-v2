@@ -112,10 +112,18 @@ Spectrum DirectLightingIntegrator::Li(const Scene *scene,
 void DirectLightingIntegrator::Li(const Scene *scene, const Renderer *renderer,
     const RayDifferential *ray, const Intersection *isect,
     const Sample *sample, RNG &rng, MemoryArena &arena,
-    float* rayWeight, Spectrum* L, bool *hit, const size_t &count) const {
+    float* rayWeight, Spectrum* L, bool *hit, const size_t &count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    ) const {
 
   UniformSampleAllLights(scene, renderer, arena, ray, isect, sample, rng,
-    lightSampleOffsets, bsdfSampleOffsets, rayWeight, L, hit, count);
+    lightSampleOffsets, bsdfSampleOffsets, rayWeight, L, hit, count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Ls
+    #endif
+    );
   //Evaluate BSDF at hit point
   for ( size_t i = 0; i < count; i++){
     if (!hit[i]) continue;

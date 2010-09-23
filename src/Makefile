@@ -5,7 +5,7 @@
 # common locations for the OpenEXR libraries; may need to be updated
 # for unusual installation locations
 HAVE_EXR=1
-EXR_INCLUDES=-I/usr/local/include/OpenEXR -I/usr/include/OpenEXR -I/opt/local/include/OpenEXR 
+EXR_INCLUDES=-I/usr/local/include/OpenEXR -I/usr/include/OpenEXR -I/opt/local/include/OpenEXR
 EXR_LIBDIR=-L/usr/local/lib -L/opt/local/lib
 
 HAVE_LIBTIFF=0
@@ -28,6 +28,12 @@ MARCH=-m32 -msse2 -mfpmath=sse
 OPT=-g3
 # comment out this line to enable assertions at runtime
 #DEFS += -DNDEBUG
+
+#statistics
+#STAT_TRIANGLE_CONE - shows only numbers how many times was a cone tested egainst triangle
+#STAT_RAY_TRIANGLE - shows a gray scaled image, brighter pixel - more primary ray triangle tests
+#STAT_PRAY_TRIANGLE - show a gray scaled image, brighter pixel - more shadow ray triangle tests
+DEFS += -DSTAT_PRAY_TRIANGLE
 
 # common locations for the OpenCL libraries; needed by rayhierarchy accelerator
 HAVE_ATI = 0
@@ -77,14 +83,14 @@ WARN=-Wall
 CWD=$(shell pwd)
 CXXFLAGS=$(OPT) $(MARCH) $(INCLUDE) $(WARN) $(DEFS)
 CCFLAGS=$(CXXFLAGS)
-LIBS=$(LEXLIB) $(EXR_LIBDIR) $(EXRLIBS) $(OPENCLLIBS) -lm 
+LIBS=$(LEXLIB) $(EXR_LIBDIR) $(EXRLIBS) $(OPENCLLIBS) -lm
 
 LIBSRCS=$(wildcard core/*.cpp) core/pbrtlex.cpp core/pbrtparse.cpp
 LIBSRCS += $(wildcard accelerators/*.cpp cameras/*.cpp film/*.cpp filters/*.cpp )
 LIBSRCS += $(wildcard integrators/*.cpp lights/*.cpp materials/*.cpp renderers/*.cpp )
 LIBSRCS += $(wildcard samplers/*.cpp shapes/*.cpp textures/*.cpp volumes/*.cpp)
 ifeq ($(HAVE_ATI),1)
-LIBSRCS += $(wildcard cl/cmd_arg_reader.cpp cl/stopwatch.cpp cl/stopwatch_linux.cpp)
+LIBSRCS += $(wildcard cl/cmd_arg_reader.cpp cl/stopwatch.cpp cl/stopwatch_linux.cpp cl/shrUtils.cpp cl/oclUtils.cpp)
 endif
 
 LIBOBJS=$(addprefix objs/, $(subst /,_,$(LIBSRCS:.cpp=.o)))
@@ -107,7 +113,7 @@ dirs:
 
 $(LIBOBJS): $(HEADERS)
 
-.PHONY: dirs tools 
+.PHONY: dirs tools
 
 objs/libpbrt.a: $(LIBOBJS)
 	@echo "Building the core rendering library (libpbrt.a)"
@@ -181,13 +187,13 @@ objs/%.o: tools/%.cpp
 	@echo "Building object $@"
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
 
-bin/%: objs/%.o objs/libpbrt.a 
+bin/%: objs/%.o objs/libpbrt.a
 	@echo "Linking $@"
 	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
 
-bin/exrtotiff: objs/exrtotiff.o 
+bin/exrtotiff: objs/exrtotiff.o
 	@echo "Linking $@"
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(TIFF_LIBDIR) -ltiff $(LIBS) 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(TIFF_LIBDIR) -ltiff $(LIBS)
 
 core/pbrtlex.cpp: core/pbrtlex.ll core/pbrtparse.cpp
 	@echo "Lex'ing pbrtlex.ll"
@@ -209,4 +215,4 @@ endif
 $(RENDERER_BINARY): $(RENDERER_OBJS) $(CORE_LIB)
 
 clean:
-	rm -f objs/* bin/* core/pbrtlex.[ch]* core/pbrtparse.[ch]*
+	rm -f objs/* bin/pbrt core/pbrtlex.[ch]* core/pbrtparse.[ch]*

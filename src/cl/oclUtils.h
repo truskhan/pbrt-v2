@@ -17,9 +17,15 @@
 #define OCL_UTILS_H
 
 // Common headers:  Cross-API utililties and OpenCL header
+#if HAVE_ATI == 1
 #include "cl/shrUtils.h"
 #include "cl/cl.h"
 #include "cl/cl_ext.h"
+#else
+#include "cl/shrUtils.h"
+#include "CL/cl.h"
+#include "CL/cl_ext.h"
+#endif
 
 // reminders for output window and build log
 #ifdef _WIN32

@@ -15,8 +15,19 @@
 #include "cl/oclUtils.h"
 #include "cl/shrUtils.h"
 
+#ifdef GPU_TIMES
+extern double* kernel_times;
+extern unsigned int* kernel_calls;
+extern double wmem_times;
+extern double rmem_times;
+#endif
+
+const char* stringError(cl_int errNum);
+double executionTime(cl_event &event);
+
 /**Class for holding OpenCL kernel and auxiliary variables**/
 class OpenCLTask {
+    size_t kernel;
     /// # of work-itmes in 1D work group
     size_t szLocalWorkSize;
     /// OpenCL kernel
@@ -44,7 +55,7 @@ class OpenCLTask {
   public:
     /// Total # of work items in the 1D range
     size_t szGlobalWorkSize;
-    OpenCLTask(cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
+    OpenCLTask(size_t kernel,cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
     const char* function, size_t szLWS, size_t szGWS);
     ~OpenCLTask();
     void InitBuffers(size_t count);
@@ -106,10 +117,9 @@ class OpenCLQueue {
     /**Creation of OpenCL Task
     \see OpenCL:CreateTask() for detail description of parameters
     **/
-    size_t CreateTask(cl_context & context, cl_program & program, const char* func, size_t szLWS, size_t szGWS){
+    size_t CreateTask(size_t kernel, cl_context & context, cl_program & program, const char* func, size_t szLWS, size_t szGWS){
       MutexLock lock(*globalmutex);
       if ( numtasks == maxtasks) {
-        std::cout << "exceeded maxtasks " << std::endl;
         OpenCLTask** temp = new OpenCLTask*[2*maxtasks];
         for ( unsigned int i = 0; i < maxtasks; i++)
             temp[i] = tasks[i];
@@ -119,7 +129,7 @@ class OpenCLQueue {
        tasks = temp;
        maxtasks *= 2;
       }
-      tasks[numtasks++] = (new OpenCLTask(context, cmd_queue, globalmutex, program, func , szLWS, szGWS));
+      tasks[numtasks++] = (new OpenCLTask(kernel, context, cmd_queue, globalmutex, program, func , szLWS, szGWS));
       return numtasks-1;
     }
     OpenCLTask* getTask(size_t i = 0){
@@ -230,7 +240,7 @@ class OpenCL {
     @param[in] szGWS global number of work-items, should be multiple of szLWS
     **/
     size_t CreateTask(size_t kernel, size_t count, size_t i = 0, size_t szLWS = 0, size_t szGWS = 0){
-        size_t task = queue[i]->CreateTask(cxContext, cpPrograms[kernel], functions[kernel], szLWS, shrRoundUp((int)szLWS, count));
+        size_t task = queue[i]->CreateTask(kernel, cxContext, cpPrograms[kernel], functions[kernel], szLWS, shrRoundUp((int)szLWS, count));
         Info("Created Task %d in queue %d.",task, i);
         return task;
     }
@@ -257,7 +267,15 @@ class OpenCL {
     void Finish(size_t i = 0){
       queue[i]->Finish();
     }
-
+    #ifdef GPU_TIMES
+    void PrintTimes(){
+      printf("Measured times in seconds\n");
+      for ( size_t i = 0; i < numKernels; i++)
+        printf("total %i kernel (%i run) time:\t %f\n", i, kernel_calls[i], kernel_times[i]);
+      printf("total wmem transfer time:\t %f\n", wmem_times);
+      printf("total rmem transfer time:\t %f\n", rmem_times);
+    }
+    #endif
 };
 
 

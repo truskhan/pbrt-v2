@@ -117,6 +117,9 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
 
 RayHieararchy::~RayHieararchy() {
   ocl->DeleteCmdQueue(cmd);
+  #ifdef GPU_TIMES
+  ocl->PrintTimes();
+  #endif
   delete ocl;
   delete [] vertices;
   delete [] uvs;
@@ -448,7 +451,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     if (!anotherIntersect->EnqueueReadBuffer( 5, tHitArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->EnqueueReadBuffer( 6, indexArray)) exit(EXIT_FAILURE);
     anotherIntersect->WaitForRead();
-    for ( int i = 0; i < triangleCount; i++){
+    for ( size_t i = 0; i < triangleCount; i++){
       if ( changedArray[i] != 0){
         cout << "OPRAVA triangle " << i << " ray " << changedArray[i] << endl;
       }

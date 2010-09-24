@@ -33,10 +33,11 @@ OPT=-g3
 #STAT_TRIANGLE_CONE - shows only numbers how many times was a cone tested egainst triangle
 #STAT_RAY_TRIANGLE - shows a gray scaled image, brighter pixel - more primary ray triangle tests
 #STAT_PRAY_TRIANGLE - show a gray scaled image, brighter pixel - more shadow ray triangle tests
-DEFS += -DSTAT_PRAY_TRIANGLE
+#GPU_TIMES - shows summary times for clEnqueueNDRangeKernel, clEnqueueWriteBuffer..
+DEFS += -DGPU_TIMES
 
 # common locations for the OpenCL libraries; needed by rayhierarchy accelerator
-HAVE_ATI = 0
+HAVE_ATI = 1
 ATISTREAMSDKROOT=$(HOME)/ati-stream-sdk-v2.2-lnx32
 NVIDIASDKROOT=$(HOME)/NVIDIA_GPU_Computing_SDK
 

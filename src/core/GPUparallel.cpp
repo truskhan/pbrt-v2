@@ -2,8 +2,12 @@
 using namespace std;
 
 cl_context OpenCL::cxContext; //OpenCL context
-
-const char* stringError(cl_int errNum);
+#ifdef GPU_TIMES
+double* kernel_times;
+unsigned int* kernel_calls;
+double wmem_times;
+double rmem_times;
+#endif
 
 OpenCL::OpenCL(bool onGPU, size_t numKernels){
 // create the OpenCL context on a GPU device
@@ -83,6 +87,13 @@ OpenCL::OpenCL(bool onGPU, size_t numKernels){
 
   cpPrograms = new cl_program[numKernels];
   functions = new const char*[numKernels];
+  #ifdef GPU_TIMES
+  kernel_times = new double[numKernels];
+  kernel_calls = new unsigned int[numKernels];
+  for ( size_t i = 0; i < numKernels; i++)
+    kernel_times[i] = kernel_calls[i] = 0;
+  wmem_times = rmem_times = 0;
+  #endif
 }
 
 OpenCLQueue::OpenCLQueue(cl_context & context){
@@ -93,7 +104,7 @@ OpenCLQueue::OpenCLQueue(cl_context & context){
   devices = new cl_device_id[cb];
   clGetContextInfo(context, CL_CONTEXT_DEVICES, cb, devices, NULL);
   // create a command-queue
-  #ifdef GPU_PROFILE
+  #ifdef GPU_TIMES
   cmd_queue = clCreateCommandQueue(context, devices[0], CL_QUEUE_PROFILING_ENABLE , NULL); //take first device
   #else
   cmd_queue = clCreateCommandQueue(context, devices[0], NULL , NULL);
@@ -104,11 +115,11 @@ OpenCLQueue::OpenCLQueue(cl_context & context){
       free(devices);
       abort();
   }
-  #ifdef GPU_PROFILE
+  /*#ifdef GPU_TIMES
       cl_int ciErrNum = clSetCommandQueueProperty(cmd_queue, CL_QUEUE_PROFILING_ENABLE, CL_TRUE, NULL);
       if (ciErrNum != CL_SUCCESS)
           Severe(" Error %i %s in clSetCommandQueueProperty call !!!\n\n", ciErrNum, stringError(ciErrNum));
-  #endif
+  #endif*/
   delete [] devices;
   maxtasks = 3;
   numtasks = 0;
@@ -157,10 +168,11 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
   functions[i] =  function;
 }
 
-OpenCLTask::OpenCLTask(cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
+OpenCLTask::OpenCLTask(size_t kernel, cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
  const char* function, size_t szLWS, size_t szGWS){
   this->context = context;
   this->queue = queue;
+  this->kernel = kernel;
   szLocalWorkSize = szLWS;
   szGlobalWorkSize = szGWS;
   persistent = createBuff = NULL;
@@ -197,9 +209,8 @@ void OpenCLTask::CopyBuffer(size_t src, size_t dst, OpenCLTask* oclt){
   createBuff[dst] = false;
 
   cl_int ciErrNum = clSetKernelArg(ckKernel, dst, sizeof(cl_mem), (void*)(&(cmBuffers[dst])));
-  if (ciErrNum != CL_SUCCESS){
-     cout << "Failed setting " << dst << ". parameter " << ciErrNum << " " << stringError(ciErrNum) <<  endl;
-  }
+  if (ciErrNum != CL_SUCCESS)
+    Severe("failed setting %i parameter, error: %i %s", dst, ciErrNum, stringError(ciErrNum));
 }
 
 void OpenCLTask::CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, OpenCLTask* oclt){
@@ -212,10 +223,8 @@ void OpenCLTask::CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, Op
     createBuff[j] = false;
 
     ciErrNum = clSetKernelArg(ckKernel, j, sizeof(cl_mem),  (void*)(&(cmBuffers[j])));
-    if (ciErrNum != CL_SUCCESS){
-     cout << "Failed setting " << j << ". parameter " << ciErrNum << " " << stringError(ciErrNum) <<  endl;
-     return;
-    }
+    if (ciErrNum != CL_SUCCESS)
+      Severe("failed setting %i parameter, error: %i %s", j, ciErrNum, stringError(ciErrNum));
     j++;
   }
 }
@@ -239,10 +248,8 @@ bool OpenCLTask::CreateBuffers( size_t* size, cl_mem_flags* flags){
       Severe("clCreateBuffer failed at buffer number %d with error %d %s", it, ciErrNum, stringError(ciErrNum));
     }
     ciErrNum = clSetKernelArg(ckKernel, it, sizeof(cl_mem), (void*)&cmBuffers[it]);
-    if (ciErrNum != CL_SUCCESS){
-      cout << "Failed setting " << it << ". parameter " << ciErrNum << " " << stringError(ciErrNum) << endl;
-      return false;
-    }
+    if (ciErrNum != CL_SUCCESS)
+      Severe("failed setting %i parameter, error: %i %s", it, ciErrNum, stringError(ciErrNum));
   }
 
   return true;
@@ -254,9 +261,6 @@ bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags){
   // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
   sizeBuff[i] = size;
   if ( !createBuff[i]) return true;
-  #ifdef DEBUG_OUTPUT
-  cout<<"clCreateBuffer " << i << endl;
-  #endif
   cmBuffers[i] = clCreateBuffer(context, flags, size, NULL, &ciErrNum);
   if ( ciErrNum != CL_SUCCESS){
     for ( size_t j = 0; j < buffCount; j++)
@@ -266,10 +270,8 @@ bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags){
     Severe("clCreateBuffer failed at buffer number %d with error %d %s", i, ciErrNum, stringError(ciErrNum));
   }
   ciErrNum = clSetKernelArg(ckKernel, i, sizeof(cl_mem), (void*)&cmBuffers[i]);
-  if (ciErrNum != CL_SUCCESS){
-     cout << "Failed setting " << i << ". parameter " << ciErrNum << " " << stringError(ciErrNum) <<  endl;
-     return false;
-  }
+  if (ciErrNum != CL_SUCCESS)
+    Severe("failed setting %i parameter, error: %i %s", i, ciErrNum, stringError(ciErrNum));
 
   return true;
 }
@@ -339,19 +341,14 @@ bool OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
     }
     ciErrNum = clEnqueueWriteBuffer(queue, cmBuffers[it], CL_FALSE, 0, sizeBuff[it] , data[it], 0, NULL, &writeEvents[writeENum++]);
     //probably useless test, if it is asynchronous?
-    if ( ciErrNum != CL_SUCCESS){
-      cout << "Failed " << ciErrNum << " " << stringError(ciErrNum) << " asynchronous data transfer at buffer "<< it << endl;
-      //cleanup();
-      return false;
-    }
-    #ifdef DEBUG
-    Info("Waiting on clFinish - EnqueueWriteBuffer %d", it);
+    if ( ciErrNum != CL_SUCCESS)
+      Severe("Failed asynchronous data transfer at %i buffer, error: %i %s",it, ciErrNum, stringError(ciErrNum));
+
+    #ifdef GPU_TIMES
     ciErrNum = clFinish(queue);
-    if ( ciErrNum != CL_SUCCESS){
-      cout << "failed data transfer at buffer " << it << " error: " << ciErrNum << " " << stringError(ciErrNum) << endl;
-      //cleanup();
-      return false;
-    }
+    if ( ciErrNum != CL_SUCCESS)
+      Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
+    kernel_times[kernel] += executionTime(writeEvents[writeENum - 1]);
     #endif
     ++it;
   }
@@ -363,19 +360,14 @@ bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data){
   MutexLock lock(*globalmutex);
 
   ciErrNum = clEnqueueWriteBuffer(queue, cmBuffers[it], CL_FALSE, 0, sizeBuff[it] , data, 0, NULL, &writeEvents[writeENum++]);
-  if ( ciErrNum != CL_SUCCESS){
-    cout << "Failed " << ciErrNum << " " << stringError(ciErrNum) << " asynchronous data transfer at buffer "<< it << endl;
-    //cleanup();
-    return false;
-  }
-  #ifdef DEBUG
-  Info("Waiting on clFinish - EnqueueWriteBuffer");
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed asynchronous data transfer at %i buffer %i %s", it, ciErrNum, stringError(ciErrNum));
+
+  #ifdef GPU_TIMES
   ciErrNum = clFinish(queue);
-  if ( ciErrNum != CL_SUCCESS){
-    Severe("failed data transfer %d %s", ciErrNum, stringError(ciErrNum)) ;
-    //cleanup();
-    return false;
-  }
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
+  kernel_times[kernel] += executionTime(writeEvents[writeENum - 1]);
   #endif
   return true;
 }
@@ -384,12 +376,14 @@ bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
   ciErrNum = clEnqueueReadBuffer(queue, cmBuffers[it], CL_TRUE, 0, sizeBuff[it] , odata, 1, &kernelEvent, &readEvents[readENum++]);
-  if ( ciErrNum != CL_SUCCESS){
-    cout << "failed read " << it << " buffer " << ciErrNum << " " << stringError(ciErrNum)<< endl;
-    //cleanup();
-    return false;
-  }
-
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed read %i buffer %i %s", it, ciErrNum, stringError(ciErrNum));
+  #ifdef GPU_TIMES
+  ciErrNum = clFinish(queue);
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
+  kernel_times[kernel] += executionTime(readEvents[readENum - 1]);
+  #endif
   return true;
 }
 
@@ -417,27 +411,21 @@ bool OpenCLTask::Run(){
     ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, 1, NULL, &szGlobalWorkSize, &szLocalWorkSize, writeENum, (writeENum == 0)?0:writeEvents,  &kernelEvent);
     //OpenCL implementace vybere velikost bloku
     //ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, 1, NULL, &szGlobalWorkSize, NULL, 0, NULL,  NULL);
-    if ( ciErrNum != CL_SUCCESS){
+    if ( ciErrNum != CL_SUCCESS)
       Severe("failed enqueue kernel %d %s", ciErrNum, stringError(ciErrNum));
-    }
-    #ifdef GPU_PROFILE
-    Info("Waiting on clFinish - clEnqueueNDRangeKernel");
+
+    #ifdef GPU_TIMES
     ciErrNum = clFinish(queue);
-    if ( ciErrNum != CL_SUCCESS){
+    if ( ciErrNum != CL_SUCCESS)
       Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
-    }
-    double ktime = executionTime(kernelEvent);
-    Info("Kernel execution time is %f.9", ktime);
-    for ( size_t i = 0; i < writeENum; i++)
-      clReleaseEvent(writeEvents[i]);
+    kernel_times[kernel] += executionTime(kernelEvent);
+    ++kernel_calls[kernel];
     #endif
+
     return true;
 }
 
 bool OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
-  #ifdef DEBUG_OUTPUT
-  cout << "clEnqueueReadBuffer (Dst)...\n\n";
-  #endif
   cl_int ciErrNum;
   size_t it = 0;
   MutexLock lock(*globalmutex);
@@ -446,18 +434,18 @@ bool OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
       it++;
       continue;
     }
-    #ifdef DEBUG_OUTPUT
-    cout << "Reading buffer " <<endl;
-    #endif
     ciErrNum = clEnqueueReadBuffer(queue, cmBuffers[it], CL_FALSE, 0, sizeBuff[it], data[it], 1, &kernelEvent,  &readEvents[readENum++]);
-    if ( ciErrNum != CL_SUCCESS){
-      cout << "failed read " << it << " buffer " << ciErrNum << " " << stringError(ciErrNum) << endl;
-      //cleanup();
-      return false;
-    }
+    if ( ciErrNum != CL_SUCCESS)
+      Severe("failed read %i buffer %i %s", it, ciErrNum, stringError(ciErrNum));
     it++;
+
+    #ifdef GPU_TIMES
+    ciErrNum = clFinish(queue);
+    if ( ciErrNum != CL_SUCCESS)
+      Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
+    kernel_times[kernel] += executionTime(readEvents[readENum - 1]);
+    #endif
   }
-  //cleanup();
   return true;
 }
 
@@ -472,8 +460,8 @@ OpenCLTask::~OpenCLTask(){
     if (persistent) delete [] persistent;
     cmBuffers = NULL;
   }
-  //for ( size_t i = 0; i < writeENum; i++)
-  //  clReleaseEvent(writeEvents[i]);
+  for ( size_t i = 0; i < writeENum; i++)
+    clReleaseEvent(writeEvents[i]);
   delete [] writeEvents;
   for ( size_t i = 0; i < readENum; i++)
     clReleaseEvent(readEvents[i]);

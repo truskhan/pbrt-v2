@@ -2,9 +2,9 @@
 #define EPS 0.000002f
 
 void intersectPAllLeaves (const __global float* dir, const __global float* o, const __global float* bounds,
-__global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex,
+__global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex
 #ifdef STAT_PRAY_TRIANGLE
- __global int* stat_rayTriangle
+ ,__global int* stat_rayTriangle
 #endif
 ){
     float4 s1, s2, d, rayd, rayo;

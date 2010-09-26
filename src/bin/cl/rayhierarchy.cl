@@ -59,7 +59,7 @@ float4 e1, float4 e2, int chunk, int rindex
       #endif
       s1 = cross(rayd, e2);
       divisor = dot(s1, e1);
-      if ( divisor == 0.0f) continue;
+      if ( divisor == 0.0f) continue; //degenarate triangle
       invDivisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
@@ -74,6 +74,7 @@ float4 e1, float4 e2, int chunk, int rindex
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
+
       if (t < bounds[2*rindex + i*2]) continue;
 
       if (t > tHit[rindex + i]) continue;
@@ -221,7 +222,8 @@ __kernel void levelConstruct(__global float* cones, const int count,
 
   if ( iGID >= levelcount ) return;
 
-  float4 x, q, c, a, g, xb, ab,e,n;
+  float4 x, q, c, a, g, xb;
+  float4 ab,e,n, ra, rb;
   float cosfi, sinfi, cosfib;
   float dotrx, dotcx, t ;
   float fi,fib;
@@ -236,23 +238,36 @@ __kernel void levelConstruct(__global float* cones, const int count,
     cones[8*beginw + 8*iGID + 7] = 2;
     ab = (float4)(cones[8*beginr + 16*iGID+8],cones[8*beginr + 16*iGID+9],cones[8*beginr + 16*iGID+10],0);
     xb = (float4)(cones[8*beginr + 16*iGID+11],cones[8*beginr + 16*iGID+12],cones[8*beginr + 16*iGID+13],0);
-    fib = cones[8*beginr + 16*iGID+13];
+    fib = cones[8*beginr + 16*iGID+14];
     cosfib = native_cos(fib);
 
-    //average direction
-    dotrx = dot(x,xb);
-    if ( dotrx < cosfib && dotrx < cosfi){
-      x = (x+xb)/length(x+xb);
-      cosfi = native_cos(acos(dotrx) + min(fib,fi));
+    dotcx = dot(xb,x);
+    q = (dotcx*xb - x)/length(dotxc*xb - x);
+    ra = xb*cosfib + q*native_sin(fib); //e
+    rb = xb*cosfib - q*native_sin(fib); //n
+
+    dotrx = dot(ra,x);
+    if ( dotrx < cosfi){
+      //extend the cone
+      q = normalize(dotrx*x - ra);
+      sinfi = (cosfi>(1-EPS))? 0:native_sin(acos(cosfi));
+      e = normalize(x*cosfi + q*sinfi);
+      x = normalize(e+ra);
+      cosfi = dot(x,ra);
       fi = acos(cosfi);
-    } else {
-      if ( fi < fib){
-        x = xb;
-        a = ab;
-        cosfi = cosfib;
-        fi = fib;
-      }
     }
+
+    dotrx = dot(rb,x);
+    if ( dotrx < cosfi){
+      //extend the cone
+      q = normalize(dotrx*x - rb);
+      sinfi = (cosfi>(1-EPS))? 0:native_sin(acos(cosfi));
+      e = normalize(x*cosfi + q*sinfi);
+      x = normalize(e+rb);
+      cosfi = dot(x,rb);
+      fi = acos(cosfi);
+    }
+
     //move the apex
     c = ab - a;
     if ( length(c) > EPS){
@@ -267,7 +282,9 @@ __kernel void levelConstruct(__global float* cones, const int count,
         t = (length(g)*length(g))/dot(e,g);
         a = a - t*e;
       }
+
     }
+
   }
     cones[8*beginw + 8*iGID]     = a.x;
     cones[8*beginw + 8*iGID + 1] = a.y;

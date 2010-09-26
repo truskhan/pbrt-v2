@@ -28,19 +28,43 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     Info("Created OpenCL context");
     //precompile OpenCL kernels
     size_t lenP = strlen(PbrtOptions.pbrtPath);
-    size_t lenF = strlen("cl/rayhierarchy.cl");
-    char* file = new char[lenP + lenF+1];
-    strncpy(file, PbrtOptions.pbrtPath, lenP);
-    strncpy(file+lenP, "cl/rayhierarchy.cl", lenF+1);
+    size_t *lenF = new size_t[6];
+    char** names = new char*[6];
+    char** file = new char*[6];
+
+   // for ( int i = 0; i < 6; i++)
+    //  names[i] = new char[20];
+
+    names[0] = "cl/intersectionR.cl";
+    names[1] = "cl/intersectionP.cl";
+    names[2] = "cl/rayhconstruct.cl";
+    names[3] = "cl/levelConstruct.cl";
+    names[4] = "cl/yetAnotherIntersection.cl";
+    names[5] = "cl/computeDpTuTv.cl";
+
+    for ( int i = 0; i < 6; i++){
+      lenF[i] = strlen(names[i]);
+      file[i] = new char[lenP + lenF[i] + 1];
+      strncpy(file[i], PbrtOptions.pbrtPath, lenP);
+      strncpy(file[i]+lenP, names[i], lenF[i]+1);
+    }
 
     ocl = new OpenCL(onGPU,6);
-    ocl->CompileProgram(file, "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR);
-    ocl->CompileProgram(file, "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
-    ocl->CompileProgram(file, "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
-    ocl->CompileProgram(file, "levelConstruct", "oclLevelConstruct.ptx",KERNEL_RAYLEVELCONSTRUCT);
-    ocl->CompileProgram(file, "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION);
-    ocl->CompileProgram(file, "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
+    ocl->CompileProgram(file[0], "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR);
+    ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
+    ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
+    ocl->CompileProgram(file[3], "levelConstruct", "oclLevelConstruct.ptx",KERNEL_RAYLEVELCONSTRUCT);
+    ocl->CompileProgram(file[4], "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION);
+    ocl->CompileProgram(file[5], "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
     cmd = ocl->CreateCmdQueue();
+
+    delete [] lenF;
+    for (int i = 0; i < 6; i++){
+      //delete [] names[i];
+      delete [] file[i];
+    }
+    delete [] names;
+    delete [] file;
 
     for (uint32_t i = 0; i < p.size(); ++i)
         p[i]->FullyRefine(primitives);
@@ -451,11 +475,16 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     if (!anotherIntersect->EnqueueReadBuffer( 5, tHitArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->EnqueueReadBuffer( 6, indexArray)) exit(EXIT_FAILURE);
     anotherIntersect->WaitForRead();
-    for ( size_t i = 0; i < triangleCount; i++){
+    /*for ( size_t i = 0; i < triangleCount; i++){
       if ( changedArray[i] != 0){
-        cout << "OPRAVA triangle " << i << " ray " << changedArray[i] << endl;
+        cout << "OPRAVA triangle " << i << " ray " << changedArray[i]
+        << " tHit " << tHitArray[changedArray[i] ] << endl;
+        cout << "rayDir " << rayDirArray[3*changedArray[i]] << ' ' << rayDirArray[3*changedArray[i]+1 ]
+              << ' ' << rayDirArray[3*changedArray[i]+2] << endl;
+        cout << "rayO " << rayOArray[3*changedArray[i]] << ' ' << rayOArray[3*changedArray[i]+1 ]
+              << ' ' << rayOArray[3*changedArray[i]+2] << endl;
       }
-    }
+    }*/
 
     Assert(!anotherIntersect->SetPersistentBuff(0));//vertex
     Assert(!anotherIntersect->SetPersistentBuff(1));//dir

@@ -348,7 +348,7 @@ bool OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
     ciErrNum = clFinish(queue);
     if ( ciErrNum != CL_SUCCESS)
       Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
-    kernel_times[kernel] += executionTime(writeEvents[writeENum - 1]);
+    wmem_times += executionTime(writeEvents[writeENum - 1]);
     #endif
     ++it;
   }
@@ -367,7 +367,7 @@ bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data){
   ciErrNum = clFinish(queue);
   if ( ciErrNum != CL_SUCCESS)
     Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
-  kernel_times[kernel] += executionTime(writeEvents[writeENum - 1]);
+  wmem_times += executionTime(writeEvents[writeENum - 1]);
   #endif
   return true;
 }
@@ -382,7 +382,7 @@ bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
   ciErrNum = clFinish(queue);
   if ( ciErrNum != CL_SUCCESS)
     Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
-  kernel_times[kernel] += executionTime(readEvents[readENum - 1]);
+  rmem_times += executionTime(readEvents[readENum - 1]);
   #endif
   return true;
 }
@@ -443,7 +443,7 @@ bool OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
     ciErrNum = clFinish(queue);
     if ( ciErrNum != CL_SUCCESS)
       Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
-    kernel_times[kernel] += executionTime(readEvents[readENum - 1]);
+    rmem_times += executionTime(readEvents[readENum - 1]);
     #endif
   }
   return true;

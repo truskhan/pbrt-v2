@@ -15,14 +15,18 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
     index += counts[i];
 
   //start with the zero angle enclosing cone of the first ray
-  x = normalize((float4)(dir[3*index],dir[3*index+1],dir[3*index+2],0));
-  a = (float4)(o[3*index],o[3*index+1], o[3*index+2],0);
+  x = vload4(0, dir + 3*index);
+  a = vload4(0, o + 3*index);
+  x.w = 0; a.w = 0;
   cosfi = 1;
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
-    r = normalize((float4)(dir[3*(index+i)], dir[3*(index+i)+1],dir[3*(index+i)+2],0));
-    p = (float4)(o[3*(index+i)], o[3*(index+i)+1], o[3*(index+i)+2],0);
+    p = vload4(0,dir+3*(index+i));
+    p.w = 0;
+    r = normalize(p);
+    p = vload4(0,o+3*(index+i));
+    p.w = 0;
     dotrx = dot(r,x);
     if ( dotrx < cosfi ){
       //extend the cone
@@ -50,13 +54,9 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   }
 
   //store the result
-  cones[8*iGID]   = a.x;
-  cones[8*iGID+1] = a.y;
-  cones[8*iGID+2] = a.z;
-  cones[8*iGID+3] = x.x;
-  cones[8*iGID+4] = x.y;
-  cones[8*iGID+5] = x.z;
-  cones[8*iGID+6] = (cosfi > (1-EPS)) ? 0.003f: acos(cosfi); //precision problems
+  vstore4(a, 0, cones + 8*iGID);
+  x.w = (cosfi > (1-EPS)) ? 0.003f: acos(cosfi); //precision problems
+  vstore4(x, 0 ,cones + 8*iGID + 3);
   cones[8*iGID+7] = counts[iGID];
 
 }

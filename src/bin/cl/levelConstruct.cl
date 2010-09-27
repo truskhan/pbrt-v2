@@ -25,17 +25,20 @@ __kernel void levelConstruct(__global float* cones, const int count,
   float dotrx, dotcx, t ;
   float fi,fib;
 
-  x = (float4)(cones[8*beginr + 16*iGID+3],cones[8*beginr + 16*iGID+4],cones[8*beginr + 16*iGID+5],0);
-  a = (float4)(cones[8*beginr + 16*iGID],cones[8*beginr + 16*iGID+1],cones[8*beginr + 16*iGID+2],0);
-  fi = cones[8*beginr + 16*iGID+6];
+  a = vload4(0,cones + 8*beginr + 16*iGID);
+  x = vload4(0,cones + 8*beginr + 16*iGID + 3);
+  fi = x.w;
+  a.w = 0; x.w = 0;
   cosfi = native_cos(fi);
   cones[8*beginw + 8*iGID + 7] = 1;
   if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
     //posledni vlakno jen prekopiruje
     cones[8*beginw + 8*iGID + 7] = 2;
-    ab = (float4)(cones[8*beginr + 16*iGID+8],cones[8*beginr + 16*iGID+9],cones[8*beginr + 16*iGID+10],0);
-    xb = (float4)(cones[8*beginr + 16*iGID+11],cones[8*beginr + 16*iGID+12],cones[8*beginr + 16*iGID+13],0);
-    fib = cones[8*beginr + 16*iGID+14];
+    ab = vload4(0,cones + 8*beginr + 16*iGID + 8);
+    xb = vload4(0,cones + 8*beginr + 16*iGID + 11);
+    fib = xb.w;
+    ab.w = 0; xb.w = 0;
+
     cosfib = native_cos(fib);
 
     dotcx = dot(xb,x);
@@ -83,11 +86,7 @@ __kernel void levelConstruct(__global float* cones, const int count,
     }
 
   }
-    cones[8*beginw + 8*iGID]     = a.x;
-    cones[8*beginw + 8*iGID + 1] = a.y;
-    cones[8*beginw + 8*iGID + 2] = a.z;
-    cones[8*beginw + 8*iGID + 3] = x.x;
-    cones[8*beginw + 8*iGID + 4] = x.y;
-    cones[8*beginw + 8*iGID + 5] = x.z;
-    cones[8*beginw + 8*iGID + 6] = fi;
+    vstore4(a, 0, cones + 8*beginw + 8*iGID);
+    x.w = fi;
+    vstore4(x, 0, cones + 8*beginw + 8*iGID + 3);
 }

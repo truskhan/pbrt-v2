@@ -13,8 +13,9 @@ float4 e1, float4 e2, int chunk, int rindex
     // process all rays in the cone
 
     for ( int i = 0; i < chunk; i++){
-      rayd = (float4)(dir[3*rindex + 3*i], dir[3*rindex + 3*i+1], dir[3*rindex + 3*i+2],0);
-      rayo = (float4)(o[3*rindex + 3*i], o[3*rindex +3*i+1], o[3*rindex + 3*i+2],0);
+      rayd = vload4(0, dir + 3*rindex + 3*i);
+      rayo = vload4(0, o + 3*rindex + 3*i);
+      rayd.w = 0; rayo.w = 0;
       #ifdef STAT_RAY_TRIANGLE
        ++stat_rayTriangle[rindex + i];
       #endif
@@ -100,9 +101,10 @@ __kernel void IntersectionR (
     float4 e1, e2;
 
     float4 v1, v2, v3;
-    v1 = (float4)(vertex[9*iGID], vertex[9*iGID+1], vertex[9*iGID+2],0);
-    v2 = (float4)(vertex[9*iGID + 3], vertex[9*iGID + 4], vertex[9*iGID + 5],0);
-    v3 = (float4)(vertex[9*iGID + 6], vertex[9*iGID + 7], vertex[9*iGID + 8],0);
+    v1 = vload4(0, vertex + 9*iGID);
+    v2 = vload4(0, vertex + 9*iGID + 3);
+    v3 = vload4(0, vertex + 9*iGID + 6);
+    v1.w = 0; v2.w = 0; v3.w = 0;
     e1 = v2 - v1;
     e2 = v3 - v1;
 
@@ -137,9 +139,10 @@ __kernel void IntersectionR (
     begin = 8*num;
     for ( int j = 0; j < levelcount; j++){
       // get cone description
-      a = (float4)(cones[begin + 8*j],cones[begin + 8*j+1],cones[begin + 8*j+2],0);
-      x = (float4)(cones[begin + 8*j+3],cones[begin + 8*j+4],cones[begin + 8*j+5],0);
-      fi = cones[begin + 8*j+6];
+      a = vload4(0, cones + begin+8*j);
+      x = vload4(0, cones + begin+8*j + 3);
+      fi = x.w;
+      a.w = 0; x.w = 0;
       // check if triangle intersects cone
       len = length(center-a);
       if ( acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
@@ -153,9 +156,10 @@ __kernel void IntersectionR (
           //take the cones from the stack and check them
           --SPindex;
           i = stack[iLID*(height) + SPindex];
-          a = (float4)(cones[i],cones[i+1],cones[i+2],0);
-          x = (float4)(cones[i+3],cones[i+4],cones[i+5],0);
-          fi = cones[i+6];
+          a = vload4(0, cones+i);
+          x = vload4(0, cones+i+3);
+          fi = x.w;
+          a.w = 0; x.w = 0;
           len = length(center-a);
           if ( len < EPS || acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
           {
@@ -177,9 +181,10 @@ __kernel void IntersectionR (
               stack[iLID*(height) + SPindex++] = child;
             }
           }
-          a = (float4)(cones[i+8],cones[i+9],cones[i+10],0);
-          x = (float4)(cones[i+11],cones[i+12],cones[i+13],0);
-          fi = cones[i+14];
+          a = vload4(0, cones+i+8);
+          x = vload4(0, cones+i+11);
+          fi = x.w;
+          a.w = 0; x.w = 0;
           if ( len < EPS || acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
          {
             #ifdef STAT_TRIANGLE_CONE

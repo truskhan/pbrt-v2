@@ -39,6 +39,7 @@
 #include "accelerators/grid.h"
 #include "accelerators/kdtreeaccel.h"
 #include "accelerators/rayhierarchy.h"
+#include "accelerators/naive.h"
 #include "cameras/environment.h"
 #include "cameras/orthographic.h"
 #include "cameras/perspective.h"
@@ -585,6 +586,8 @@ Primitive *MakeAccelerator(const string &name,
         accel = CreateKdTreeAccelerator(prims, paramSet);
     else if (name == "rayhierarchy")
         accel = CreateRayHieararchy(prims, paramSet);
+    else if (name == "naive")
+        accel = CreateNaiveAccelerator(prims, paramSet);
     else
         Warning("Accelerator \"%s\" unknown.", name.c_str());
     paramSet.ReportUnused();

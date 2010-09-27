@@ -34,6 +34,7 @@
 #include "integrator.h"
 #include "intersection.h"
 #include "accelerators/rayhierarchy.h"
+#include "accelerators/naive.h"
 
 // Scene Declarations
 class Scene {
@@ -67,12 +68,17 @@ public:
       #endif
     ) const {
       RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
-      if ( rh != NULL)
+      if ( rh != NULL) {
         rh->IntersectP(ray, occluded, count
           #ifdef STAT_PRAY_TRIANGLE
           , Ls
           #endif
         );
+        return;
+      }
+      NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
+      if ( na != NULL)
+        na->IntersectP(ray, occluded, count);
       else
         Severe("Called IntersectP with unsupported aggregate!");
     }

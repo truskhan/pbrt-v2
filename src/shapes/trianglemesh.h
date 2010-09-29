@@ -49,6 +49,7 @@ public:
     friend class Triangle;
     template <typename T> friend class VertexTexture;
     friend class RayHieararchy; //for direct acces to Point
+    friend class NaiveAccel;
 protected:
     // TriangleMesh Protected Data
     int ntris, nverts;
@@ -98,6 +99,7 @@ public:
     Point Sample(float u1, float u2, Normal *Ns) const;
     const TriangleMesh* GetMeshPtr() const { return mesh.GetPtr();}
     friend class RayHieararchy;
+    friend class NaiveAccel;
 private:
     // Triangle Private Data
     Reference<TriangleMesh> mesh;

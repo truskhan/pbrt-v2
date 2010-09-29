@@ -65,7 +65,7 @@ unsigned int Scene::MaxRaysPerCall() const {
 }
 
 void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
-  float* rayWeight, int & count, const unsigned int & xRes, const unsigned int & yRes,
+  float* rayWeight, const int & count, const unsigned int & xRes, const unsigned int & yRes,
   const unsigned int & samplesPerPixel
   #ifdef STAT_RAY_TRIANGLE
   , Spectrum *Ls

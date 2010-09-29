@@ -49,7 +49,7 @@ public:
         return hit;
     }
     void Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
-      float* rayWeight, int & count, const unsigned int & xRes, const unsigned int & yRes,
+      float* rayWeight, const int & count, const unsigned int & xRes, const unsigned int & yRes,
       const unsigned int & samplesPerPixel
       #ifdef STAT_RAY_TRIANGLE
       , Spectrum *Ls
@@ -62,14 +62,14 @@ public:
         PBRT_FINISHED_RAY_INTERSECTIONP(const_cast<Ray *>(&ray), int(hit));
         return hit;
     }
-    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count
+    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count, const bool* hit
       #ifdef STAT_PRAY_TRIANGLE
       , Spectrum *Ls
       #endif
     ) const {
       RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
       if ( rh != NULL) {
-        rh->IntersectP(ray, occluded, count
+        rh->IntersectP(ray, occluded, count, hit
           #ifdef STAT_PRAY_TRIANGLE
           , Ls
           #endif
@@ -78,7 +78,7 @@ public:
       }
       NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
       if ( na != NULL)
-        na->IntersectP(ray, occluded, count);
+        na->IntersectP(ray, occluded, count, hit);
       else
         Severe("Called IntersectP with unsupported aggregate!");
     }

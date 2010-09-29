@@ -181,7 +181,7 @@ bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
 }
 
 void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
-                               float* rayWeight, bool* hit, int count, const unsigned int & samplesPerPixel)  {
+                               float* rayWeight, bool* hit, const int count, const unsigned int & samplesPerPixel)  {
 
     this->samplesPerPixel = samplesPerPixel;
    // count *= samplesPerPixel;
@@ -306,54 +306,66 @@ bool NaiveAccel::IntersectP(const Ray &ray) const {
     return Intersect(ray, &isect);
 }
 
-void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t count) {
+void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t count, const bool* hit) {
    // size_t count = co * samplesPerPixel;
     size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, count, cmd, 32);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(5);
 
-    gput->CreateBuffer(0,sizeof(cl_float)*3*3*triangleCount, CL_MEM_READ_ONLY ); //for vertices
-    gput->CreateBuffer(1,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY); //for ray directions
-    gput->CreateBuffer(2,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY); //for ray origins
-    gput->CreateBuffer(3,sizeof(cl_float)*2*count, CL_MEM_READ_ONLY); //for ray bounds
-    gput->CreateBuffer(4,sizeof(cl_uchar)*count, CL_MEM_READ_WRITE); //for Thit
-
-    if (!gput->SetIntArgument(5,(int&)count)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(6,(int&)triangleCount)) exit(EXIT_FAILURE);
-
     cl_float* rayDirArray = new cl_float[count*3];//ray directions
     cl_float* rayOArray = new cl_float[count*3];//ray origins
     cl_float* rayBoundsArray = new cl_float[count*2];//ray bounds
+    unsigned char* temp = new unsigned char[count];
+    unsigned int elem_counter = 0;
     for (int k = 0; k < count; ++k) {
-        rayDirArray[3*k] = r[k].d[0];
-        rayDirArray[3*k+1] = r[k].d[1];
-        rayDirArray[3*k+2] = r[k].d[2];
+        if ( !hit[k] ) continue; //not a valid ray
+        rayDirArray[3*elem_counter] = r[k].d[0];
+        rayDirArray[3*elem_counter+1] = r[k].d[1];
+        rayDirArray[3*elem_counter+2] = r[k].d[2];
 
-        rayOArray[3*k] = r[k].o[0];
-        rayOArray[3*k+1] = r[k].o[1];
-        rayOArray[3*k+2] = r[k].o[2];
+        rayOArray[3*elem_counter] = r[k].o[0];
+        rayOArray[3*elem_counter+1] = r[k].o[1];
+        rayOArray[3*elem_counter+2] = r[k].o[2];
 
-        rayBoundsArray[2*k] = r[k].mint;
-        rayBoundsArray[2*k+1] = INFINITY;
+        rayBoundsArray[2*elem_counter] = r[k].mint;
+        rayBoundsArray[2*elem_counter+1] = INFINITY;
 
-        ((unsigned char*)occluded)[k] = '0';
+        ((unsigned char*)temp)[elem_counter] = '0';
+        ++elem_counter;
     }
+
+    gput->CreateBuffer(0,sizeof(cl_float)*3*3*triangleCount, CL_MEM_READ_ONLY ); //for vertices
+    gput->CreateBuffer(1,sizeof(cl_float)*3*elem_counter, CL_MEM_READ_ONLY); //for ray directions
+    gput->CreateBuffer(2,sizeof(cl_float)*3*elem_counter, CL_MEM_READ_ONLY); //for ray origins
+    gput->CreateBuffer(3,sizeof(cl_float)*2*elem_counter, CL_MEM_READ_ONLY); //for ray bounds
+    gput->CreateBuffer(4,sizeof(cl_uchar)*elem_counter, CL_MEM_READ_WRITE); //for Thit
+
+    if (!gput->SetIntArgument(5,(int&)elem_counter)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(6,(int&)triangleCount)) exit(EXIT_FAILURE);
 
     gput->EnqueueWriteBuffer( 0, vertices );
     gput->EnqueueWriteBuffer( 1, rayDirArray);
     gput->EnqueueWriteBuffer( 2, rayOArray);
     gput->EnqueueWriteBuffer( 3, rayBoundsArray);
-    gput->EnqueueWriteBuffer( 4, occluded);
+    gput->EnqueueWriteBuffer( 4, temp);
 
     if (!gput->Run())exit(EXIT_FAILURE);
 
     gput->EnqueueReadBuffer( 4, occluded);
     gput->WaitForRead();
 
+    elem_counter = 0;
+    for (int k = 0; k < count; ++k) {
+        if ( !hit[k] ) continue; //not a valid ray
+        occluded[k] = temp[elem_counter];
+        ++elem_counter;
+    }
+
     ocl->delTask(tn,cmd);
     delete [] rayDirArray;
     delete [] rayOArray;
     delete [] rayBoundsArray;
+    delete [] temp;
 }
 
 

@@ -15,7 +15,7 @@ public:
     RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height);
     bool CanIntersect() const { return true; }
     ~RayHieararchy();
-    void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, unsigned int count,
+    void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const unsigned int count,
     const unsigned int & xResolution, const unsigned int & yResolution, const unsigned int & samplesPerPixel
     #ifdef STAT_RAY_TRIANGLE
     , Spectrum *Ls
@@ -23,7 +23,7 @@ public:
     );
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
-    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count
+    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count, const bool* hit
     #ifdef STAT_PRAY_TRIANGLE
     , Spectrum *Ls
     #endif
@@ -52,6 +52,7 @@ private:
     cl_uint threadsCount;
     unsigned int rest_x, rest_y;
     mutable unsigned int xResolution;
+    unsigned int yResolution;
 };
 
 

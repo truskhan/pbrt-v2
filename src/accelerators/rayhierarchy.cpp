@@ -286,6 +286,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   , Spectrum *Ls
   #endif
   )  {
+  #ifdef GPU_TIMES
+  cout << "# triangles: " << triangleCount << endl;
+  #endif
   this->xResolution = xResolution;
   this->samplesPerPixel = samplesPerPixel;
   //number of rectangles in x axis
@@ -593,7 +596,11 @@ bool RayHieararchy::IntersectP(const Ray &ray) const {
     return hit;
 }
 
-void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size_t count
+#ifdef GPU_TIMES
+bool first_run = true;
+#endif
+
+void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size_t count, const bool* hit
     #ifdef STAT_PRAY_TRIANGLE
     , Spectrum *Ls
     #endif
@@ -610,6 +617,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
   unsigned help;
   unsigned int new_a, new_b;
   unsigned int elem_counter = 0;
+  unsigned int relem_counter = 0;
   unsigned int number;
   unsigned int pixel_counter = 0;
   #ifdef STAT_PRAY_TRIANGLE
@@ -644,6 +652,13 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
           --countArray[k];
           continue;
         }
+        //not a valid ray
+        if ( !hit[help] ){
+          ++relem_counter;
+          ++help;
+          --countArray[k];
+          continue;
+        }
         elem_index[help] = elem_counter;
         rayDirArray[3*elem_counter] = r[help].d[0];
         rayDirArray[3*elem_counter + 1] = r[help].d[1];
@@ -661,7 +676,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
         #ifdef STAT_PRAY_TRIANGLE
         ((cl_uint*)picture)[elem_counter] = 0;
         #endif
-
+        ++relem_counter;
         ++elem_counter;
         ++help;
       }
@@ -670,12 +685,33 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
 
   }
 
+    #ifdef GPU_TIMES
+    if ( first_run) {
+      cout << "# prays: " << elem_counter << " all rays: " << count << endl;
+      first_run = false;
+    }
+    #endif
+
+    if ( elem_counter == 0 ){
+      //nothing to intersect
+      #ifdef GPU_TIMES
+      first_run = true;
+      #endif
+      delete [] rayDirArray;
+      delete [] rayOArray;
+      delete [] rayBoundsArray;
+      delete [] countArray;
+      delete [] elem_index;
+      delete [] size;
+      return;
+    }
+
     workerSemaphore->Wait();
-    size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, count, countArray, threadsCount);
+    size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, elem_counter, countArray, threadsCount);
     OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
 
     Info("height of the ray hieararchy in IntersectP is %d",height);
-    size_t tn2 = ocl->CreateTask (KERNEL_INTERSECTIONP, count, cmd,32);
+    size_t tn2 = ocl->CreateTask (KERNEL_INTERSECTIONP, elem_counter, cmd,32);
     OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
     unsigned int c = 6;
@@ -688,14 +724,14 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     gput->CopyBuffer(0,1,gpuray); //ray dir
     gput->CopyBuffer(1,2,gpuray); //ray o
     gput->CopyBuffer(3,3,gpuray); //cones
-    Assert(gput->CreateBuffer(4,sizeof(cl_float)*2*count, CL_MEM_READ_ONLY)); //ray bounds
-    Assert(gput->CreateBuffer(5,sizeof(cl_uchar)*count, CL_MEM_READ_WRITE)); //tHit
+    Assert(gput->CreateBuffer(4,sizeof(cl_float)*2*elem_counter, CL_MEM_READ_ONLY)); //ray bounds
+    Assert(gput->CreateBuffer(5,sizeof(cl_uchar)*elem_counter, CL_MEM_READ_WRITE)); //tHit
     #ifdef STAT_PRAY_TRIANGLE
-    Assert(gput->CreateBuffer(6,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY));
+    Assert(gput->CreateBuffer(6,sizeof(cl_uint)*elem_counter, CL_MEM_WRITE_ONLY));
     #endif
 
     if (!gput->SetLocalArgument(c++,sizeof(cl_int)*64*height)); //stack for every thread
-    if (!gput->SetIntArgument(c++,(cl_uint)count)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(c++,(cl_uint)elem_counter)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)triangleCount)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)height)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)threadsCount)) exit(EXIT_FAILURE);
@@ -717,7 +753,10 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     unsigned int j;
     unsigned char* temp_occluded = new unsigned char[count];
     for ( unsigned i = 0; i < count; i++){
-      j =  elem_index[i];
+      if ( !hit[i]) {
+        continue;
+      }
+      j = elem_index[i];
       Assert(j<count);
       temp_occluded[i] = occluded[j];
     }

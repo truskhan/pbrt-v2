@@ -246,7 +246,7 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
   }
   unsigned char* occluded = new unsigned char[count];
   //TODO: filter out rays that didn't intersect the scene
-  scene->IntersectP(shadowRay, occluded, count
+  scene->IntersectP(shadowRay, occluded, count, hit
     #ifdef STAT_PRAY_TRIANGLE
     , Ls
     #endif

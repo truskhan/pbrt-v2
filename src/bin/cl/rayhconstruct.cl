@@ -22,9 +22,8 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
-    p = vload4(0,dir+3*(index+i));
-    p.w = 0;
-    r = normalize(p);
+    r = vload4(0,dir+3*(index+i));
+    r.w = 0;
     p = vload4(0,o+3*(index+i));
     p.w = 0;
     dotrx = dot(r,x);

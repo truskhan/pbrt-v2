@@ -57,6 +57,7 @@ NaiveAccel::NaiveAccel(const vector<Reference<Primitive> > &p, bool onG) {
         const GeometricPrimitive* gp = (dynamic_cast<const GeometricPrimitive*> (primitives[i].GetPtr()));
         if ( gp == 0 ) continue;
         const Triangle* shape = dynamic_cast<const Triangle*> (gp->GetShapePtr());
+        if ( shape == 0) continue;
         const TriangleMesh* mesh = shape->GetMeshPtr();
         const Point &p1 = mesh->p[shape->v[0]];
         const Point &p2 = mesh->p[shape->v[1]];

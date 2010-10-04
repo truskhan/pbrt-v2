@@ -34,7 +34,12 @@ OPT=-g3
 #STAT_RAY_TRIANGLE - shows a gray scaled image, brighter pixel - more primary ray triangle tests
 #STAT_PRAY_TRIANGLE - show a gray scaled image, brighter pixel - more shadow ray triangle tests
 #GPU_TIMES - shows summary times for clEnqueueNDRangeKernel, clEnqueueWriteBuffer..
-DEFS += -DGPU_TIMES
+DEFS += -DSTAT_RAY_TRIANGLE
+
+#type of node for accelerator structure
+#CONE - nodes are cones
+#IA - interval arithemtic is used
+DEFS += -DCONE
 
 # common locations for the OpenCL libraries; needed by rayhierarchy accelerator
 HAVE_ATI = 1

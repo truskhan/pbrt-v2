@@ -15,6 +15,13 @@
 #define KERNEL_INTERSECTIONR 3
 #define KERNEL_YETANOTHERINTERSECTION 5
 
+#ifdef CONE
+  #define NODE_SIZE 8
+#endif
+#ifdef IA
+  #define NODE_SIZE 13
+#endif
+
 using namespace std;
 Semaphore *workerSemaphore;
 
@@ -32,14 +39,22 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     char** names = new char*[6];
     char** file = new char*[6];
 
-   // for ( int i = 0; i < 6; i++)
-    //  names[i] = new char[20];
-
+#ifdef CONE
     names[0] = "cl/intersectionR.cl";
     names[1] = "cl/intersectionP.cl";
     names[2] = "cl/rayhconstruct.cl";
     names[3] = "cl/levelConstruct.cl";
     names[4] = "cl/yetAnotherIntersection.cl";
+    cout << "accel nodes : cones" << endl;
+#endif
+#ifdef IA
+    names[0] = "cl/intersectionIA.cl";
+    names[1] = "cl/intersectionPIA.cl";
+    names[2] = "cl/rayhconstructIA.cl";
+    names[3] = "cl/levelConstructIA.cl";
+    names[4] = "cl/yetAnotherIntersectionIA.cl";
+    cout << "accel nodes : IA" << endl;
+#endif
     names[5] = "cl/computeDpTuTv.cl";
 
     for ( int i = 0; i < 6; i++){
@@ -50,9 +65,9 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     }
 
     ocl = new OpenCL(onGPU,6);
+    ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
     ocl->CompileProgram(file[0], "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR);
     ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
-    ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
     ocl->CompileProgram(file[3], "levelConstruct", "oclLevelConstruct.ptx",KERNEL_RAYLEVELCONSTRUCT);
     ocl->CompileProgram(file[4], "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION);
     ocl->CompileProgram(file[5], "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
@@ -76,6 +91,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
         const GeometricPrimitive* gp = (dynamic_cast<const GeometricPrimitive*> (primitives[i].GetPtr()));
         if ( gp == 0 ) continue;
         const Triangle* shape = dynamic_cast<const Triangle*> (gp->GetShapePtr());
+        if ( shape == 0) continue;
         const TriangleMesh* mesh = shape->GetMeshPtr();
         const Point &p1 = mesh->p[shape->v[0]];
         const Point &p2 = mesh->p[shape->v[1]];
@@ -245,7 +261,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   Assert(gpuray->CreateBuffer(0,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray directions
   Assert(gpuray->CreateBuffer(1,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray origins
   Assert(gpuray->CreateBuffer(2,sizeof(cl_uint)*threadsCount, CL_MEM_READ_ONLY)); //number of rays per initial thread
-  Assert(gpuray->CreateBuffer(3, sizeof(cl_float)*8*total, CL_MEM_READ_WRITE)); //for cones
+  Assert(gpuray->CreateBuffer(3, sizeof(cl_float)*NODE_SIZE*total, CL_MEM_READ_WRITE)); //for cones
   Assert(gpuray->SetIntArgument(4,(cl_uint)threadsCount));
 
   Assert(gpuray->EnqueueWriteBuffer( 0, rayDir));
@@ -478,7 +494,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     if (!anotherIntersect->EnqueueReadBuffer( 5, tHitArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->EnqueueReadBuffer( 6, indexArray)) exit(EXIT_FAILURE);
     anotherIntersect->WaitForRead();
-    /*for ( size_t i = 0; i < triangleCount; i++){
+    for ( size_t i = 0; i < triangleCount; i++){
       if ( changedArray[i] != 0){
         cout << "OPRAVA triangle " << i << " ray " << changedArray[i]
         << " tHit " << tHitArray[changedArray[i] ] << endl;
@@ -487,7 +503,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
         cout << "rayO " << rayOArray[3*changedArray[i]] << ' ' << rayOArray[3*changedArray[i]+1 ]
               << ' ' << rayOArray[3*changedArray[i]+2] << endl;
       }
-    }*/
+    }
 
     Assert(!anotherIntersect->SetPersistentBuff(0));//vertex
     Assert(!anotherIntersect->SetPersistentBuff(1));//dir
@@ -605,7 +621,6 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     , Spectrum *Ls
     #endif
 ) {
-
   cl_float* rayDirArray = new cl_float[count*3]; //ray directions
   cl_float* rayOArray = new cl_float[count*3]; //ray origins
   cl_float* rayBoundsArray = new cl_float[count*2]; //ray bounds
@@ -613,77 +628,36 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
   unsigned* elem_index = new unsigned [count];
   size_t* size = new size_t[20];
 
-  unsigned int ix, iy, global_ix, global_iy;
-  unsigned help;
-  unsigned int new_a, new_b;
   unsigned int elem_counter = 0;
-  unsigned int relem_counter = 0;
-  unsigned int number;
-  unsigned int pixel_counter = 0;
   #ifdef STAT_PRAY_TRIANGLE
   cl_uint* picture = new cl_uint[count];
   #endif
 
-  //store those rectangles
-  for (unsigned int k = 0; k < threadsCount; ++k){
-    new_a = a; new_b = b;
 
-    global_iy = k / global_a;
-    global_ix = k - global_iy*global_a;
-    number = chunk;
-    if ( global_ix == (global_a -1) ){
-      number -= rest_x*b;
-      new_a -= rest_x;
-    }
-    if ( global_iy == (global_b -1) ){
-      number -= rest_y*new_a;
-      new_b -= rest_y;
-    }
-
-    countArray[k] = number*samplesPerPixel;
-
-    for (unsigned int j = 0; j < number; j++){
-      iy = j / new_a;
-      ix = j - iy*new_a;
-
-      help = iy*xResolution*samplesPerPixel + ix*samplesPerPixel + global_ix*a*samplesPerPixel + global_iy*xResolution*b*samplesPerPixel;
-      for ( unsigned int s = 0; s < samplesPerPixel; s++){
-       if ( help >= count) {
-          --countArray[k];
+  for (int k = 0; k < count; ++k) {
+    if ( !hit[k] ){
           continue;
-        }
-        //not a valid ray
-        if ( !hit[help] ){
-          ++relem_counter;
-          ++help;
-          --countArray[k];
-          continue;
-        }
-        elem_index[help] = elem_counter;
-        rayDirArray[3*elem_counter] = r[help].d[0];
-        rayDirArray[3*elem_counter + 1] = r[help].d[1];
-        rayDirArray[3*elem_counter + 2] = r[help].d[2];
+   }
+   rayDirArray[3*elem_counter] = r[k].d[0];
+   rayDirArray[3*elem_counter+1] = r[k].d[1];
+   rayDirArray[3*elem_counter+2] = r[k].d[2];
 
-        rayOArray[3*elem_counter] = r[help].o[0];
-        rayOArray[3*elem_counter + 1] = r[help].o[1];
-        rayOArray[3*elem_counter + 2] = r[help].o[2];
+   rayOArray[3*elem_counter] = r[k].o[0];
+   rayOArray[3*elem_counter+1] = r[k].o[1];
+   rayOArray[3*elem_counter+2] = r[k].o[2];
 
-        rayBoundsArray[2*elem_counter] = r[help].mint;
-        rayBoundsArray[2*elem_counter + 1] = INFINITY;
-        //TODO: initialize on GPU, make special init kernel for this task -> reduce data transfer
-        occluded[elem_counter] = '0';
+   rayBoundsArray[2*elem_counter] = r[k].mint;
+   rayBoundsArray[2*elem_counter+1] = INFINITY;
+   occluded[elem_counter] = '0';
 
-        #ifdef STAT_PRAY_TRIANGLE
-        ((cl_uint*)picture)[elem_counter] = 0;
-        #endif
-        ++relem_counter;
-        ++elem_counter;
-        ++help;
-      }
-      ++pixel_counter;
-    }
-
+  ++elem_counter;
   }
+
+  threadsCount = (elem_counter + chunk - 1)/chunk;
+  for (int k = 0; k < threadsCount; ++k)
+    countArray[k] = chunk;
+  //memset(countArray, chunk, sizeof(cl_uint)*number);
+  countArray[threadsCount - 1] -= (chunk*threadsCount - elem_counter);
 
     #ifdef GPU_TIMES
     if ( first_run) {
@@ -750,15 +724,14 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
 
     gput->WaitForRead();
     workerSemaphore->Post();
-    unsigned int j;
+    unsigned int j = 0;
     unsigned char* temp_occluded = new unsigned char[count];
     for ( unsigned i = 0; i < count; i++){
       if ( !hit[i]) {
         continue;
       }
-      j = elem_index[i];
-      Assert(j<count);
       temp_occluded[i] = occluded[j];
+      ++j;
     }
     for ( unsigned i = 0; i < count; i++){
       occluded[i] = temp_occluded[i];
@@ -767,10 +740,15 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
 
     #ifdef STAT_PRAY_TRIANGLE
     uint i = 0;
+    j = 0;
     uint temp;
     for (i = 0; i < count; i++){
-        temp = Clamp(((cl_uint*)picture)[elem_index[i]],0,255) ;
-        Ls[i] = Spectrum(temp);
+      if (!hit[i]) continue;
+      temp = ((cl_uint*)picture)[j]; ///256;
+     // if ( temp > 0 ) cout << "spectrum " << temp << endl;
+      Ls[i] += Spectrum(temp);
+      Ls[i] = Ls[i].Clamp(0,255);
+      ++j;
     }
     delete [] ((uint*)picture);
     #endif

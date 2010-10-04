@@ -163,8 +163,12 @@ void breadthFirst::Li(const Scene *scene, const RayDifferential* ray,
   delete [] hit;
   return;
   #endif
-  for ( int i = 0; i < count; i++)
+  for ( int i = 0; i < count; i++){
     Lo[i] = Spectrum(0.f);
+    #ifdef STAT_PRAY_TRIANGLE
+    Ls[i] = Spectrum(0.f);
+    #endif
+  }
   surfaceIntegrator->Li(scene, this, ray, isect, sample, rng, arena, rayWeight, Lo, hit, count
     #ifdef STAT_PRAY_TRIANGLE
     , Ls

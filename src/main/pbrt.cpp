@@ -57,9 +57,10 @@ int main(int argc, char *argv[]) {
         else filenames.push_back(argv[i]);
     }
 
-    size_t len = strlen(argv[0]) - 4; // minus name of the program "pbrt"
-    options.pbrtPath = new char[len];
-    strncpy(options.pbrtPath, argv[0], len);
+    size_t len = strlen(argv[0]) - 1; // minus name of the program "pbrt"
+    while(argv[0][len] != '/') --len;
+    options.pbrtPath = new char[len + 1];
+    strncpy(options.pbrtPath, argv[0], len + 1);
 
     // Print welcome banner
     if (!options.quiet) {

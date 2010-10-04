@@ -21,6 +21,9 @@
 #ifdef IA
   #define NODE_SIZE 13
 #endif
+#ifdef SPHERE_UV
+  #define NODE_SIZE 9
+#endif
 
 using namespace std;
 Semaphore *workerSemaphore;
@@ -54,6 +57,14 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[3] = "cl/levelConstructIA.cl";
     names[4] = "cl/yetAnotherIntersectionIA.cl";
     cout << "accel nodes : IA" << endl;
+#endif
+#ifdef SPHERE_UV
+    names[0] = "cl/intersection5D.cl";
+    names[1] = "cl/intersectionP5D.cl";
+    names[2] = "cl/rayhconstruct5D.cl";
+    names[3] = "cl/levelConstruct5D.cl";
+    names[4] = "cl/yetAnotherIntersection5D.cl";
+    cout << "accel nodes : 5D nodes" << endl;
 #endif
     names[5] = "cl/computeDpTuTv.cl";
 
@@ -625,7 +636,6 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
   cl_float* rayOArray = new cl_float[count*3]; //ray origins
   cl_float* rayBoundsArray = new cl_float[count*2]; //ray bounds
   cl_uint* countArray = new cl_uint[threadsCount];
-  unsigned* elem_index = new unsigned [count];
   size_t* size = new size_t[20];
 
   unsigned int elem_counter = 0;
@@ -675,7 +685,6 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
       delete [] rayOArray;
       delete [] rayBoundsArray;
       delete [] countArray;
-      delete [] elem_index;
       delete [] size;
       return;
     }
@@ -767,7 +776,6 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     delete [] rayOArray;
     delete [] rayBoundsArray;
     delete [] size;
-    delete [] elem_index;
     delete [] countArray;
 }
 

@@ -15,21 +15,13 @@
 #define KERNEL_INTERSECTIONR 3
 #define KERNEL_YETANOTHERINTERSECTION 5
 
-#ifdef CONE
-  #define NODE_SIZE 8
-#endif
-#ifdef IA
-  #define NODE_SIZE 13
-#endif
-#ifdef SPHERE_UV
-  #define NODE_SIZE 9
-#endif
 
 using namespace std;
 Semaphore *workerSemaphore;
 
 // RayHieararchy Method Definitions
-RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height) {
+RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height,
+  string node) {
     this->chunk = chunk;
     this->height = height;
     triangleCount = 0;
@@ -42,30 +34,38 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     char** names = new char*[6];
     char** file = new char*[6];
 
-#ifdef CONE
+  nodeSize = 0;
+  if ( node == "cone"){
     names[0] = "cl/intersectionR.cl";
     names[1] = "cl/intersectionP.cl";
     names[2] = "cl/rayhconstruct.cl";
     names[3] = "cl/levelConstruct.cl";
     names[4] = "cl/yetAnotherIntersection.cl";
     cout << "accel nodes : cones" << endl;
-#endif
-#ifdef IA
+    nodeSize = 8;
+  }
+  if ( node == "ia"){
     names[0] = "cl/intersectionIA.cl";
     names[1] = "cl/intersectionPIA.cl";
     names[2] = "cl/rayhconstructIA.cl";
     names[3] = "cl/levelConstructIA.cl";
     names[4] = "cl/yetAnotherIntersectionIA.cl";
     cout << "accel nodes : IA" << endl;
-#endif
-#ifdef SPHERE_UV
+    nodeSize = 13;
+  }
+  if ( node == "sphere_uv"){
     names[0] = "cl/intersection5D.cl";
     names[1] = "cl/intersectionP5D.cl";
     names[2] = "cl/rayhconstruct5D.cl";
     names[3] = "cl/levelConstruct5D.cl";
     names[4] = "cl/yetAnotherIntersection5D.cl";
     cout << "accel nodes : 5D nodes" << endl;
-#endif
+    nodeSize = 9;
+  }
+  if ( nodeSize == 0){
+    cout << "Unknown accelarator node type " << node << endl;
+    abort();
+  }
     names[5] = "cl/computeDpTuTv.cl";
 
     for ( int i = 0; i < 6; i++){
@@ -272,7 +272,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   Assert(gpuray->CreateBuffer(0,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray directions
   Assert(gpuray->CreateBuffer(1,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray origins
   Assert(gpuray->CreateBuffer(2,sizeof(cl_uint)*threadsCount, CL_MEM_READ_ONLY)); //number of rays per initial thread
-  Assert(gpuray->CreateBuffer(3, sizeof(cl_float)*NODE_SIZE*total, CL_MEM_READ_WRITE)); //for cones
+  Assert(gpuray->CreateBuffer(3, sizeof(cl_float)*nodeSize*total, CL_MEM_READ_WRITE)); //for cones
   Assert(gpuray->SetIntArgument(4,(cl_uint)threadsCount));
 
   Assert(gpuray->EnqueueWriteBuffer( 0, rayDir));
@@ -785,7 +785,8 @@ RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
     bool onGPU = ps.FindOneBool("onGPU",true);
     int chunk = ps.FindOneInt("chunkSize",20);
     int height = ps.FindOneInt("height",3);
-    return new RayHieararchy(prims,onGPU,chunk,height);
+    string node = ps.FindOneString("node", "sphere_uv");
+    return new RayHieararchy(prims,onGPU,chunk,height,node);
 }
 
 

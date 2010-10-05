@@ -12,7 +12,7 @@ class RayHieararchy : public Aggregate {
 public:
     // RayHieararchy Public Methods
     BBox WorldBound() const;
-    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height);
+    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node);
     bool CanIntersect() const { return true; }
     ~RayHieararchy();
     void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const unsigned int count,
@@ -53,6 +53,9 @@ private:
     unsigned int rest_x, rest_y;
     mutable unsigned int xResolution;
     unsigned int yResolution;
+
+    string node;
+    size_t nodeSize;
 };
 
 

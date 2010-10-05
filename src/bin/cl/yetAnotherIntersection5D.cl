@@ -71,13 +71,13 @@ int computeRIndex (unsigned int j, const __global float* cones){
 bool intersectsNode(float4 center, float2 u, float2 v, float4 o, float radius) {
   float4 ray = center - o;
   float2 uv;
-  uv.x = atan2( ray.y, ray.z);
+  uv.x = atan2( ray.y, ray.x);
   uv.y = acos(ray.z);
 
   float beta = atan2( radius,length(ray));
-  if ( min(uv.x - beta,u.x) < max(uv.x + beta, u.y))
+  if ( max(uv.x - beta,u.x) < min(uv.x + beta, u.y))
     return true;
-  if ( min(uv.y - beta,v.x) < max(uv.y + beta, v.y))
+  if ( max(uv.y - beta,v.x) < min(uv.y + beta, v.y))
     return true;
 
   return false;

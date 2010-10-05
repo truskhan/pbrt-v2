@@ -23,19 +23,19 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   center = vload4(0, o + 3*index);
   x.w = 0; center.w = 0;
   radius = 0;
-  u.x = u.y = atan2( x.y, x.z) ;
+  u.x = u.y = atan2( x.y, x.x) ;
   v.x = v.y = acos(x.z);
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
     x = vload4(0,dir+3*(index+i));
-    uv.x = atan2( x.y, x.z) ;
+    uv.x = atan2( x.y, x.x) ;
     uv.y = acos(x.z);
     //find 2D boundign box for uv
-    u.x = (u.x < uv.x)? u.x : uv.x;
-    u.y = (u.y > uv.x)? u.y : uv.x;
-    v.x = (v.x < uv.y)? v.x : uv.y;
-    v.y = (v.x > uv.y)? v.y : uv.y;
+    u.x = min(u.x, uv.x);
+    u.y = max(u.y, uv.x);
+    v.x = min(v.x, uv.y);
+    v.y = max(v.y, uv.y);
 
     //is ray origin inside the sphere?
     orig = vload4(0,o+3*(index+i));

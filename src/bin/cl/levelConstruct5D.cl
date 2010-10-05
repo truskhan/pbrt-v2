@@ -45,10 +45,10 @@ __kernel void levelConstruct(__global float* cones, const int count,
     v2 = vload2(0,cones + 9*beginr + 18*iGID + 15);
 
     //find 2D boundign box for uv
-    u1.x = (u1.x < u2.x)? u1.x : u2.x;
-    u1.y = (u1.y > u2.y)? u1.y : u2.y;
-    v1.x = (v1.x < v2.x)? v1.x : v2.x;
-    v1.y = (v1.y > v2.y)? v1.y : v2.y;
+    u1.x = min(u1.x, u2.x);
+    u1.y = max(u1.y, u2.y);
+    v1.x = min(v1.x, v2.x);
+    v1.y = max(v1.y, v2.y);
 
     //union the spheres according to http://answers.google.com/answers/threadview/id/342125.html
     //swap the spheres if sphere2 is bigger

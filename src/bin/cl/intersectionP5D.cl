@@ -70,7 +70,7 @@ int computeRIndex (unsigned int j, const __global float* cones){
 bool intersectsNode(float4 center, float2 u, float2 v, float4 o, float radius) {
   float4 ray = center - o;
   float2 uv;
-  uv.x = atan2( ray.y, ray.z);
+  uv.x = atan2( ray.y, ray.x);
   uv.y = acos(ray.z);
 
   float beta = atan2( radius,length(ray));

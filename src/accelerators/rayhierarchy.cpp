@@ -59,8 +59,17 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[2] = "cl/rayhconstruct5D.cl";
     names[3] = "cl/levelConstruct5D.cl";
     names[4] = "cl/yetAnotherIntersection5D.cl";
-    cout << "accel nodes : 5D nodes" << endl;
+    cout << "accel nodes : 5D nodes with spheres" << endl;
     nodeSize = 9;
+  }
+  if ( node == "box_uv") {
+    names[0] = "cl/intersection5DB.cl";
+    names[1] = "cl/intersectionP5DB.cl";
+    names[2] = "cl/rayhconstruct5DB.cl";
+    names[3] = "cl/levelConstruct5DB.cl";
+    names[4] = "cl/yetAnotherIntersection5DB.cl";
+    cout << "accel nodes : 5D nodes with boxes" << endl;
+    nodeSize = 11;
   }
   if ( nodeSize == 0){
     cout << "Unknown accelarator node type " << node << endl;

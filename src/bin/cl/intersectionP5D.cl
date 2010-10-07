@@ -67,16 +67,18 @@ int computeRIndex (unsigned int j, const __global float* cones){
   return rindex;
 }
 
-bool intersectsNode(float4 center, float2 u, float2 v, float4 o, float radius) {
-  float4 ray = center - o;
+bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float radius) {
   float2 uv;
-  uv.x = atan2( ray.y, ray.x);
+  float4 ray = o - center;
+  float len = length(ray);
+  ray = ray/len;
+  uv.x = (ray.x == 0)? 0: atan(ray.y/ray.x);
   uv.y = acos(ray.z);
 
-  float beta = atan2( radius,length(ray));
-  if ( max(uv.x - beta,u.x) < min(uv.x + beta, u.y))
-    return true;
-  if ( max(uv.y - beta,v.x) < min(uv.y + beta, v.y))
+  len = atan(radius/len);
+
+  if ( max(uv.x - len, uvmin.x) < min(uv.x + len, uvmax.x) &&
+    max(uv.y - len, uvmin.y) < min(uv.y + len, uvmax.y))
     return true;
 
   return false;

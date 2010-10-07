@@ -26,31 +26,23 @@ __kernel void levelConstruct(__global float* cones, const int count,
   omax1 = vload4(0,cones + 13*beginr + 26*iGID + 3);
   dmin1 = vload4(0,cones + 13*beginr + 26*iGID + 6);
   dmax1 = vload4(0,cones + 13*beginr + 26*iGID + 9);
+  omin1.w = omax1.w = dmin1.w = 0;
   dmax1.w = 1;
 
   if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
     //posledni vlakno jen prekopiruje
-    dmax1.w = 2;
     omin2 = vload4(0,cones + 13*beginr + 26*iGID + 13);
     omax2 = vload4(0,cones + 13*beginr + 26*iGID + 16);
     dmin2 = vload4(0,cones + 13*beginr + 26*iGID + 19);
     dmax2 = vload4(0,cones + 13*beginr + 26*iGID + 22);
+    omin2.w = omax2.w = dmin2.w = dmax2.w = 0;
 
-    omin1.x = (omin1.x < omin2.x)? omin1.x : omin2.x;
-    omin1.y = (omin1.y < omin2.y)? omin1.y : omin2.y;
-    omin1.z = (omin1.z < omin2.z)? omin1.z : omin2.z;
+    omin1 = min(omin1, omin2);
+    omax1 = max(omax1, omax2);
+    dmin1 = min(dmin1, dmin2);
+    dmax1 = max(dmax1, dmax2);
 
-    omax1.x = (omax1.x > omax2.x)? omax1.x : omax2.x;
-    omax1.y = (omax1.y > omax2.y)? omax1.y : omax2.y;
-    omax1.z = (omax1.z > omax2.z)? omax1.z : omax2.z;
-
-    dmin1.x = (dmin1.x < dmin2.x)? dmin1.x : dmin2.x;
-    dmin1.y = (dmin1.y < dmin2.y)? dmin1.y : dmin2.y;
-    dmin1.z = (dmin1.z < dmin2.z)? dmin1.z : dmin2.z;
-
-    dmax1.x = (dmax1.x > dmax2.x)? dmax1.x : dmax2.x;
-    dmax1.y = (dmax1.y > dmax2.y)? dmax1.y : dmax2.y;
-    dmax1.z = (dmax1.z > dmax2.z)? dmax1.z : dmax2.z;
+    dmax1.w = 2;
   }
 
   vstore4(omin1, 0, cones + 13*beginw + 13*iGID);

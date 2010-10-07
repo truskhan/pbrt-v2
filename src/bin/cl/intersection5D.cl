@@ -74,17 +74,18 @@ int computeRIndex (unsigned int j, const __global float* cones){
   return rindex;
 }
 
-bool intersectsNode(float4 center, float2 u, float2 v, float4 o, float radius) {
-  float4 ray = normalize(center - o);
+bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float radius) {
   float2 uv;
-  uv.x = atan2( ray.y, ray.x);
+  float4 ray = o - center;
+  float len = length(ray);
+  ray = ray/len;
+  uv.x = (ray.x == 0)? 0: atan(ray.y/ray.x);
   uv.y = acos(ray.z);
-  ray = center - o;
 
-  float beta = atan2( radius,length(ray));
-  if ( max(uv.x - beta,u.x) < min(uv.x + beta, u.y))
-    return true;
-  if ( max(uv.y - beta,v.x) < min(uv.y + beta, v.y))
+  len = atan(radius/len);
+
+  if ( max(uv.x - len, uvmin.x) < min(uv.x + len, uvmax.x) &&
+    max(uv.y - len, uvmin.y) < min(uv.y + len, uvmax.y))
     return true;
 
   return false;
@@ -130,7 +131,6 @@ __kernel void IntersectionR (
     center = (v1+v2+v3)/3;
     radius = length(v1-center);
 
-
     //find number of elements in top level of the ray hieararchy
     uint levelcount = threadsCount; //end of level0
     uint num = 0;
@@ -169,6 +169,7 @@ __kernel void IntersectionR (
         #endif
         //store child to the stack
         stack[iLID*(height) + SPindex++] = begin - 9*lastlevelnum + 18*j;
+        stack[iLID*(height) + SPindex++] = begin - 9*lastlevelnum + 18*j + 9;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
@@ -197,33 +198,10 @@ __kernel void IntersectionR (
             else {
               //save the intersected cone to the stack
               stack[iLID*(height) + SPindex++] = child;
+              stack[iLID*(height) + SPindex++] = child + 9;
             }
           }
-          center1 = vload4(0, cones + i + 9);
-          radius1 = center1.w + radius;
-          center1.w = 0;
-          u = vload2(0, cones + i + 13);
-          v = vload2(0, cones + i + 15);
 
-          if ( intersectsNode(center1, u, v, center, radius1 ))
-         {
-            #ifdef STAT_TRIANGLE_CONE
-             ++stat_triangleCone[iGID];
-            #endif
-            child = computeChild (threadsCount, i+9);
-            //if the cone is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i + 9, cones);
-              intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+17],rindex
-              #ifdef STAT_RAY_TRIANGLE
-                , stat_rayTriangle
-              #endif
-              );
-            }
-            else {
-              stack[iLID*(height) + SPindex++] = child;
-            }
-          }
         }
       }
 

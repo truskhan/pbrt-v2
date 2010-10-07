@@ -16,26 +16,18 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   //start with the first ray
   dmin = dmax = vload4(0, dir + 3*index);
   omin = omax = vload4(0, o + 3*index);
+  dmin.w = dmax.w = omin.w = omax.w = 0;
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
     dtemp = vload4(0,dir+3*(index+i));
     otemp = vload4(0,o+3*(index+i));
+    dtemp.w = otemp.w = 0;
 
-    dmin.x = (dmin.x < dtemp.x)? dmin.x : dtemp.x;
-    dmax.x = (dmax.x > dtemp.x)? dmax.x : dtemp.x;
-    dmin.y = (dmin.y < dtemp.y)? dmin.y : dtemp.y;
-    dmax.y = (dmax.y > dtemp.y)? dmax.y : dtemp.y;
-    dmin.z = (dmin.z < dtemp.z)? dmin.z : dtemp.z;
-    dmax.z = (dmax.z > dtemp.z)? dmax.z : dtemp.z;
-
-    omin.x = (omin.x < otemp.x)? omin.x : otemp.x;
-    omax.x = (omax.x > otemp.x)? omax.x : otemp.x;
-    omin.y = (omin.y < otemp.y)? omin.y : otemp.y;
-    omax.y = (omax.y > otemp.y)? omax.y : otemp.y;
-    omin.z = (omin.z < otemp.z)? omin.z : otemp.z;
-    omax.z = (omax.z > otemp.z)? omax.z : otemp.z;
-
+    dmin = min(dmin, dtemp);
+    dmax = max(dmax, dtemp);
+    omin = min(omin, otemp);
+    omax = max(omax, otemp);
   }
 
   //store the result

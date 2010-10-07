@@ -20,7 +20,7 @@ __kernel void levelConstruct(__global float* cones, const int count,
   if ( iGID >= levelcount ) return;
 
   float4 center1, center2;
-  float2 u1, v1, u2, v2;
+  float2 uvmin1, uvmax1, uvmin2, uvmax2;
   float dist;
   float radius1, radius2;
 
@@ -31,8 +31,8 @@ __kernel void levelConstruct(__global float* cones, const int count,
   center1 = vload4(0,cones + 9*beginr + 18*iGID);
   radius1 = center1.w;
   center1.w = 0;
-  u1 = vload2(0,cones + 9*beginr + 18*iGID + 4);
-  v1 = vload2(0,cones + 9*beginr + 18*iGID + 6);
+  uvmin1 = vload2(0,cones + 9*beginr + 18*iGID + 4);
+  uvmax1 = vload2(0,cones + 9*beginr + 18*iGID + 6);
 
   cones[9*beginw + 9*iGID + 8] = 1;
   if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
@@ -41,35 +41,33 @@ __kernel void levelConstruct(__global float* cones, const int count,
     center2 = vload4(0,cones + 9*beginr + 18*iGID + 9);
     radius2 = center2.w;
     center2.w = 0;
-    u2 = vload2(0,cones + 9*beginr + 18*iGID + 13);
-    v2 = vload2(0,cones + 9*beginr + 18*iGID + 15);
+    uvmin2 = vload2(0,cones + 9*beginr + 18*iGID + 13);
+    uvmax2 = vload2(0,cones + 9*beginr + 18*iGID + 15);
 
     //find 2D boundign box for uv
-    u1.x = min(u1.x, u2.x);
-    u1.y = max(u1.y, u2.y);
-    v1.x = min(v1.x, v2.x);
-    v1.y = max(v1.y, v2.y);
+    uvmin1 = min(uvmin1, uvmin2);
+    uvmax1 = max(uvmax1, uvmax2);
 
     //union the spheres according to http://answers.google.com/answers/threadview/id/342125.html
     //swap the spheres if sphere2 is bigger
     if ( radius2 > radius1 + EPS ){
       tempCenter = center1;
-      tempu = u1;
-      tempv = v1;
+      tempu = uvmin1;
+      tempv = uvmax1;
       tempRadius = radius1;
 
       center1 = center2;
-      u1 = u2;
-      v1 = v2;
+      uvmin1 = uvmin2;
+      uvmax1 = uvmax2;
       radius1 = radius2;
 
       center2 = tempCenter;
-      u2 = tempu;
-      v2 = tempv;
+      uvmin2 = tempu;
+      uvmax2 = tempv;
       radius2 = tempRadius;
     }
     //is sphere inside the other one?
-    tempCenter = center2 - center1;
+   tempCenter = center2 - center1;
     dist = length(tempCenter);
     if (dist + radius2 > ( radius1 + EPS)){
       //compute bounding sphere of the old ones
@@ -82,6 +80,6 @@ __kernel void levelConstruct(__global float* cones, const int count,
   //store the result
   center1.w = radius1;
   vstore4(center1, 0, cones + 9*beginw + 9*iGID);
-  vstore2(u1, 0, cones + 9*beginw + 9*iGID + 4);
-  vstore2(v1, 0, cones + 9*beginw + 9*iGID + 6);
+  vstore2(uvmin1, 0, cones + 9*beginw + 9*iGID + 4);
+  vstore2(uvmax1, 0, cones + 9*beginw + 9*iGID + 6);
 }

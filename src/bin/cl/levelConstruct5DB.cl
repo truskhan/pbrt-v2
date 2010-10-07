@@ -20,47 +20,38 @@ __kernel void levelConstruct(__global float* cones, const int count,
   if ( iGID >= levelcount ) return;
 
   //3D bounding box of the origin
-  float2 ox1, oy1, oz1, ox2, oy2, oz2;
+  float4 omin1, omax1, omin2, omax2;
   //2D bounding box for uv
-  float2 u1, v1, u2, v2;
+  float2 uvmin1, uvmax1, uvmin2, uvmax2;
 
-  ox1 = vload2(0, cones + 11*beginr + 22*iGID);
-  oy1 = vload2(0, cones + 11*beginr + 22*iGID + 2);
-  oz1 = vload2( 0, cones + 11*beginr + 22*iGID + 4);
-  u1 = vload2( 0, cones + 11*beginr + 22*iGID + 6);
-  v1 = vload2( 0, cones + 11*beginr + 22*iGID + 8);
+  omin1 = vload4(0, cones + 11*beginr + 22*iGID);
+  omax1 = vload4(0, cones + 11*beginr + 22*iGID + 3);
+  uvmin1 = vload2( 0, cones + 11*beginr + 22*iGID + 6);
+  uvmax1 = vload2( 0, cones + 11*beginr + 22*iGID + 8);
 
   cones[11*beginw + 11*iGID + 10] = 1;
   if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
     //last thread only copies node1 to the output
     cones[11*beginw + 11*iGID + 10] = 2;
 
-    ox2 = vload2(0, cones + 11*beginr + 22*iGID + 11);
-    oy2 = vload2(0, cones + 11*beginr + 22*iGID + 13);
-    oz2 = vload2( 0, cones + 11*beginr + 22*iGID + 15);
-    u2 = vload2( 0, cones + 11*beginr + 22*iGID + 17);
-    v2 = vload2( 0, cones + 11*beginr + 22*iGID + 19);
+    omin2 = vload4(0, cones + 11*beginr + 22*iGID + 11);
+    omax2 = vload4(0, cones + 11*beginr + 22*iGID + 14);
+    uvmin2 = vload2( 0, cones + 11*beginr + 22*iGID + 17);
+    uvmax2 = vload2( 0, cones + 11*beginr + 22*iGID + 19);
 
     //find 2D boundign box for uv
-    u1.x = min(u1.x, u2.x);
-    u1.y = max(u1.y, u2.y);
-    v1.x = min(v1.x, v2.x);
-    v1.y = max(v1.y, v2.y);
+    uvmin1 = min(uvmin1, uvmin2);
+    uvmax1 = max(uvmax1, uvmax2);
 
     //find 3D bounding box for ray origins
-    ox1.x = min(ox1.x, ox2.x);
-    ox2.y = max(ox1.y, ox2.y);
-    oy1.x = min(oy1.x, oy2.x);
-    oy2.y = max(oy1.y, oy2.y);
-    oz1.x = min(oz1.x, oz2.x);
-    oz2.y = max(oz1.y, oz2.y);
+    omin1 = min(omin1, omin2);
+    omax1 = max(omax1, omax2);
 
   }
   //store the result
-  vstore2(ox1, 0, cones + 11*beginw + 11*iGID);
-  vstore2(oy1, 0, cones + 11*beginw + 11*iGID + 2);
-  vstore2(oz1, 0, cones + 11*beginw + 11*iGID + 4);
-  vstore2(u1, 0, cones + 11*beginw + 11*iGID + 6);
-  vstore2(v1, 0, cones + 11*beginw + 11*iGID + 8);
+  vstore4(omin1, 0, cones + 11*beginw + 11*iGID);
+  vstore4(omax1, 0, cones + 11*beginw + 11*iGID + 3);
+  vstore2(uvmin1, 0, cones + 11*beginw + 11*iGID + 6);
+  vstore2(uvmax1, 0, cones + 11*beginw + 11*iGID + 8);
 
 }

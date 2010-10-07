@@ -9,9 +9,9 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   float4 x;
   float2 uv;
   //3D bounding box of the origin
-  float2 ox, oy, oz;
+  float4 omin, omax;
   //2D bounding box for uv
-  float2 u, v;
+  float2 uvmin, uvmax;
 
   unsigned int index = 0;
   for ( int i = 0; i < iGID; i++)
@@ -19,41 +19,36 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
 
   //load ray dir
   x = vload4(0, dir + 3*index);
-  u.x = u.y = ( x.x == 0) ? 0:x.y / x.x;
-  v.x = v.y = (x.z);
+  uvmin.x = uvmax.x = (x.x == 0) ? 0 : x.y/x.x;
+  uvmin.y = uvmax.y = x.z;
 
   //load ray origin
   x = vload4(0, o + 3*index);
-  ox.x = ox.y = x.x;
-  oy.x = oy.y = x.y;
-  oz.x = oz.y = x.z;
+  omin.x = omax.x = x.x;
+  omin.y = omax.y = x.y;
+  omin.z = omax.z = x.z;
+  omin.w = omax.w = 0;
 
   for ( int i = 1; i < counts[iGID]; i++){
     x = vload4(0,dir+3*(index+i));
     uv.x = ( x.x == 0)? 0 : x.y/x.x;
     uv.y = (x.z);
     //find 2D boundign box for uv
-    u.x = min(u.x, uv.x);
-    u.y = max(u.y, uv.x);
-    v.x = min(v.x, uv.y);
-    v.y = max(v.y, uv.y);
+    uvmin = min(uvmin, uv);
+    uvmax = max(uvmax, uv);
 
     //find box for the origin of rays
     x = vload4(0,o+3*(index+i));
-    ox.x = min(ox.x, x.x);
-    ox.y = max(ox.y, x.x);
-    oy.x = min(oy.x, x.y);
-    oy.y = max(oy.y, x.y);
-    oz.x = min(oz.x, x.z);
-    oz.y = max(oz.y, x.z);
+    x.w = 0;
+    omin = min(omin, x);
+    omax = max(omax, x);
 
   }
 
   //store the result
-  vstore2(ox, 0, cones + 11*iGID);
-  vstore2(oy, 0, cones + 11*iGID + 2);
-  vstore2(oz, 0, cones + 11*iGID + 4);
-  vstore2(u, 0, cones + 11*iGID + 6);
-  vstore2(v, 0, cones + 11*iGID + 8);
+  vstore4(omin, 0, cones + 11*iGID);
+  vstore4(omax, 0, cones + 11*iGID + 3);
+  vstore2(uvmin, 0, cones + 11*iGID + 6);
+  vstore2(uvmax, 0, cones + 11*iGID + 8);
   cones[11*iGID + 10 ] = counts[iGID];
 }

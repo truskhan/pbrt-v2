@@ -152,6 +152,7 @@ __kernel void IntersectionR (
         #endif
         //store child to the stack
         stack[iLID*(height) + SPindex++] = begin - 8*lastlevelnum + 16*j;
+        stack[iLID*(height) + SPindex++] = begin - 8*lastlevelnum + 16*j + 8;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
@@ -179,31 +180,10 @@ __kernel void IntersectionR (
             else {
               //save the intersected cone to the stack
               stack[iLID*(height) + SPindex++] = child;
+              stack[iLID*(height) + SPindex++] = child+8;
             }
           }
-          a = vload4(0, cones+i+8);
-          x = vload4(0, cones+i+11);
-          fi = x.w;
-          a.w = 0; x.w = 0;
-          if ( len < EPS || acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
-         {
-            #ifdef STAT_TRIANGLE_CONE
-             ++stat_triangleCone[iGID];
-            #endif
-            child = computeChild (threadsCount, i+8);
-            //if the cone is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i + 8, cones);
-              intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+15],rindex
-              #ifdef STAT_RAY_TRIANGLE
-                , stat_rayTriangle
-              #endif
-              );
-            }
-            else {
-              stack[iLID*(height) + SPindex++] = child;
-            }
-          }
+
         }
       }
 

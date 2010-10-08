@@ -257,6 +257,8 @@ bool RayHieararchy::Intersect(const Triangle* shape, const Ray &ray, float *tHit
     return true;
 }
 
+size_t topLevelCount;
+
 //constructs ray hieararchy on GPU -> creates array of cones
 size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl_uint count,
   cl_uint* countArray, unsigned int threadsCount ){
@@ -275,6 +277,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
         break;
       }
   }
+  topLevelCount = levelcount;
   if ( height < 2) Severe("Too few rays for rayhierarchy! Try smaller chunks");
   gpuray->InitBuffers(4);
 
@@ -449,7 +452,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->CreateBuffer(7,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY));
     #endif
 
-    Assert(gput->SetLocalArgument(c++,sizeof(cl_int)*64*(height))); //stack for every thread
+    Assert(gput->SetLocalArgument(c++,sizeof(cl_int)*(32*2)*(height))); //stack for every thread
+    Assert(gput->SetLocalArgument(c++,sizeof(cl_float)*topLevelCount*nodeSize));
     Assert(gput->SetIntArgument(c++,(cl_int)count));
     Assert(gput->SetIntArgument(c++,(cl_int)triangleCount));
     Assert(gput->SetIntArgument(c++,(cl_int)height));

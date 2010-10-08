@@ -152,6 +152,7 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
       {
         //store child to the stack
         stack[iLID*height + SPindex++] = begin - 9*lastlevelnum + 18*j;
+        stack[iLID*height + SPindex++] = begin - 9*lastlevelnum + 18*j + 9;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
@@ -177,28 +178,7 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
             else {
               //save the intersected cone to the stack
               stack[iLID*height + SPindex++] = child;
-            }
-          }
-          center1 = vload4(0, cones + i + 9);
-          radius1 = center1.w + radius;
-          center1.w = 0;
-          u = vload2(0, cones + i + 13);
-          v = vload2(0, cones + i + 15);
-
-          if ( intersectsNode(center1, u, v, center, radius1 ))
-         {
-            child = computeChild (threadsCount, i+9);
-            //if the cone is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i + 9, cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+17],rindex
-              #ifdef STAT_PRAY_TRIANGLE
-               ,stat_rayTriangle
-              #endif
-              );
-            }
-            else {
-              stack[iLID*height + SPindex++] = child;
+              stack[iLID*height + SPindex++] = child + 9;
             }
           }
         }

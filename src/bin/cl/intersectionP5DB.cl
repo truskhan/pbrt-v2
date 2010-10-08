@@ -164,9 +164,6 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
     bmax = max(v1,v2);
     bmax = max(bmax, v3);
 
-    float4 a,x;
-    float fi;
-    float len;
 
     //find number of elements in top level of the ray hieararchy
     uint levelcount = threadsCount; //end of level0

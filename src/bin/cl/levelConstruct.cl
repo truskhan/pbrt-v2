@@ -43,14 +43,14 @@ __kernel void levelConstruct(__global float* cones, const int count,
 
     dotcx = dot(xb,x);
     q = normalize(dotcx*xb - x);
-    ra = xb*cosfib + q*native_sin(fib); //e
-    rb = xb*cosfib - q*native_sin(fib); //n
+    ra = normalize(xb*cosfib + q*native_sin(fib)); //e
+    rb = normalize(xb*cosfib - q*native_sin(fib)); //n
 
     dotrx = dot(ra,x);
     if ( dotrx < cosfi){
       //extend the cone
       q = normalize(dotrx*x - ra);
-      sinfi = (cosfi>(1-EPS))? 0:native_sin(acos(cosfi));
+      sinfi = (cosfi>(1-EPS))? 0:native_sin(fi);
       e = normalize(x*cosfi + q*sinfi);
       x = normalize(e+ra);
       cosfi = dot(x,ra);
@@ -61,7 +61,7 @@ __kernel void levelConstruct(__global float* cones, const int count,
     if ( dotrx < cosfi){
       //extend the cone
       q = normalize(dotrx*x - rb);
-      sinfi = (cosfi>(1-EPS))? 0:native_sin(acos(cosfi));
+      sinfi = (cosfi>(1-EPS))? 0:native_sin(fi);
       e = normalize(x*cosfi + q*sinfi);
       x = normalize(e+rb);
       cosfi = dot(x,rb);
@@ -74,12 +74,12 @@ __kernel void levelConstruct(__global float* cones, const int count,
       c = normalize(c);
       dotcx = dot(x,c);
       if ( dotcx < cosfi){
-        q = (dotcx*x - c)/length(dotcx*x-x);
+        q = (dotcx*x - c)/length(dotcx*x-c);
         sinfi = native_sin(fi);
         e = x*cosfi + q*sinfi;
         n = x*cosfi - q*sinfi;
         g = c - dot(n,c)*n;
-        t = (length(g)*length(g))/dot(e,g);
+        t = (length(g)*length(g))/dot(-e,normalize(g));
         a = a - t*e;
       }
 

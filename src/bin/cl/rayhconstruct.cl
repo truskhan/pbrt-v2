@@ -27,7 +27,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
     p = vload4(0,o+3*(index+i));
     p.w = 0;
     dotrx = dot(r,x);
-    if ( dotrx < cosfi ){
+    if ( dotrx < cosfi  ){
       //extend the cone
       q = normalize(dotrx*x - r);
       sinfi = (cosfi > (1-EPS))? 0:native_sin(acos(cosfi)); //precison problems
@@ -41,12 +41,12 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
       c = normalize(p - a);
       dotcx = dot(c,x);
       if ( dotcx < cosfi){
-        q = (dotcx*x - c)/length(dotcx*x-x);
-        sinfi = native_sin(acos(cosfi));
-        e = x*cosfi + q*sinfi;
-        n = x*cosfi - q*sinfi;
+        q = (dotcx*x - c)/length(dotcx*x-c);
+        sinfi = (cosfi > (1-EPS))? 0:native_sin(acos(cosfi));
+        e = normalize(x*cosfi + q*sinfi);
+        n = normalize(x*cosfi - q*sinfi);
         g = c - dot(n,c)*n;
-        t = (length(g)*length(g))/dot(e,g);
+        t = (length(g)*length(g))/dot(-e,normalize(g));
         a = a - t*e;
       }
     }

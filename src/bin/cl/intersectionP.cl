@@ -145,7 +145,7 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
             //if the cones is at level 0 - check leaves
             if ( child < 0){
               rindex = computeRIndex(i,cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[7],rindex
+              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+7],rindex
               #ifdef STAT_PRAY_TRIANGLE
                ,stat_rayTriangle
               #endif

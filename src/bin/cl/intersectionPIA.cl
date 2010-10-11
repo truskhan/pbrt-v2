@@ -145,7 +145,8 @@ __global unsigned char* tHit,
 #ifdef STAT_PRAY_TRIANGLE
  __global int* stat_rayTriangle,
 #endif
-__local int* stack, int count, int size, int height,unsigned int threadsCount
+__local int* stack,  __local float* nodes,
+ int count, int size, int height,unsigned int threadsCount
 )
 {
     int iGID = get_global_id(0);

@@ -195,43 +195,39 @@ __kernel void IntersectionR (
     uint num = 0;
     uint lastlevelnum = 0;
 
-    for ( int i = 1; i < height; i++){
+    for ( int i = 1; i <= height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
+    int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
     int child;
 
     i = iLID;
+    begin = 13*num;
     //preload top level cone description into faster local memory
-    while ( i < levelcount){
-      omin = vload4(0, cones + begin + 13*i);
-      omax = vload4(0, cones + begin+13*i + 3);
-      dmin = vload4(0, cones + begin+13*i + 6);
-      dmax = vload4(0, cones + begin+13*i + 9);
-
-      nodes[13*i] = omin.x; nodes[13*i + 1] = omin.y; nodes[13*i + 2] = omin.z;
-      nodes[13*i + 3] = omax.x; nodes[13*i + 4] = omax.y; nodes[13*i + 5] = omax.z;
-      nodes[13*i + 6] = dmin.x; nodes[13*i + 7] = dmin.y; nodes[13*i + 8] = dmin.z;
-      nodes[13*i + 9] = dmax.x; nodes[13*i + 10] = dmax.y; nodes[13*i + 11] = dmax.z;
+    while ( i < 13*levelcount){
+      omin.x = cones[begin + i];
+      nodes[i] = omin.x;
 
       i += get_local_size(0);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
     omin.w = omax.w = dmin.w = dmax.w = 0;
-    begin = 13*num;
+
     for ( int j = 0; j < levelcount; j++){
       // get IA description
+      barrier(CLK_LOCAL_MEM_FENCE);
       omin.x = nodes[13*j]; omin.y = nodes[13*j+1]; omin.z = nodes[13*j+2];
       omax.x = nodes[13*j+3]; omax.y = nodes[13*j+4]; omax.z = nodes[13*j+5];
       dmin.x = nodes[13*j+6]; dmin.y = nodes[13*j+7]; dmin.z = nodes[13*j+8];
       dmax.x = nodes[13*j+9]; dmax.y = nodes[13*j+10]; dmax.z = nodes[13*j+11];
-
+      num = nodes[13*j + 12];
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
       {
@@ -239,44 +235,50 @@ __kernel void IntersectionR (
          ++stat_triangleCone[iGID];
         #endif
         //store child to the stack
-        stack[iLID*(height) + SPindex++] = begin - 13*lastlevelnum + 26*j;
-        stack[iLID*(height) + SPindex++] = begin - 13*lastlevelnum + 26*j + 13;
+        stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j;
+        if ( num > 1)
+        stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j + 13;
 
       }
 
-    }
+      while ( SPindex > 0 ){
+        //take the cones from the stack and check them
+        --SPindex;
+        i = stack[wbeginStack + SPindex];
+        omin = vload4(0, cones + i);
+        omax = vload4(0, cones + i + 3);
+        dmin = vload4(0, cones + i + 6);
+        dmax = vload4(0, cones + i + 9);
+        num = dmax.w;
+        omin.w = omax.w = dmin.w = dmax.w = 0;
 
-    while ( SPindex > 0 ){
-      //take the cones from the stack and check them
-      --SPindex;
-      i = stack[iLID*(height) + SPindex];
-      omin = vload4(0, cones + i);
-      omax = vload4(0, cones + i + 3);
-      dmin = vload4(0, cones + i + 6);
-      dmax = vload4(0, cones + i + 9);
-      omin.w = omax.w = dmin.w = dmax.w = 0;
-
-      if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
-      {
-        #ifdef STAT_TRIANGLE_CONE
-         ++stat_triangleCone[iGID];
-        #endif
-        child = computeChild(threadsCount,i);
-        //if the cones is at level 0 - check leaves
-        if ( child < 0) {
-          rindex = computeRIndex(i, cones);
-          intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+12], rindex
-          #ifdef STAT_RAY_TRIANGLE
-            , stat_rayTriangle
+        if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
+        {
+          #ifdef STAT_TRIANGLE_CONE
+           ++stat_triangleCone[iGID];
           #endif
-          );
+          child = computeChild(threadsCount,i);
+          //if the cones is at level 0 - check leaves
+          if ( child < 0) {
+            rindex = computeRIndex(i, cones);
+            intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+12], rindex
+            #ifdef STAT_RAY_TRIANGLE
+              , stat_rayTriangle
+            #endif
+            );
+          }
+          else {
+            //save the intersected cone to the stack
+            stack[wbeginStack + SPindex++] = child;
+            if ( num > 1)
+            stack[wbeginStack + SPindex++] = child + 13;
+          }
         }
-        else {
-          //save the intersected cone to the stack
-          stack[iLID*(height) + SPindex++] = child;
-          stack[iLID*(height) + SPindex++] = child + 13;
-        }
+
       }
 
     }
+
+
+
 }

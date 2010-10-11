@@ -278,6 +278,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
       }
   }
   topLevelCount = levelcount;
+  total += levelcount;
   if ( height < 2) Severe("Too few rays for rayhierarchy! Try smaller chunks");
   gpuray->InitBuffers(4);
 
@@ -304,7 +305,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   if (!gpurayl->SetIntArgument(1,(cl_uint)count)) exit(EXIT_FAILURE);
   if (!gpurayl->SetIntArgument(2,(cl_uint)threadsCount)) exit(EXIT_FAILURE);
 
-  for ( cl_uint i = 1; i < height; i++){
+  for ( cl_uint i = 1; i <= height; i++){
     if (!gpurayl->SetIntArgument(3,i)) exit(EXIT_FAILURE);
     if (!gpurayl->Run())exit(EXIT_FAILURE);
     gpurayl->WaitForKernel();
@@ -452,7 +453,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->CreateBuffer(7,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY));
     #endif
 
-    Assert(gput->SetLocalArgument(c++,sizeof(cl_int)*(32*2)*(height))); //stack for every thread
+    Assert(gput->SetLocalArgument(c++,sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2)))); //stack for every thread
     Assert(gput->SetLocalArgument(c++,sizeof(cl_float)*topLevelCount*nodeSize));
     Assert(gput->SetIntArgument(c++,(cl_int)count));
     Assert(gput->SetIntArgument(c++,(cl_int)triangleCount));
@@ -506,11 +507,12 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     anotherIntersect->CopyBuffers(0,7,0,gput);
     Assert(anotherIntersect->CreateBuffer(7,sizeof(cl_uint)*triangleCount, CL_MEM_WRITE_ONLY)); //recording changes
 
-    Assert(anotherIntersect->SetLocalArgument(8,sizeof(cl_int)*64*(height))); //stack for every thread
-    Assert(anotherIntersect->SetIntArgument(9,(cl_int)count));
-    Assert(anotherIntersect->SetIntArgument(10,(cl_int)triangleCount));
-    Assert(anotherIntersect->SetIntArgument(11,(cl_int)height));
-    Assert(anotherIntersect->SetIntArgument(12,(cl_int)threadsCount));
+    Assert(anotherIntersect->SetLocalArgument(8,sizeof(cl_int)*(32*(topLevelCount*2 + (height+1)*(2+height)/2)))); //stack for every thread
+    Assert(anotherIntersect->SetLocalArgument(9,sizeof(cl_float)*topLevelCount*nodeSize));
+    Assert(anotherIntersect->SetIntArgument(10,(cl_int)count));
+    Assert(anotherIntersect->SetIntArgument(11,(cl_int)triangleCount));
+    Assert(anotherIntersect->SetIntArgument(12,(cl_int)height));
+    Assert(anotherIntersect->SetIntArgument(13,(cl_int)threadsCount));
     //TODO: make only one counter per work-group, use local memory
     if (!anotherIntersect->EnqueueWriteBuffer( 7 , changedArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->Run())exit(EXIT_FAILURE);
@@ -727,6 +729,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     #endif
 
     if (!gput->SetLocalArgument(c++,sizeof(cl_int)*64*height)); //stack for every thread
+    Assert(gput->SetLocalArgument(c++,sizeof(cl_float)*topLevelCount*nodeSize));
     if (!gput->SetIntArgument(c++,(cl_uint)elem_counter)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)triangleCount)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)height)) exit(EXIT_FAILURE);

@@ -83,24 +83,21 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4
   omax = bmax - temp;
   //compute (1/Vx)
   if ( dmin.x <= 0 && dmax.x >= 0){
-    dmin.x = -MAXFLOAT;
-    dmax.x = MAXFLOAT;
+    return true;
   } else {
     temp.x = dmin.x;
     dmin.x = 1/dmax.x;
     dmax.x = 1/temp.x;
   }
   if ( dmin.y <= 0 && dmax.y >= 0){
-    dmin.y = -MAXFLOAT;
-    dmax.y = MAXFLOAT;
+    return true;
   } else {
     temp.x = dmin.y;
     dmin.y = 1/dmax.y;
     dmax.y = 1/temp.x;
   }
   if ( dmin.z <= 0 && dmax.z >= 0){
-    dmin.z = -MAXFLOAT;
-    dmax.z = MAXFLOAT;
+    return true;
   } else {
     temp.x = dmin.z;
     dmin.z = 1/dmax.z;
@@ -152,7 +149,7 @@ __kernel void YetAnotherIntersection (
     const __global float* vertex, const __global float* dir, const __global float* o,
     const __global float* cones, const __global float* bounds, __global float* tHit,
     __global int* index, __global int* changed,
-    __local int* stack,
+    __local int* stack, __local float* nodes,
      int count, int size, int height, unsigned int threadsCount
      #ifdef STAT_RAY_TRIANGLE
        , __global int* stat_rayTriangle
@@ -181,20 +178,11 @@ __kernel void YetAnotherIntersection (
 
     //calculate bounding box
     float4 bmin, bmax;
-    bmin.x = (v1.x < v2.x)? v1.x : v2.x;
-    bmin.x = (bmin.x < v3.x)? bmin.x : v3.x;
-    bmax.x = (v1.x > v2.x)? v1.x : v2.x;
-    bmax.x = (bmax.x > v3.x)? bmax.x : v3.x;
-
-    bmin.y = (v1.y < v2.y)? v1.y : v2.y;
-    bmin.y = (bmin.y < v3.y)? bmin.y : v3.y;
-    bmax.y = (v1.y > v2.y)? v1.y : v2.y;
-    bmax.y = (bmax.y > v3.y)? bmax.y : v3.y;
-
-    bmin.z = (v1.z < v2.z)? v1.z : v2.z;
-    bmin.z = (bmin.z < v3.z)? bmin.z : v3.z;
-    bmax.z = (v1.z > v2.z)? v1.z : v2.z;
-    bmax.z = (bmax.z > v3.z)? bmax.z : v3.z;
+    bmin.w = bmax.w = 0;
+    bmin = min(v1,v2);
+    bmin = min(bmin, v3);
+    bmax = max(v1,v2);
+    bmax = max(bmax, v3);
 
     float4 omin, omax, dmin, dmax;
 
@@ -203,13 +191,14 @@ __kernel void YetAnotherIntersection (
     uint num = 0;
     uint lastlevelnum = 0;
 
-    for ( int i = 1; i < height; i++){
+    for ( int i = 1; i <= height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
+    int wbeginStack = (levelcount*2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
     int child;
@@ -221,6 +210,7 @@ __kernel void YetAnotherIntersection (
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
+      num = dmax.w;
 
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -229,15 +219,18 @@ __kernel void YetAnotherIntersection (
          ++stat_triangleCone[iGID];
         #endif
         //store child to the stack
-        stack[iLID*(height) + SPindex++] = begin - 13*lastlevelnum + 26*j;
+        stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j;
+        if ( num > 1)
+        stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j + 13;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
-          i = stack[iLID*(height) + SPindex];
+          i = stack[wbeginStack + SPindex];
           omin = vload4(0, cones + i);
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
+          num = dmax.w;
 
           if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
           {
@@ -256,33 +249,12 @@ __kernel void YetAnotherIntersection (
             }
             else {
               //save the intersected cone to the stack
-              stack[iLID*(height) + SPindex++] = child;
+              stack[wbeginStack + SPindex++] = child;
+              if ( num > 1)
+              stack[wbeginStack + SPindex++] = child + 13;
             }
           }
-          omin = vload4(0, cones + i + 13);
-          omax = vload4(0, cones + i + 16);
-          dmin = vload4(0, cones + i + 19);
-          dmax = vload4(0, cones + i + 22);
 
-          if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
-         {
-            #ifdef STAT_TRIANGLE_CONE
-             ++stat_triangleCone[iGID];
-            #endif
-            child = computeChild (threadsCount, i+13);
-            //if the cone is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i + 13, cones);
-              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,cones[i+25],rindex
-              #ifdef STAT_RAY_TRIANGLE
-                , stat_rayTriangle
-              #endif
-              );
-            }
-            else {
-              stack[iLID*(height) + SPindex++] = child;
-            }
-          }
         }
       }
 

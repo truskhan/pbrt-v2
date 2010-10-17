@@ -124,13 +124,14 @@ __kernel void YetAnotherIntersection (
     uint num = 0;
     uint lastlevelnum = 0;
 
-    for ( int i = 1; i < height; i++){
+    for ( int i = 1; i <= height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
+    int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
     int child;
@@ -153,11 +154,12 @@ __kernel void YetAnotherIntersection (
       if ( intersectsNode(center1, u, v, center, radius1 ))
       {
         //store child to the stack
-        stack[iLID*(height) + SPindex++] = begin - 9*lastlevelnum + 18*j;
+        stack[wbeginStack + SPindex++] = begin - 9*lastlevelnum + 18*j;
+        stack[wbeginStack + SPindex++] = begin - 9*lastlevelnum + 18*j + 9;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
-          i = stack[iLID*(height) + SPindex];
+          i = stack[wbeginStack + SPindex];
           center1 = vload4(0, cones + i);
           radius1 = center1.w + radius;
           center1.w = 0;
@@ -174,27 +176,11 @@ __kernel void YetAnotherIntersection (
             }
             else {
               //save the intersected cone to the stack
-              stack[iLID*(height) + SPindex++] = child;
+              stack[wbeginStack + SPindex++] = child;
+              stack[wbeginStack + SPindex++] = child + 9;
             }
           }
-          center1 = vload4(0, cones + i + 9);
-          radius1 = center1.w + radius;
-          center1.w = 0;
-          u = vload2(0, cones + i + 13);
-          v = vload2(0, cones + i + 15);
 
-          if ( intersectsNode(center1, u, v, center, radius1 ))
-         {
-            child = computeChild (threadsCount, i+9);
-            //if the cone is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i + 9, cones);
-              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,cones[i+17],rindex);
-            }
-            else {
-              stack[iLID*(height) + SPindex++] = child;
-            }
-          }
         }
       }
 

@@ -85,13 +85,13 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     }
 
     ocl = new OpenCL(onGPU,6);
-    ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
+    cmd = ocl->CreateCmdQueue();
     ocl->CompileProgram(file[0], "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR);
+    ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
     ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
     ocl->CompileProgram(file[3], "levelConstruct", "oclLevelConstruct.ptx",KERNEL_RAYLEVELCONSTRUCT);
     ocl->CompileProgram(file[4], "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION);
     ocl->CompileProgram(file[5], "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
-    cmd = ocl->CreateCmdQueue();
 
     delete [] lenF;
     for (int i = 0; i < 6; i++){
@@ -453,8 +453,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->CreateBuffer(7,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY));
     #endif
 
+    //while outside for: 32*(toplevelCount*2 + (height+1)*(2+height)/2)
+    //while inside for: 32*(2 + (height+1)*(2+height)/2)
     Assert(gput->SetLocalArgument(c++,sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2)))); //stack for every thread
-    Assert(gput->SetLocalArgument(c++,sizeof(cl_float)*topLevelCount*nodeSize));
     Assert(gput->SetIntArgument(c++,(cl_int)count));
     Assert(gput->SetIntArgument(c++,(cl_int)triangleCount));
     Assert(gput->SetIntArgument(c++,(cl_int)height));
@@ -507,12 +508,11 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     anotherIntersect->CopyBuffers(0,7,0,gput);
     Assert(anotherIntersect->CreateBuffer(7,sizeof(cl_uint)*triangleCount, CL_MEM_WRITE_ONLY)); //recording changes
 
-    Assert(anotherIntersect->SetLocalArgument(8,sizeof(cl_int)*(32*(topLevelCount*2 + (height+1)*(2+height)/2)))); //stack for every thread
-    Assert(anotherIntersect->SetLocalArgument(9,sizeof(cl_float)*topLevelCount*nodeSize));
-    Assert(anotherIntersect->SetIntArgument(10,(cl_int)count));
-    Assert(anotherIntersect->SetIntArgument(11,(cl_int)triangleCount));
-    Assert(anotherIntersect->SetIntArgument(12,(cl_int)height));
-    Assert(anotherIntersect->SetIntArgument(13,(cl_int)threadsCount));
+    Assert(anotherIntersect->SetLocalArgument(8,sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2)))); //stack for every thread
+    Assert(anotherIntersect->SetIntArgument(9,(cl_int)count));
+    Assert(anotherIntersect->SetIntArgument(10,(cl_int)triangleCount));
+    Assert(anotherIntersect->SetIntArgument(11,(cl_int)height));
+    Assert(anotherIntersect->SetIntArgument(12,(cl_int)threadsCount));
     //TODO: make only one counter per work-group, use local memory
     if (!anotherIntersect->EnqueueWriteBuffer( 7 , changedArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->Run())exit(EXIT_FAILURE);
@@ -520,7 +520,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     if (!anotherIntersect->EnqueueReadBuffer( 5, tHitArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->EnqueueReadBuffer( 6, indexArray)) exit(EXIT_FAILURE);
     anotherIntersect->WaitForRead();
-    for ( size_t i = 0; i < triangleCount; i++){
+    /*for ( size_t i = 0; i < triangleCount; i++){
       if ( changedArray[i] != 0){
         cout << "OPRAVA triangle " << i << " ray " << changedArray[i]
         << " tHit " << tHitArray[changedArray[i] ] << endl;
@@ -529,7 +529,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
         cout << "rayO " << rayOArray[3*changedArray[i]] << ' ' << rayOArray[3*changedArray[i]+1 ]
               << ' ' << rayOArray[3*changedArray[i]+2] << endl;
       }
-    }
+    }*/
 
     Assert(!anotherIntersect->SetPersistentBuff(0));//vertex
     Assert(!anotherIntersect->SetPersistentBuff(1));//dir
@@ -728,8 +728,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     Assert(gput->CreateBuffer(6,sizeof(cl_uint)*elem_counter, CL_MEM_WRITE_ONLY));
     #endif
 
-    if (!gput->SetLocalArgument(c++,sizeof(cl_int)*64*height)); //stack for every thread
-    Assert(gput->SetLocalArgument(c++,sizeof(cl_float)*topLevelCount*nodeSize));
+    if (!gput->SetLocalArgument(c++,sizeof(cl_int)*sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2))));
     if (!gput->SetIntArgument(c++,(cl_uint)elem_counter)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)triangleCount)) exit(EXIT_FAILURE);
     if (!gput->SetIntArgument(c++,(cl_uint)height)) exit(EXIT_FAILURE);

@@ -156,7 +156,7 @@ __kernel void IntersectionR (
 #ifdef STAT_RAY_TRIANGLE
  __global int* stat_rayTriangle,
 #endif
-    __local int* stack, __local float* nodes,
+    __local int* stack,
      int count, int size, int height, unsigned int threadsCount
 ) {
     // find position in global and shared arrays
@@ -207,27 +207,16 @@ __kernel void IntersectionR (
     int i = 0;
     int child;
 
-    i = iLID;
     begin = 13*num;
-    //preload top level cone description into faster local memory
-    while ( i < 13*levelcount){
-      omin.x = cones[begin + i];
-      nodes[i] = omin.x;
-
-      i += get_local_size(0);
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    omin.w = omax.w = dmin.w = dmax.w = 0;
 
     for ( int j = 0; j < levelcount; j++){
       // get IA description
-      barrier(CLK_LOCAL_MEM_FENCE);
-      omin.x = nodes[13*j]; omin.y = nodes[13*j+1]; omin.z = nodes[13*j+2];
-      omax.x = nodes[13*j+3]; omax.y = nodes[13*j+4]; omax.z = nodes[13*j+5];
-      dmin.x = nodes[13*j+6]; dmin.y = nodes[13*j+7]; dmin.z = nodes[13*j+8];
-      dmax.x = nodes[13*j+9]; dmax.y = nodes[13*j+10]; dmax.z = nodes[13*j+11];
-      num = nodes[13*j + 12];
+      omin = vload4(0, cones + begin+13*j);
+      omax = vload4(0, cones + begin+13*j + 3);
+      dmin = vload4(0, cones + begin+13*j + 6);
+      dmax = vload4(0, cones + begin+13*j + 9);
+      num = dmax.w;
+
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
       {
@@ -239,7 +228,6 @@ __kernel void IntersectionR (
         if ( num > 1)
         stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j + 13;
 
-      }
 
       while ( SPindex > 0 ){
         //take the cones from the stack and check them
@@ -250,7 +238,6 @@ __kernel void IntersectionR (
         dmin = vload4(0, cones + i + 6);
         dmax = vload4(0, cones + i + 9);
         num = dmax.w;
-        omin.w = omax.w = dmin.w = dmax.w = 0;
 
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
         {
@@ -275,6 +262,7 @@ __kernel void IntersectionR (
           }
         }
 
+      }
       }
 
     }

@@ -124,13 +124,14 @@ __kernel void IntersectionR (
     uint num = 0;
     uint lastlevelnum = 0;
 
-    for ( int i = 1; i < height; i++){
+    for ( int i = 1; i <= height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
+    int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
     int child;
@@ -151,12 +152,12 @@ __kernel void IntersectionR (
          ++stat_triangleCone[iGID];
         #endif
         //store child to the stack
-        stack[iLID*(height) + SPindex++] = begin - 8*lastlevelnum + 16*j;
-        stack[iLID*(height) + SPindex++] = begin - 8*lastlevelnum + 16*j + 8;
+        stack[wbeginStack + SPindex++] = begin - 8*lastlevelnum + 16*j;
+        stack[wbeginStack + SPindex++] = begin - 8*lastlevelnum + 16*j + 8;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
-          i = stack[iLID*(height) + SPindex];
+          i = stack[wbeginStack + SPindex];
           a = vload4(0, cones+i);
           x = vload4(0, cones+i+3);
           fi = x.w;
@@ -179,8 +180,8 @@ __kernel void IntersectionR (
             }
             else {
               //save the intersected cone to the stack
-              stack[iLID*(height) + SPindex++] = child;
-              stack[iLID*(height) + SPindex++] = child+8;
+              stack[wbeginStack + SPindex++] = child;
+              stack[wbeginStack + SPindex++] = child+8;
             }
           }
 

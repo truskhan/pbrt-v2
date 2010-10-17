@@ -149,7 +149,7 @@ __kernel void YetAnotherIntersection (
     const __global float* vertex, const __global float* dir, const __global float* o,
     const __global float* cones, const __global float* bounds, __global float* tHit,
     __global int* index, __global int* changed,
-    __local int* stack, __local float* nodes,
+    __local int* stack,
      int count, int size, int height, unsigned int threadsCount
      #ifdef STAT_RAY_TRIANGLE
        , __global int* stat_rayTriangle
@@ -198,7 +198,7 @@ __kernel void YetAnotherIntersection (
     }
 
     int SPindex = 0;
-    int wbeginStack = (levelcount*2 + height*(height+1)/2)*iLID;
+    int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
     int child;

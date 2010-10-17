@@ -96,7 +96,11 @@ OpenCL::OpenCL(bool onGPU, size_t numKernels){
   #endif
 }
 
+cl_device_id device;
+Mutex* buildLog;
+
 OpenCLQueue::OpenCLQueue(cl_context & context){
+  buildLog = Mutex::Create();
   size_t cb;
   cl_device_id* devices;
   // get the list of GPU devices associated with context
@@ -104,6 +108,7 @@ OpenCLQueue::OpenCLQueue(cl_context & context){
   devices = new cl_device_id[cb];
   clGetContextInfo(context, CL_CONTEXT_DEVICES, cb, devices, NULL);
   // create a command-queue
+  device = devices[0];
   #ifdef GPU_TIMES
   cmd_queue = clCreateCommandQueue(context, devices[0], CL_QUEUE_PROFILING_ENABLE , NULL); //take first device
   #else
@@ -129,31 +134,47 @@ OpenCLQueue::OpenCLQueue(cl_context & context){
   globalmutex = Mutex::Create();
 }
 
+void pfn_notify(cl_program p, void* user_data){
+ //cout << (char*)user_data << endl;
+  MutexLock(*buildLog);
+ char* log = new char[1000];
+ size_t len;
+ cl_int ciErrNum = clGetProgramBuildInfo(p, device, CL_PROGRAM_BUILD_LOG, sizeof(char)*1000, log, &len);
+ if ( ciErrNum != CL_SUCCESS)
+  Severe("Failed to get program build log %s %i", stringError(ciErrNum), ciErrNum);
+ cout << endl << (char*)user_data<< " len " << len << " " << log << endl;
+ delete [] log;
+ return;
+}
+
 void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
       const char* program, size_t i){
     char* cSourceCL ;         // Buffer to hold source for compilation
     size_t szKernelLength;			// Byte size of kernel code
     cl_int ciErrNum;
+  MutexLock(*buildLog);
 
   cSourceCL = oclLoadProgSource(cPathAndName, "", &szKernelLength);
   if ( cSourceCL == NULL){
     Severe( "File \"%s\" not found ",cPathAndName);
   }
+
   // Create the program
   cpPrograms[i] = clCreateProgramWithSource(cxContext, 1, (const char **)&cSourceCL, &szKernelLength, &ciErrNum);
+  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL, "-cl-nv-verbose -cl-nv-maxrregcount=70",  &pfn_notify, (void*) cPathAndName);
 
-  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
+  /*ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
   #ifdef STAT_RAY_TRIANGLE
-   "-DSTAT_RAY_TRIANGLE",
+   "-DSTAT_RAY_TRIANGLE -cl-nv-verbose",
   #endif
   #ifdef STAT_PRAY_TRIANGLE
-    "-DSTAT_PRAY_TRIANGLE",
+    "-DSTAT_PRAY_TRIANGLE -cl-nv-verbose",
   #endif
   #ifdef STAT_TRIANGLE_CONE
-    "-DSTAT_TRIANGLE_CONE",
+    "-DSTAT_TRIANGLE_CONE -cl-nv-verbose",
   #endif
   #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
-    0,
+    "-cl-nv-verbose",
   #endif
   NULL, NULL);//"-g", NULL, NULL);*/
 

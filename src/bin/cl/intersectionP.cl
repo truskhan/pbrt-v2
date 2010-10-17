@@ -106,13 +106,14 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
     uint num = 0;
     uint lastlevelnum = 0;
 
-    for ( int i = 1; i < height; i++){
+    for ( int i = 1; i <= height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
+    int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin,rindex;
     int i = 0;
     int child;
@@ -129,11 +130,12 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
       if ( acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
       {
         //store child to the stack
-        stack[iLID*height + SPindex++] = begin - 8*lastlevelnum + 16*j;
+        stack[wbeginStack + SPindex++] = begin - 8*lastlevelnum + 16*j;
+        stack[wbeginStack + SPindex++] = begin - 8*lastlevelnum + 16*j + 8;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
-          i = stack[iLID*height + SPindex];
+          i = stack[wbeginStack + SPindex];
           a = vload4(0, cones + i);
           x = vload4(0, cones + i + 3);
           fi = x.w;
@@ -153,29 +155,11 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
             }
             else {
               //save the intersected cone to the stack
-              stack[iLID*height + SPindex++] = child;
+              stack[wbeginStack + SPindex++] = child;
+              stack[wbeginStack + SPindex++] = child + 8;
             }
           }
-          a = vload4(0, cones + i+8);
-          x = vload4(0, cones + i+11);
-          fi = x.w;
-          a.w = 0; x.w = 0;
-          if ( len < EPS || acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
-         {
-            child = computeChild (threadsCount, i+8);
-            //if the cone is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i + 8, cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+15],rindex
-              #ifdef STAT_PRAY_TRIANGLE
-               ,stat_rayTriangle
-              #endif
-              );
-            }
-            else {
-              stack[iLID*height + SPindex++] = child;
-            }
-          }
+
         }
       }
 

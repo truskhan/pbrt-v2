@@ -48,7 +48,7 @@ float4 e1, float4 e2, int chunk, int rindex
 
 }
 
-int computeChild (unsigned int threadsCount, int i){
+int computeChild (unsigned int threadsCount, int i, int * level){
   int index = 0;
   int levelcount = threadsCount;
   int temp;
@@ -57,10 +57,12 @@ int computeChild (unsigned int threadsCount, int i){
     return -1; // level 0, check rays
 
   while ( (index + 13*levelcount) <= i){
+    --(*level);
     temp = levelcount;
     index += 13*levelcount;
     levelcount = (levelcount+1)/2;
   }
+  ++(*level);
   int offset = i - index;
 
   return (index - 13*temp) + 2*offset;
@@ -157,7 +159,7 @@ __kernel void IntersectionR (
  __global int* stat_rayTriangle,
 #endif
     __local int* stack,
-     int count, int size, int height, unsigned int threadsCount
+     int count, int size, const int height, unsigned int threadsCount
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
@@ -195,6 +197,7 @@ __kernel void IntersectionR (
     uint num = 0;
     uint lastlevelnum = 0;
 
+    int2 child;
     for ( int i = 1; i <= height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
@@ -205,17 +208,16 @@ __kernel void IntersectionR (
     int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
-    int child;
 
-    begin = 13*num;
+    begin = 15*num;
 
     for ( int j = 0; j < levelcount; j++){
       // get IA description
-      omin = vload4(0, cones + begin+13*j);
-      omax = vload4(0, cones + begin+13*j + 3);
-      dmin = vload4(0, cones + begin+13*j + 6);
-      dmax = vload4(0, cones + begin+13*j + 9);
-      num = dmax.w;
+      omin = vload4(0, cones + begin+15*j);
+      omax = vload4(0, cones + begin+15*j + 3);
+      dmin = vload4(0, cones + begin+15*j + 6);
+      dmax = vload4(0, cones + begin+15*j + 9);
+      child = (int2)(vload2(0, cones + begin+15*j+13));
 
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -224,10 +226,9 @@ __kernel void IntersectionR (
          ++stat_triangleCone[iGID];
         #endif
         //store child to the stack
-        stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j;
-        if ( num > 1)
-        stack[wbeginStack + SPindex++] = begin - 13*lastlevelnum + 26*j + 13;
-
+        stack[wbeginStack + SPindex++] = child.x;
+        if ( child.y != -1)
+          stack[wbeginStack + SPindex++] = child.y;
 
       while ( SPindex > 0 ){
         //take the cones from the stack and check them
@@ -237,18 +238,16 @@ __kernel void IntersectionR (
         omax = vload4(0, cones + i + 3);
         dmin = vload4(0, cones + i + 6);
         dmax = vload4(0, cones + i + 9);
-        num = dmax.w;
+        child = (int2)(vload2(0, cones + i + 13));
 
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
         {
           #ifdef STAT_TRIANGLE_CONE
            ++stat_triangleCone[iGID];
           #endif
-          child = computeChild(threadsCount,i);
           //if the cones is at level 0 - check leaves
-          if ( child < 0) {
-            rindex = computeRIndex(i, cones);
-            intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+12], rindex
+          if ( child.x == -2) {
+            intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+12], child.y
             #ifdef STAT_RAY_TRIANGLE
               , stat_rayTriangle
             #endif
@@ -256,9 +255,9 @@ __kernel void IntersectionR (
           }
           else {
             //save the intersected cone to the stack
-            stack[wbeginStack + SPindex++] = child;
-            if ( num > 1)
-            stack[wbeginStack + SPindex++] = child + 13;
+            stack[wbeginStack + SPindex++] = child.x;
+            if ( child.y != -1)
+              stack[wbeginStack + SPindex++] = child.y;
           }
         }
 

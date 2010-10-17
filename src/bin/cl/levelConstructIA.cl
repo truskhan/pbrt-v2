@@ -2,13 +2,14 @@
 #define EPS 0.000002f
 
 __kernel void levelConstruct(__global float* cones, const int count,
-  const int threadsCount, const int level){
+  const int threadsCount, const int level, const int xwidth ){
   int iGID = get_global_id(0);
 
   int beginr = 0;
   int beginw = 0;
   int levelcount = threadsCount; //end of level0
   int temp;
+  int help;
 
   for ( int i = 0; i < level; i++){
       beginw += levelcount;
@@ -21,21 +22,44 @@ __kernel void levelConstruct(__global float* cones, const int count,
 
   float4 omin1, omax1, dmin1, dmax1;
   float4 omin2, omax2, dmin2, dmax2;
+  float2 child;
 
-  omin1 = vload4(0,cones + 13*beginr + 26*iGID);
-  omax1 = vload4(0,cones + 13*beginr + 26*iGID + 3);
-  dmin1 = vload4(0,cones + 13*beginr + 26*iGID + 6);
-  dmax1 = vload4(0,cones + 13*beginr + 26*iGID + 9);
+  if ( level & 0x1 == 1){
+  help = iGID / xwidth;
+  omin1 = vload4(0,cones + 15*beginr + 15*iGID + 15*help*xwidth);
+  omax1 = vload4(0,cones + 15*beginr + 15*iGID + 3 + 15*help*xwidth);
+  dmin1 = vload4(0,cones + 15*beginr + 15*iGID + 6 + 15*help*xwidth);
+  dmax1 = vload4(0,cones + 15*beginr + 15*iGID + 9 + 15*help*xwidth);
+  child.x = 15*beginr + 15*iGID + 15*help*xwidth;
+  }else {
+  omin1 = vload4(0,cones + 15*beginr + 30*iGID);
+  omax1 = vload4(0,cones + 15*beginr + 30*iGID + 3);
+  dmin1 = vload4(0,cones + 15*beginr + 30*iGID + 6);
+  dmax1 = vload4(0,cones + 15*beginr + 30*iGID + 9);
+  child.x = 15*beginr + 30*iGID;
+  }
   omin1.w = omax1.w = dmin1.w = 0;
   dmax1.w = 1;
+  child.y = -1;
 
   if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
     //posledni vlakno jen prekopiruje
-    omin2 = vload4(0,cones + 13*beginr + 26*iGID + 13);
-    omax2 = vload4(0,cones + 13*beginr + 26*iGID + 16);
-    dmin2 = vload4(0,cones + 13*beginr + 26*iGID + 19);
-    dmax2 = vload4(0,cones + 13*beginr + 26*iGID + 22);
+    if ( level & 0x1 == 1){
+    ++help;
+    omin2 = vload4(0,cones + 15*beginr + 15*iGID + xwidth + 15*help*xwidth);
+    omax2 = vload4(0,cones + 15*beginr + 15*iGID + xwidth + 3 + 15*help*xwidth);
+    dmin2 = vload4(0,cones + 15*beginr + 15*iGID + xwidth + 6 + 15*help*xwidth);
+    dmax2 = vload4(0,cones + 15*beginr + 15*iGID + xwidth + 9 + 15*help*xwidth);
+    child.y = 15*beginr + 15*iGID + 15*help*xwidth;
+    }else {
+    omin2 = vload4(0,cones + 15*beginr + 30*iGID + 15);
+    omax2 = vload4(0,cones + 15*beginr + 30*iGID + 16);
+    dmin2 = vload4(0,cones + 15*beginr + 30*iGID + 19);
+    dmax2 = vload4(0,cones + 15*beginr + 30*iGID + 22);
+    child.y = 15*beginr + 30*iGID + 15;
+    }
     omin2.w = omax2.w = dmin2.w = dmax2.w = 0;
+
 
     omin1 = min(omin1, omin2);
     omax1 = max(omax1, omax2);
@@ -45,10 +69,10 @@ __kernel void levelConstruct(__global float* cones, const int count,
     dmax1.w = 2;
   }
 
-  vstore4(omin1, 0, cones + 13*beginw + 13*iGID);
-  vstore4(omax1, 0, cones + 13*beginw + 13*iGID + 3);
-  vstore4(dmin1, 0, cones + 13*beginw + 13*iGID + 6);
-  vstore4(dmax1, 0, cones + 13*beginw + 13*iGID + 9);
-
+  vstore4(omin1, 0, cones + 15*beginw + 15*iGID);
+  vstore4(omax1, 0, cones + 15*beginw + 15*iGID + 3);
+  vstore4(dmin1, 0, cones + 15*beginw + 15*iGID + 6);
+  vstore4(dmax1, 0, cones + 15*beginw + 15*iGID + 9);
+  vstore2(child, 0, cones + 15*beginw + 15*iGID + 13);
 
 }

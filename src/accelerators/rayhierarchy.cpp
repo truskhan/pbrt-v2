@@ -51,7 +51,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[3] = "cl/levelConstructIA.cl";
     names[4] = "cl/yetAnotherIntersectionIA.cl";
     cout << "accel nodes : IA" << endl;
-    nodeSize = 13;
+    nodeSize = 15;
   }
   if ( node == "sphere_uv"){
     names[0] = "cl/intersection5D.cl";
@@ -305,9 +305,14 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   if (!gpurayl->SetIntArgument(1,(cl_uint)count)) exit(EXIT_FAILURE);
   if (!gpurayl->SetIntArgument(2,(cl_uint)threadsCount)) exit(EXIT_FAILURE);
 
+  int temp = global_a;
   for ( cl_uint i = 1; i <= height; i++){
     if (!gpurayl->SetIntArgument(3,i)) exit(EXIT_FAILURE);
+    if (!gpurayl->SetIntArgument(4,temp)) exit(EXIT_FAILURE);
     if (!gpurayl->Run())exit(EXIT_FAILURE);
+    if ( i % 2 == 0){
+      temp = (temp+1)/2;
+    }
     gpurayl->WaitForKernel();
   }
 
@@ -477,9 +482,12 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     uint i = 0;
     uint temp;
     gput->WaitForRead();
+    float colors[3];
     for (i = 0; i < count; i++){
-        temp = Clamp(((cl_uint*)picture)[elem_index[i]],0,255) ;
-        Ls[i] = Spectrum(temp);
+      colors[0] = picture[elem_index[i]]/25;
+      colors[1] = (picture[elem_index[i]] - (uint)colors[0]*25)/5;
+      colors[2] = (picture[elem_index[i]] - (uint)colors[0]*25 - (uint)colors[1]*5);
+      Ls[i] = RGBSpectrum::FromRGB(colors);
     }
     delete [] ((uint*)picture);
     workerSemaphore->Post();

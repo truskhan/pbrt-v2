@@ -8,6 +8,8 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
 
   float4 omin, omax, dmin, dmax;
   float4 dtemp, otemp;
+  int2 child;
+  child.x = -2;
 
   unsigned int index = 0;
   for ( int i = 0; i < iGID; i++)
@@ -17,6 +19,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   dmin = dmax = vload4(0, dir + 3*index);
   omin = omax = vload4(0, o + 3*index);
   dmin.w = dmax.w = omin.w = omax.w = 0;
+  child.y = index;
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
@@ -31,9 +34,10 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   }
 
   //store the result
-  vstore4(omin, 0, cones + 13*iGID);
-  vstore4(omax, 0 ,cones + 13*iGID + 3);
-  vstore4(dmin, 0, cones + 13*iGID + 6);
+  vstore4(omin, 0, cones + 15*iGID);
+  vstore4(omax, 0 ,cones + 15*iGID + 3);
+  vstore4(dmin, 0, cones + 15*iGID + 6);
   dmax.w = counts[iGID];
-  vstore4(dmax, 0, cones + 13*iGID + 9);
+  vstore4(dmax, 0, cones + 15*iGID + 9);
+  vstore2((float2)(child), 0, cones + 15*iGID + 13);
 }

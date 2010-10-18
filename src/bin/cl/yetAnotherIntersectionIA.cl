@@ -147,7 +147,7 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4
 
 __kernel void YetAnotherIntersection (
     const __global float* vertex, const __global float* dir, const __global float* o,
-    const __global float* cones, const __global float* bounds, __global float* tHit,
+    const __global float* cones, const __global int* pointers, const __global float* bounds, __global float* tHit,
     __global int* index, __global int* changed,
     __local int* stack,
      int count, int size, int height, unsigned int threadsCount
@@ -203,14 +203,14 @@ __kernel void YetAnotherIntersection (
     int i = 0;
     int2 child;
 
-    begin = 15*num;
+    begin = 13*num;
     for ( int j = 0; j < levelcount; j++){
       // get IA description
-      omin = vload4(0, cones + begin+15*j);
-      omax = vload4(0, cones + begin+15*j + 3);
-      dmin = vload4(0, cones + begin+15*j + 6);
-      dmax = vload4(0, cones + begin+15*j + 9);
-      child = (int2)(vload2(0, cones + begin + 15*j + 13));
+      omin = vload4(0, cones + begin+13*j);
+      omax = vload4(0, cones + begin+13*j + 3);
+      dmin = vload4(0, cones + begin+13*j + 6);
+      dmax = vload4(0, cones + begin+13*j + 9);
+      child = vload2(0, pointers + 2*num + 2*j);
       num = dmax.w;
 
       // check if triangle intersects IA node
@@ -231,7 +231,7 @@ __kernel void YetAnotherIntersection (
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
-          child = (int2)(vload2(0, cones + i + 13));
+          child = vload2(0, pointers + (i/13)*2);
           num = dmax.w;
 
           if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))

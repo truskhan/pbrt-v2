@@ -142,7 +142,7 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4
 
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
- const __global float* cones, const __global float* bounds,
+ const __global float* cones, const __global int* pointers, const __global float* bounds,
 __global unsigned char* tHit,
 #ifdef STAT_PRAY_TRIANGLE
  __global int* stat_rayTriangle,
@@ -193,14 +193,14 @@ __local int* stack,
     int i = 0;
     int2 child;
 
-    begin = 15*num;
+    begin = 13*num;
     for ( int j = 0; j < levelcount; j++){
       // get IA description
       omin = vload4(0, cones + begin+13*j);
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
-      child = (int2)(vload2(0, cones + begin+15*j+13));
+      child = vload2(0, pointers + 2*num + 2*j);
       omin.w = omax.w = dmin.w = dmax.w = 0;
 
       // check if triangle intersects IA node
@@ -219,7 +219,7 @@ __local int* stack,
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
-          child = (int2)(vload2(0, cones + i + 13));
+          child = vload2(0, pointers + (i/13)*2);
           omin.w = omax.w = dmin.w = dmax.w = 0;
 
           if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))

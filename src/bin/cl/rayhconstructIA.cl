@@ -2,7 +2,7 @@
 #define EPS 0.000002f
 
 __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
-  const __global unsigned int* counts, __global float* cones, const int count){
+  const __global unsigned int* counts, __global float* cones, __global int* pointers, const int count){
   int iGID = get_global_id(0);
   if (iGID >= count ) return;
 
@@ -34,10 +34,10 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   }
 
   //store the result
-  vstore4(omin, 0, cones + 15*iGID);
-  vstore4(omax, 0 ,cones + 15*iGID + 3);
-  vstore4(dmin, 0, cones + 15*iGID + 6);
-  dmax.w = counts[iGID];
-  vstore4(dmax, 0, cones + 15*iGID + 9);
-  vstore2((float2)(child), 0, cones + 15*iGID + 13);
+  vstore4(omin, 0, cones + 13*iGID);
+  vstore4(omax, 0 ,cones + 13*iGID + 3);
+  vstore4(dmin, 0, cones + 13*iGID + 6);
+  dmax.w = 2*iGID; //counts[iGID];
+  vstore4(dmax, 0, cones + 13*iGID + 9);
+  vstore2(child, 0, pointers + 2*iGID);
 }

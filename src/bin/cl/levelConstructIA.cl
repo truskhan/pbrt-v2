@@ -45,10 +45,10 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
     //posledni vlakno jen prekopiruje
     if ( level & 0x1 == 1){
     ++help;
-    omin2 = vload4(0,cones + 13*beginr + 13*iGID + xwidth + 13*help*xwidth);
-    omax2 = vload4(0,cones + 13*beginr + 13*iGID + xwidth + 3 + 13*help*xwidth);
-    dmin2 = vload4(0,cones + 13*beginr + 13*iGID + xwidth + 6 + 13*help*xwidth);
-    dmax2 = vload4(0,cones + 13*beginr + 13*iGID + xwidth + 9 + 13*help*xwidth);
+    omin2 = vload4(0,cones + 13*beginr + 13*iGID +  13*help*xwidth);
+    omax2 = vload4(0,cones + 13*beginr + 13*iGID +  3 + 13*help*xwidth);
+    dmin2 = vload4(0,cones + 13*beginr + 13*iGID +  6 + 13*help*xwidth);
+    dmax2 = vload4(0,cones + 13*beginr + 13*iGID +  9 + 13*help*xwidth);
     child.y = 13*beginr + 13*iGID + 13*help*xwidth;
     }else {
     omin2 = vload4(0,cones + 13*beginr + 26*iGID + 13);
@@ -71,7 +71,9 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
   vstore4(omin1, 0, cones + 13*beginw + 13*iGID);
   vstore4(omax1, 0, cones + 13*beginw + 13*iGID + 3);
   vstore4(dmin1, 0, cones + 13*beginw + 13*iGID + 6);
+  //store index into pointers -  dmax1.w
   vstore4(dmax1, 0, cones + 13*beginw + 13*iGID + 9);
+  //store pointers to children nodes
   vstore2(child, 0, pointers + 2*beginw + 2*iGID);
 
 }

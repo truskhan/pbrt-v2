@@ -1,14 +1,14 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
-__kernel void levelConstruct(__global float* cones, const int count,
-  const int threadsCount, const int level){
+__kernel void levelConstruct(__global float* cones, __global int* pointers, const int count,
+  const int threadsCount, const int level, const int xwidth){
   int iGID = get_global_id(0);
 
   int beginr = 0;
   int beginw = 0;
   int levelcount = threadsCount; //end of level0
-  int temp;
+  int temp, help;
 
   for ( int i = 0; i < level; i++){
       beginw += levelcount;
@@ -18,6 +18,7 @@ __kernel void levelConstruct(__global float* cones, const int count,
   beginr = beginw - temp;
 
   if ( iGID >= levelcount ) return;
+  int2 child;
 
   float4 center1, center2;
   float2 uvmin1, uvmax1, uvmin2, uvmax2;
@@ -28,21 +29,38 @@ __kernel void levelConstruct(__global float* cones, const int count,
   float tempRadius;
   float2 tempu, tempv;
 
-  center1 = vload4(0,cones + 9*beginr + 18*iGID);
+  if ( level & 0x1 == 1){
+    help = iGID / xwidth;
+    center1 = vload4(0,cones + 9*beginr + 9*iGID + 9*help*xwidth);
+    uvmin1 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth  + 4);
+    uvmax1 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 6);
+    child.x = 9*beginr + 9*iGID + 9*help*xwidth;
+  } else {
+    center1 = vload4(0,cones + 9*beginr + 18*iGID);
+    uvmin1 = vload2(0,cones + 9*beginr + 18*iGID + 4);
+    uvmax1 = vload2(0,cones + 9*beginr + 18*iGID + 6);
+    child.x = 9*beginr + 18*iGID;
+  }
   radius1 = center1.w;
   center1.w = 0;
-  uvmin1 = vload2(0,cones + 9*beginr + 18*iGID + 4);
-  uvmax1 = vload2(0,cones + 9*beginr + 18*iGID + 6);
+  child.y = -1;
 
-  cones[9*beginw + 9*iGID + 8] = 1;
   if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
     //last thread only copies node1 to the output
-    cones[9*beginw + 9*iGID + 8] = 2;
-    center2 = vload4(0,cones + 9*beginr + 18*iGID + 9);
+    if ( level & 0x1 == 1){
+    ++help;
+      center2 = vload4(0,cones + 9*beginr + 9*iGID + 9*help*xwidth);
+      uvmin2 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 4);
+      uvmax2 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 6);
+      child.y = 9*beginr + 9*iGID + 9*help*xwidth;
+    } else {
+      center2 = vload4(0,cones + 9*beginr + 18*iGID + 9);
+      uvmin2 = vload2(0,cones + 9*beginr + 18*iGID + 13);
+      uvmax2 = vload2(0,cones + 9*beginr + 18*iGID + 15);
+      child.y = 9*beginr + 18*iGID + 9;
+    }
     radius2 = center2.w;
     center2.w = 0;
-    uvmin2 = vload2(0,cones + 9*beginr + 18*iGID + 13);
-    uvmax2 = vload2(0,cones + 9*beginr + 18*iGID + 15);
 
     //find 2D boundign box for uv
     uvmin1 = min(uvmin1, uvmin2);
@@ -82,4 +100,8 @@ __kernel void levelConstruct(__global float* cones, const int count,
   vstore4(center1, 0, cones + 9*beginw + 9*iGID);
   vstore2(uvmin1, 0, cones + 9*beginw + 9*iGID + 4);
   vstore2(uvmax1, 0, cones + 9*beginw + 9*iGID + 6);
+  //store index into pointers
+  cones[9*beginw + 9*iGID + 8] = 2*beginw + 2*iGID;
+  //store pointers to children nodes
+  vstore2(child, 0, pointers + 2*beginw + 2*iGID);
 }

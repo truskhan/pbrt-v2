@@ -2,7 +2,7 @@
 #define EPS 0.000002f
 
 __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
-  const __global unsigned int* counts, __global float* cones, const int count){
+  const __global unsigned int* counts, __global float* cones, __global int* pointers, const int count){
   int iGID = get_global_id(0);
   if (iGID >= count ) return;
 
@@ -12,6 +12,8 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   float4 omin, omax;
   //2D bounding box for uv
   float2 uvmin, uvmax;
+  int2 child;
+  child.x = -2;
 
   unsigned int index = 0;
   for ( int i = 0; i < iGID; i++)
@@ -28,6 +30,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   omin.y = omax.y = x.y;
   omin.z = omax.z = x.z;
   omin.w = omax.w = 0;
+  child.y = counts[iGID];
 
   for ( int i = 1; i < counts[iGID]; i++){
     x = vload4(0,dir+3*(index+i));
@@ -50,5 +53,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   vstore4(omax, 0, cones + 11*iGID + 3);
   vstore2(uvmin, 0, cones + 11*iGID + 6);
   vstore2(uvmax, 0, cones + 11*iGID + 8);
-  cones[11*iGID + 10 ] = counts[iGID];
+  cones[11*iGID + 10 ] = 2*iGID;
+  //store the ray grouped count and indicate that it is a list (-2)
+  vstore2(child, 0, pointers + 2*iGID);
 }

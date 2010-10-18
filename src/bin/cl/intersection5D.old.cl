@@ -48,18 +48,53 @@ float4 e1, float4 e2, int chunk, int rindex
 
 }
 
-int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
+int computeChild (unsigned int threadsCount, int i){
+  int index = 0;
+  int levelcount = threadsCount;
+  int temp;
+
+  if ( i < 9*levelcount)
+    return -1; // level 0, check rays
+
+  while ( (index + 9*levelcount) <= i){
+    temp = levelcount;
+    index += 9*levelcount;
+    levelcount = (levelcount+1)/2;
+  }
+  int offset = i - index;
+
+  return (index - 9*temp) + 2*offset;
+}
+
+int computeRIndex (unsigned int j, const __global float* cones){
   int rindex = 0;
-  for ( int i = 0; i < j; i += 8){
-    rindex += pointers[(int)(cones[i+7]) + 1];
+  for ( int i = 0; i < j; i += 9){
+      rindex += cones[i + 8];
   }
   return rindex;
 }
 
+bool intersectsNode(float4 center, float2 u, float2 v, float4 o, float radius) {
+  float4 ray = (center - o);
+  float2 uv;
+  uv.x = length(ray);
+  float beta = (uv.x == 0)? 0 : atan(radius/uv.x);
+  ray = (ray)/uv.x;
+
+  uv.y = acos(ray.z);
+  uv.x = (ray.x == 0)? 0: atan(ray.y/ray.x);
+
+// if (max(uv.x - beta,u.x) < min(uv.x + beta, u.y) )
+  if ( ( max(uv.y - beta,v.x) < min(uv.y + beta, v.y)))
+    return true;
+
+  return false;
+}
+
 __kernel void IntersectionR (
     const __global float* vertex, const __global float* dir, const __global float* o,
-    const __global float* cones, const __global int* pointers, const __global float* bounds,
-    __global float* tHit, __global int* index,
+    const __global float* cones, const __global float* bounds, __global float* tHit,
+    __global int* index,
 #ifdef STAT_TRIANGLE_CONE
  __global int* stat_triangleCone,
 #endif
@@ -91,74 +126,70 @@ __kernel void IntersectionR (
     e2 = v3 - v1;
 
     //calculate bounding sphere
-    //vizualizace pruseciku s paprskem a kuzel,trojuhelnikem, ktery se pocitaly
-
     float4 center; float radius;
     //bounding sphere center - center of mass
     center = (v1+v2+v3)/3;
     radius = length(v1-center);
-
-    float4 a,x;
-    float fi;
 
     //find number of elements in top level of the ray hieararchy
     uint levelcount = threadsCount; //end of level0
     uint num = 0;
     uint lastlevelnum = 0;
 
-    for ( int i = 1; i <= height; i++){
+    for ( int i = 1; i < height; i++){
         lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
-    int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
-    int2 child;
-    float len;
+    int child;
 
-    begin = 8*num;
+    float4 center1;
+    float radius1;
+    float2 u, v;
+
+    begin = 9*num;
     for ( int j = 0; j < levelcount; j++){
-      // get cone description
-      a = vload4(0, cones + begin+8*j);
-      x = vload4(0, cones + begin+8*j + 3);
-      child = vload2(0, pointers + (int)(cones[begin + 8*j + 7]));
-      fi = x.w;
-      a.w = 0; x.w = 0;
+      // get node description
+      center1 = vload4(0, cones + begin + 9*j);
+      //extend the triangle bounding sphere radius
+      radius1 = center1.w + radius;
+      center1.w = 0;
+      u = vload2(0, cones + begin + 9*j + 4);
+      v = vload2(0, cones + begin + 9*j + 6);
 
       // check if triangle intersects cone
-      len = length(center-a);
-      if ( acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
+      if ( intersectsNode(center1, u, v, center, radius1 ))
       {
         #ifdef STAT_TRIANGLE_CONE
          ++stat_triangleCone[iGID];
         #endif
         //store child to the stack
-        stack[wbeginStack + SPindex++] = child.x;
-        if ( child.y != -1)
-          stack[wbeginStack + SPindex++] = child.y;
+        stack[iLID*(height) + SPindex++] = begin - 9*lastlevelnum + 18*j;
+        stack[iLID*(height) + SPindex++] = begin - 9*lastlevelnum + 18*j + 9;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
-          i = stack[wbeginStack + SPindex];
-          a = vload4(0, cones+i);
-          x = vload4(0, cones+i+3);
-          child = vload2(0, pointers + (int)(cones[i+7]));
-          fi = x.w;
-          a.w = 0; x.w = 0;
+          i = stack[iLID*(height) + SPindex];
+          center1 = vload4(0, cones + i);
+          radius1 = center1.w + radius;
+          center1.w = 0;
+          u = vload2(0, cones + i + 4);
+          v = vload2(0, cones + i + 6);
 
-          len = length(center-a);
-          if ( len < EPS || acos(dot((center-a)/len,x)) - asin(radius/len) < fi)
+          if ( intersectsNode(center1, u, v, center, radius1 ))
           {
             #ifdef STAT_TRIANGLE_CONE
              ++stat_triangleCone[iGID];
             #endif
+            child = computeChild(threadsCount,i);
             //if the cones is at level 0 - check leaves
-            if ( child.x == -2) {
-              rindex = computeRIndex(i, cones, pointers);
-              intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,child.y, rindex
+            if ( child < 0) {
+              rindex = computeRIndex(i, cones);
+              intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,cones[i+8], rindex
               #ifdef STAT_RAY_TRIANGLE
                 , stat_rayTriangle
               #endif
@@ -166,9 +197,8 @@ __kernel void IntersectionR (
             }
             else {
               //save the intersected cone to the stack
-              stack[wbeginStack + SPindex++] = child.x;
-              if ( child.x != -1)
-                stack[wbeginStack + SPindex++] = child.y;
+              stack[iLID*(height) + SPindex++] = child;
+              stack[iLID*(height) + SPindex++] = child + 9;
             }
           }
 

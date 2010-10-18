@@ -47,28 +47,10 @@ float4 e1, float4 e2, int chunk, int rindex
 
 }
 
-int computeChild (unsigned int threadsCount, int i){
-  int index = 0;
-  int levelcount = threadsCount;
-  int temp;
-
-  if ( i < 13*levelcount)
-    return -1; // level 0, check rays
-
-  while ( (index + 13*levelcount) <= i){
-    temp = levelcount;
-    index += 13*levelcount;
-    levelcount = (levelcount+1)/2;
-  }
-  int offset = i - index;
-
-  return (index - 13*temp) + 2*offset;
-}
-
-int computeRIndex (unsigned int j, const __global float* cones){
+int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
   for ( int i = 0; i < j; i += 13){
-      rindex += cones[i + 12];
+    rindex += pointers[(int)(cones[i+12]) + 1];
   }
   return rindex;
 }
@@ -199,7 +181,8 @@ __kernel void YetAnotherIntersection (
 
     int SPindex = 0;
     int wbeginStack = (2 + height*(height+1)/2)*iLID;
-    uint begin, rindex;
+    uint begin;
+    int rindex;
     int i = 0;
     int2 child;
 
@@ -210,8 +193,7 @@ __kernel void YetAnotherIntersection (
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
-      child = vload2(0, pointers + 2*num + 2*j);
-      num = dmax.w;
+      child = vload2(0, pointers + (int)dmax.w);
 
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -231,8 +213,7 @@ __kernel void YetAnotherIntersection (
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (i/13)*2);
-          num = dmax.w;
+          child = vload2(0, pointers + (int)dmax.w);
 
           if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
           {
@@ -241,7 +222,8 @@ __kernel void YetAnotherIntersection (
             #endif
             //if the cones is at level 0 - check leaves
             if ( child.x == -2) {
-              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,cones[i+12], child.y
+              rindex = computeRIndex(i, cones, pointers);
+              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2, child.y, rindex
               #ifdef STAT_RAY_TRIANGLE
                 , stat_rayTriangle
               #endif
@@ -250,8 +232,8 @@ __kernel void YetAnotherIntersection (
             else {
               //save the intersected cone to the stack
               stack[wbeginStack + SPindex++] = child.x;
-            if ( child.y != -1)
-              stack[wbeginStack + SPindex++] = child.y;
+              if ( child.y != -1)
+                stack[wbeginStack + SPindex++] = child.y;
             }
           }
 

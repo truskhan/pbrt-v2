@@ -41,28 +41,10 @@ __global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4
     }
 }
 
-int computeChild (unsigned int threadsCount, int i){
-  int index = 0;
-  int levelcount = threadsCount;
-  int temp;
-
-  if ( i < 9*levelcount)
-    return -1; // level 0, check rays
-
-  while ( (index + 9*levelcount) <= i){
-    temp = levelcount;
-    index += 9*levelcount;
-    levelcount = (levelcount+1)/2;
-  }
-  int offset = i - index;
-
-  return (index - 9*temp) + 2*offset;
-}
-
-int computeRIndex (unsigned int j, const __global float* cones){
+int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
   for ( int i = 0; i < j; i += 9){
-      rindex += cones[i + 8];
+    rindex += pointers[(int)(cones[i+8]) + 1];
   }
   return rindex;
 }
@@ -86,7 +68,7 @@ bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float r
 
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
- const __global float* cones, const __global float* bounds,
+ const __global float* cones, const __global int* pointers, const __global float* bounds,
 __global unsigned char* tHit,
 #ifdef STAT_PRAY_TRIANGLE
  __global int* stat_rayTriangle,
@@ -132,7 +114,7 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
     int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin,rindex;
     int i = 0;
-    int child;
+    int2 child;
 
     float4 center1;
     float radius1;
@@ -147,13 +129,16 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
       center1.w = 0;
       u = vload2(0, cones + begin + 9*j + 4);
       v = vload2(0, cones + begin + 9*j + 6);
+      child = vload2(0, pointers + (int)(cones[begin + 9*j + 8]));
 
       // check if triangle intersects cone
       if ( intersectsNode(center1, u, v, center, radius1 ))
       {
         //store child to the stack
-        stack[wbeginStack + SPindex++] = begin - 9*lastlevelnum + 18*j;
-        stack[wbeginStack + SPindex++] = begin - 9*lastlevelnum + 18*j + 9;
+        stack[wbeginStack + SPindex++] = child.x;
+        if ( child.y != -1)
+          stack[wbeginStack + SPindex++] = child.y;
+
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
@@ -163,14 +148,14 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
           center1.w = 0;
           u = vload2(0, cones + i + 4);
           v = vload2(0, cones + i + 6);
+          child = vload2(0, pointers + (int)(cones[i+8]));
 
           if ( intersectsNode(center1, u, v, center, radius1 ))
           {
-            child = computeChild (threadsCount, i);
             //if the cones is at level 0 - check leaves
-            if ( child < 0){
-              rindex = computeRIndex(i,cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+8],rindex
+            if ( child.x == -2){
+              rindex = computeRIndex(i,cones, pointers);
+              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,child.y,rindex
               #ifdef STAT_PRAY_TRIANGLE
                ,stat_rayTriangle
               #endif
@@ -178,8 +163,9 @@ __local int* stack, int count, int size, int height,unsigned int threadsCount
             }
             else {
               //save the intersected cone to the stack
-              stack[wbeginStack + SPindex++] = child;
-              stack[wbeginStack + SPindex++] = child + 9;
+              stack[wbeginStack + SPindex++] = child.x;
+              if ( child.y != -1)
+                stack[wbeginStack + SPindex++] = child.y;
             }
           }
         }

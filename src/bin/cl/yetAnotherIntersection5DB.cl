@@ -42,28 +42,10 @@ float4 e1, float4 e2, int chunk, int rindex ){
 
 }
 
-int computeChild (unsigned int threadsCount, int i){
-  int index = 0;
-  int levelcount = threadsCount;
-  int temp;
-
-  if ( i < 11*levelcount)
-    return -1; // level 0, check rays
-
-  while ( (index + 11*levelcount) <= i){
-    temp = levelcount;
-    index += 11*levelcount;
-    levelcount = (levelcount+1)/2;
-  }
-  int offset = i - index;
-
-  return (index - 11*temp) + 2*offset;
-}
-
-int computeRIndex (unsigned int j, const __global float* cones){
+int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
   for ( int i = 0; i < j; i += 11){
-      rindex += cones[i + 10];
+    rindex += pointers[(int)(cones[i+10]) + 1];
   }
   return rindex;
 }
@@ -134,7 +116,7 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 
 __kernel void YetAnotherIntersection (
     const __global float* vertex, const __global float* dir, const __global float* o,
-    const __global float* cones, const __global float* bounds, __global float* tHit,
+    const __global float* cones, const __global int* pointers, const __global float* bounds, __global float* tHit,
     __global int* index, __global int* changed,
     __local int* stack,
      int count, int size, int height, unsigned int threadsCount
@@ -183,7 +165,7 @@ __kernel void YetAnotherIntersection (
     int wbeginStack = (2 + height*(height+1)/2)*iLID;
     uint begin, rindex;
     int i = 0;
-    int child;
+    int2 child;
 
     //3D bounding box of the origin
     float4 omin, omax;
@@ -197,13 +179,15 @@ __kernel void YetAnotherIntersection (
       omax = vload4(0, cones + begin + 11*j + 3);
       uvmin = vload2(0, cones + begin + 11*j + 6);
       uvmax = vload2(0, cones + begin + 11*j + 8);
+      child = vload2(0, pointers + (int)(cones[begin + 11*j + 10]));
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
       {
         //store child to the stack
-        stack[wbeginStack + SPindex++] = begin - 11*lastlevelnum + 22*j;
-        stack[wbeginStack + SPindex++] = begin - 11*lastlevelnum + 22*j + 11;
+        stack[wbeginStack + SPindex++] = child.x;
+        if ( child.y != -1)
+          stack[wbeginStack + SPindex++] = child.y;
         while ( SPindex > 0 ){
           //take the cones from the stack and check them
           --SPindex;
@@ -212,19 +196,20 @@ __kernel void YetAnotherIntersection (
           omax = vload4(0, cones + i + 3);
           uvmin = vload2(0, cones + i + 6);
           uvmax = vload2(0, cones + i + 8);
+          child = vload2(0, pointers + (int)(cones[i + 10]));
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {
-            child = computeChild(threadsCount,i);
             //if the cones is at level 0 - check leaves
-            if ( child < 0) {
-              rindex = computeRIndex(i, cones);
-              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,cones[i+10], rindex);
+            if ( child.x == -2) {
+              rindex = computeRIndex(i, cones, pointers);
+              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2, child.y, rindex);
             }
             else {
               //save the intersected cone to the stack
-              stack[wbeginStack + SPindex++] = child;
-              stack[wbeginStack + SPindex++] = child + 11;
+              stack[wbeginStack + SPindex++] = child.x;
+              if ( child.y != -1)
+                stack[wbeginStack + SPindex++] = child.y;
             }
           }
 

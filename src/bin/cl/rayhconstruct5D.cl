@@ -2,7 +2,7 @@
 #define EPS 0.000002f
 
 __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
-  const __global unsigned int* counts, __global float* cones, const int count){
+  const __global unsigned int* counts, __global float* cones, __global int* pointers, const int count){
   int iGID = get_global_id(0);
   if (iGID >= count ) return;
 
@@ -13,6 +13,8 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   float radius;
   //2D bounding box for uv
   float2 uvmin, uvmax;
+  int2 child;
+  child.x = -2;
 
   unsigned int index = 0;
   for ( int i = 0; i < iGID; i++)
@@ -25,6 +27,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   radius = 0;
   uvmin.x = uvmax.x = (x.x == 0)? 0 :  atan(x.y / x.x) ;
   uvmin.y = uvmax.y = acos(x.z);
+  child.y = counts[iGID];
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
@@ -49,5 +52,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   vstore4(center, 0, cones + 9*iGID);
   vstore2(uvmin, 0, cones + 9*iGID + 4);
   vstore2(uvmax, 0, cones + 9*iGID + 6);
-  cones[9*iGID + 8 ] = counts[iGID];
+  cones[9*iGID + 8 ] = 2*iGID;
+  //store the ray grouped count and indicate that it is a list (-2)
+  vstore2(child, 0, pointers + 2*iGID);
 }

@@ -60,10 +60,10 @@ int computeChild (unsigned int threadsCount, int i, int * level){
   return (index - 13*temp) + 2*offset;
 }
 
-int computeRIndex (unsigned int j, const __global float* cones){
+int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
   for ( int i = 0; i < j; i += 13){
-      rindex += cones[i + 12];
+    rindex += pointers[(int)(cones[i+12]) + 1];
   }
   return rindex;
 }
@@ -200,11 +200,10 @@ __local int* stack,
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
-      child = vload2(0, pointers + 2*num + 2*j);
-      omin.w = omax.w = dmin.w = dmax.w = 0;
+      child = vload2(0, pointers + (int)dmax.w );
 
       // check if triangle intersects IA node
-      if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+     // if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
       {
         //store child to the stack
         stack[wbeginStack + SPindex++] = child.x;
@@ -219,14 +218,13 @@ __local int* stack,
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (i/13)*2);
-          omin.w = omax.w = dmin.w = dmax.w = 0;
+          child = vload2(0, pointers + (int)dmax.w);
 
-          if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
+         // if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
           {
             if ( child.x == -2) {
-              rindex = computeRIndex(i, cones);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,cones[i+12], child.y
+              rindex = computeRIndex(i, cones, pointers);
+              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2, child.y, rindex
               #ifdef STAT_PRAY_TRIANGLE
                 , stat_rayTriangle
               #endif

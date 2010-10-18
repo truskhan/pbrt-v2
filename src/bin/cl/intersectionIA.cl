@@ -123,10 +123,10 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4
   return (s.x < s.y);
 }
 
-int computeRIndex( unsigned int j, const __global float* cones){
+int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
   for ( int i = 0; i < j; i += 13){
-    rindex += cones[i + 12];
+    rindex += pointers[(int)(cones[i+12]) + 1];
   }
   return rindex;
 }
@@ -201,7 +201,7 @@ __kernel void IntersectionR (
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
-      child = vload2(0, pointers + dmax.w);
+      child = vload2(0, pointers + (int)dmax.w);
 
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -222,16 +222,16 @@ __kernel void IntersectionR (
         omax = vload4(0, cones + i + 3);
         dmin = vload4(0, cones + i + 6);
         dmax = vload4(0, cones + i + 9);
-        child = vload2(0, pointers + dmax.w);
+        child = vload2(0, pointers + (int)dmax.w);
 
-        if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
+       // if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
         {
           #ifdef STAT_TRIANGLE_CONE
            ++stat_triangleCone[iGID];
           #endif
           //if the cones is at level 0 - check leaves
           if ( child.x == -2) {
-            rindex = computeRIndex(i,cones);
+            rindex = computeRIndex(i,cones,pointers);
             intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,child.y, rindex
             #ifdef STAT_RAY_TRIANGLE
               , stat_rayTriangle

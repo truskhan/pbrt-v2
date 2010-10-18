@@ -553,7 +553,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     OpenCLTask* gpuRayO = ocl->getTask(tn3,cmd);
     gpuRayO->InitBuffers(7);
     gpuRayO->CopyBuffers(0,3,0,gput); // 0 vertex, 1 dir, 2 origin
-    gpuRayO->CopyBuffer(6,3,gput); // 3 index
+    gpuRayO->CopyBuffer(7,3,gput); // 3 index
     Assert(gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*triangleCount, CL_MEM_READ_ONLY )); //uvs
     Assert(gpuRayO->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY )); // tu,tv
     Assert(gpuRayO->CreateBuffer(6,sizeof(cl_float)*6*count, CL_MEM_WRITE_ONLY )); //dpdu, dpdv

@@ -19,7 +19,7 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   dmin = dmax = vload4(0, dir + 3*index);
   omin = omax = vload4(0, o + 3*index);
   dmin.w = dmax.w = omin.w = omax.w = 0;
-  child.y = index;
+  child.y = counts[iGID];
 
   for ( int i = 1; i < counts[iGID]; i++){
     //check if the direction of the ray lies within the solid angle
@@ -39,5 +39,6 @@ __kernel void rayhconstruct(const __global float* dir,const  __global float* o,
   vstore4(dmin, 0, cones + 13*iGID + 6);
   dmax.w = 2*iGID; //counts[iGID];
   vstore4(dmax, 0, cones + 13*iGID + 9);
+  //store the ray grouped count and indicate that it is a list (-2)
   vstore2(child, 0, pointers + 2*iGID);
 }

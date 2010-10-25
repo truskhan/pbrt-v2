@@ -91,7 +91,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
       strncpy(file[i]+lenP, names[i], lenF[i]+1);
     }
 
-    ocl = new OpenCL(onGPU,6);
+    ocl = new OpenCL(onGPU,KERNEL_COUNT);
     cmd = ocl->CreateCmdQueue();
     ocl->CompileProgram(file[0], "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR);
     ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
@@ -311,6 +311,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     cout << "Constant memory size: " << ocl->getMaxConstantBufferSize() << endl;
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
 
+    cout << "Needed rays " << xResolution*yResolution*samplesPerPixel << " device maximu rays " << x << endl;
     return min(x, xResolution*yResolution*samplesPerPixel);
 }
 
@@ -481,7 +482,7 @@ size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, c
   }
   topLevelCount = levelcount;
   total += levelcount;
-  if ( height < 2) Severe("Too few rays for rayhierarchy! Try smaller chunks");
+  if ( height < 1) Severe("Too few rays for rayhierarchy! Try smaller chunks");
   gpuray->InitBuffers(5);
 
   Assert(gpuray->CreateBuffer(0,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray directions
@@ -778,7 +779,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     }
     Assert(anotherIntersect->SetIntArgument(11,(cl_int)triangleLastPartCount));
     Assert(anotherIntersect->SetIntArgument(14,(cl_int)(parts-1)*trianglePartCount));
-    Assert(anotherIntersect->EnqueueWriteBuffer(8, changedArray + (parts-1)*trianglePartCount));
+    Assert(anotherIntersect->EnqueueWriteBuffer(8, changedArray + (parts-1)*trianglePartCount, triangleLastPartCount));
     if (!anotherIntersect->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount))exit(EXIT_FAILURE);
     if (!anotherIntersect->Run())exit(EXIT_FAILURE);
 
@@ -926,8 +927,6 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
   cl_float* rayDirArray = new cl_float[count*3]; //ray directions
   cl_float* rayOArray = new cl_float[count*3]; //ray origins
   cl_float* rayBoundsArray = new cl_float[count*2]; //ray bounds
-  cl_uint* countArray = new cl_uint[threadsCount];
-  cout << "Creating count Array with size of " << threadsCount << endl;
 
   unsigned int elem_counter = 0;
   #ifdef STAT_PRAY_TRIANGLE
@@ -969,12 +968,24 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     delete [] rayDirArray;
     delete [] rayOArray;
     delete [] rayBoundsArray;
-    delete [] countArray;
     return;
   }
 
   //threadsCount = (elem_counter + chunk - 1)/chunk;
   cl_uint threadsCountP = (elem_counter + chunk -1)/chunk;
+  Assert(threadsCountP < count);
+  if ( threadsCountP/4 < 2){
+    cout << "IntersectP has too few rays " << elem_counter << " using naive CPU solution " << endl;
+    for (int k = 0; k < count; ++k) {
+      occluded[k] = '0';
+      if ( !hit[k] )
+            continue;
+
+      if ( IntersectP(r[k])) occluded[k] = '1';
+    }
+
+  } else {
+  cl_uint* countArray = new cl_uint[threadsCountP];
   for (int k = 0; k < threadsCountP; ++k)
     countArray[k] = chunk;
   //memset(countArray, chunk, sizeof(cl_uint)*number);
@@ -1032,6 +1043,10 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
 
     gput->WaitForRead();
     workerSemaphore->Post();
+    ocl->delTask(tn1,cmd);
+    ocl->delTask(tn2,cmd);
+
+
     unsigned int j = 0;
     unsigned char* temp_occluded = new unsigned char[count];
     for ( unsigned i = 0; i < count; i++){
@@ -1076,12 +1091,13 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     }
     #endif
 
-    ocl->delTask(tn1,cmd);
-    ocl->delTask(tn2,cmd);
+    delete [] countArray;
+  }
+
     delete [] rayDirArray;
     delete [] rayOArray;
     delete [] rayBoundsArray;
-    delete [] countArray;
+
 }
 
 

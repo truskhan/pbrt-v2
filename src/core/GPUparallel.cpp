@@ -96,7 +96,6 @@ OpenCL::OpenCL(bool onGPU, size_t numKernels){
   #endif
 }
 
-cl_device_id device;
 Mutex* buildLog;
 
 OpenCLQueue::OpenCLQueue(cl_context & context){
@@ -135,14 +134,14 @@ OpenCLQueue::OpenCLQueue(cl_context & context){
 }
 
 void pfn_notify(cl_program p, void* user_data){
- //cout << (char*)user_data << endl;
   MutexLock(*buildLog);
  char* log = new char[1000];
  size_t len;
- cl_int ciErrNum = clGetProgramBuildInfo(p, device, CL_PROGRAM_BUILD_LOG, sizeof(char)*1000, log, &len);
+ cl_int ciErrNum = clGetProgramBuildInfo(p, *((cl_device_id*)user_data), CL_PROGRAM_BUILD_LOG, sizeof(char)*1000, log, &len);
  if ( ciErrNum != CL_SUCCESS)
   Severe("Failed to get program build log %s %i", stringError(ciErrNum), ciErrNum);
- cout << endl << (char*)user_data<< " len " << len << " " << log << endl;
+ //cout << endl << (char*)user_data<< " len " << len << " " << log << endl;
+ cout << endl << " len " << len << " " << log << endl;
  delete [] log;
  return;
 }
@@ -161,22 +160,38 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
 
   // Create the program
   cpPrograms[i] = clCreateProgramWithSource(cxContext, 1, (const char **)&cSourceCL, &szKernelLength, &ciErrNum);
-  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL, "-cl-nv-verbose -cl-nv-maxrregcount=70",  &pfn_notify, (void*) cPathAndName);
 
-  /*ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
+#ifdef HAVE_ATI
+  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
   #ifdef STAT_RAY_TRIANGLE
-   "-DSTAT_RAY_TRIANGLE -cl-nv-verbose",
+   "-DSTAT_RAY_TRIANGLE -g",
   #endif
   #ifdef STAT_PRAY_TRIANGLE
-    "-DSTAT_PRAY_TRIANGLE -cl-nv-verbose",
+    "-DSTAT_PRAY_TRIANGLE -g",
   #endif
   #ifdef STAT_TRIANGLE_CONE
-    "-DSTAT_TRIANGLE_CONE -cl-nv-verbose",
+    "-DSTAT_TRIANGLE_CONE -g",
   #endif
   #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
-    "-cl-nv-verbose",
+    "-g",
   #endif
-  NULL, NULL);//"-g", NULL, NULL);*/
+  NULL, NULL);
+#else
+  ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
+  #ifdef STAT_RAY_TRIANGLE
+   "-DSTAT_RAY_TRIANGLE",
+  #endif
+  #ifdef STAT_PRAY_TRIANGLE
+    "-DSTAT_PRAY_TRIANGLE",
+  #endif
+  #ifdef STAT_TRIANGLE_CONE
+    "-DSTAT_TRIANGLE_CONE",
+  #endif
+  #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
+    "-cl-nv-verbose -cl-nv-maxrregcount=70",
+  #endif
+  &pfn_notify, (void*) &(queue[0]->device));
+#endif
 
   if (ciErrNum != CL_SUCCESS){
     // write out standard error, Build Log and PTX, then cleanup and exit
@@ -376,11 +391,11 @@ bool OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
   return true;
 }
 
-bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data){
+bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data, size_t size){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
 
-  ciErrNum = clEnqueueWriteBuffer(queue, cmBuffers[it], CL_FALSE, 0, sizeBuff[it] , data, 0, NULL, &writeEvents[writeENum++]);
+  ciErrNum = clEnqueueWriteBuffer(queue, cmBuffers[it], CL_FALSE, 0, (size==0)?sizeBuff[it]:size , data, 0, NULL, &writeEvents[writeENum++]);
   if ( ciErrNum != CL_SUCCESS)
     Severe("failed asynchronous data transfer at %i buffer %i %s", it, ciErrNum, stringError(ciErrNum));
 
@@ -434,6 +449,10 @@ bool OpenCLTask::Run(){
     //ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, 1, NULL, &szGlobalWorkSize, NULL, 0, NULL,  NULL);
     if ( ciErrNum != CL_SUCCESS)
       Severe("failed enqueue kernel %d %s", ciErrNum, stringError(ciErrNum));
+
+    for ( size_t i = 0; i < writeENum; i++)
+      clReleaseEvent(writeEvents[i]);
+    writeENum = 0;
 
     #ifdef GPU_TIMES
     ciErrNum = clFinish(queue);

@@ -1,11 +1,14 @@
 __kernel void computeDpTuTv (const __global float* vertex, const __global float* dir, const __global float* o,
                              const __global int* index, const __global float* uvs,
-                             __global float* tutv, __global float* dp, int count ){
+                             __global float* tutv, __global float* dp, int count,
+                             const unsigned int lowerBound, const unsigned int upperBound ){
 
     int iGID = get_global_id(0);
     if ( iGID >= count ) return;
     int i = index[iGID];
     if ( i == 0 ) return;
+    if ( i < lowerBound || i >= upperBound) return;
+      else i %= (upperBound - lowerBound);
 
     float4 rayd,rayo, v1, v2, v3, e1, e2;
     float b1,b2,invDivisor;

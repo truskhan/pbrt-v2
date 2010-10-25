@@ -31,7 +31,8 @@ private:
     Camera *camera;
     SurfaceIntegrator *surfaceIntegrator;
     VolumeIntegrator *volumeIntegrator;
-
+    unsigned int maxRaysPerCall;
+    friend class breadthFirstTask;
 };
 
 

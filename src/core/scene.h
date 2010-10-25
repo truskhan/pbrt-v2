@@ -49,12 +49,17 @@ public:
         return hit;
     }
     void Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
-      float* rayWeight, const int & count, const unsigned int & xRes, const unsigned int & yRes,
-      const unsigned int & samplesPerPixel
+      float* rayWeight, const int & count, const unsigned int & samplesPerPixel
       #ifdef STAT_RAY_TRIANGLE
       , Spectrum *Ls
       #endif
       ) const;
+    void Preprocess(const Camera* camera, const unsigned samplesPerPixel) const {
+      aggregate->Preprocess(camera, samplesPerPixel);
+    }
+    void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny) const {
+      aggregate->Preprocess(camera, samplesPerPixel, nx, ny);
+    }
     unsigned int MaxRaysPerCall() const;
     bool IntersectP(const Ray &ray) const {
         PBRT_STARTED_RAY_INTERSECTIONP(const_cast<Ray *>(&ray));

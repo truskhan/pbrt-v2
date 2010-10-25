@@ -1,20 +1,25 @@
 #include "accelerators/rayhierarchy.h"
-#include "probes.h"
-#include "paramset.h"
-#include "intersection.h"
-#include "GPUparallel.h"
+#include "core/probes.h"
+#include "core/camera.h"
+#include "core/film.h"
+#include "core/renderer.h"
+#include "core/paramset.h"
+#include "core/intersection.h"
+#include "core/GPUparallel.h"
 #include <iostream>
 #if ( defined STAT_RAY_TRIANGLE || defined STAT_TRIANGLE_CONE)
 #include "imageio.h"
 #endif
 
+#define KERNEL_COUNT 8
 #define KERNEL_COMPUTEDPTUTV 0
 #define KERNEL_RAYLEVELCONSTRUCT 1
 #define KERNEL_RAYCONSTRUCT 2
 #define KERNEL_INTERSECTIONP 4
 #define KERNEL_INTERSECTIONR 3
 #define KERNEL_YETANOTHERINTERSECTION 5
-
+#define KERNEL_RAYLEVELCONSTRUCTP 6
+#define KERNEL_RAYCONSTRUCTP 7
 
 using namespace std;
 Semaphore *workerSemaphore;
@@ -30,9 +35,9 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     Info("Created OpenCL context");
     //precompile OpenCL kernels
     size_t lenP = strlen(PbrtOptions.pbrtPath);
-    size_t *lenF = new size_t[6];
-    char** names = new char*[6];
-    char** file = new char*[6];
+    size_t *lenF = new size_t[KERNEL_COUNT];
+    char** names = new char*[KERNEL_COUNT];
+    char** file = new char*[KERNEL_COUNT];
 
   nodeSize = 0;
   if ( node == "cone"){
@@ -50,6 +55,8 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[2] = "cl/rayhconstructIA.cl";
     names[3] = "cl/levelConstructIA.cl";
     names[4] = "cl/yetAnotherIntersectionIA.cl";
+    names[6] = "cl/rayhconstructPIA.cl";
+    names[7] = "cl/levelConstructPIA.cl";
     cout << "accel nodes : IA" << endl;
     nodeSize = 13;
   }
@@ -77,7 +84,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
   }
     names[5] = "cl/computeDpTuTv.cl";
 
-    for ( int i = 0; i < 6; i++){
+    for ( int i = 0; i < KERNEL_COUNT; i++){
       lenF[i] = strlen(names[i]);
       file[i] = new char[lenP + lenF[i] + 1];
       strncpy(file[i], PbrtOptions.pbrtPath, lenP);
@@ -92,9 +99,11 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     ocl->CompileProgram(file[3], "levelConstruct", "oclLevelConstruct.ptx",KERNEL_RAYLEVELCONSTRUCT);
     ocl->CompileProgram(file[4], "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION);
     ocl->CompileProgram(file[5], "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
+    ocl->CompileProgram(file[6], "rayhconstructP", "oclRayhconstructP.ptx",KERNEL_RAYCONSTRUCTP);
+    ocl->CompileProgram(file[7], "levelConstructP", "oclLevelConstructP.ptx",KERNEL_RAYLEVELCONSTRUCTP);
 
     delete [] lenF;
-    for (int i = 0; i < 6; i++){
+    for (int i = 0; i < KERNEL_COUNT; i++){
       //delete [] names[i];
       delete [] file[i];
     }
@@ -190,10 +199,119 @@ BBox RayHieararchy::WorldBound() const {
     return bbox;
 }
 
+void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPixel,
+  const int nx, const int ny){
+  xResolution /= nx;
+  yResolution /= ny;
+
+  //number of rectangles in x axis
+  global_a = (xResolution + a - 1) / a; //round up -> +a-1
+  //number of rectangles in y axis
+  global_b = (yResolution + b - 1) / b;
+  //x and y sizes of overlapping area
+  rest_x = global_a*a - xResolution;
+  rest_y = global_b*b - yResolution;
+  threadsCount = global_a * global_b;
+}
+
+void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPixel){
+  this->xResolution = camera->film->xResolution;
+  this->yResolution = camera->film->yResolution;
+  this->samplesPerPixel = samplesPerPixel;
+  //number of rectangles in x axis
+  global_a = (xResolution + a - 1) / a; //round up -> +a-1
+  //number of rectangles in y axis
+  global_b = (yResolution + b - 1) / b;
+  //x and y sizes of overlapping area
+  rest_x = global_a*a - xResolution;
+  rest_y = global_b*b - yResolution;
+  threadsCount = global_a * global_b;
+}
+
+void RayHieararchy::Preprocess(){
+  global_a = (xResolution + a - 1) / a; //round up -> +a-1
+  //number of rectangles in y axis
+  global_b = (yResolution + b - 1) / b;
+  threadsCount = global_a * global_b;
+}
+
+void RayHieararchy::PreprocessP(const int rays){
+   //do brute force factorization -> compute ideal small rectangle sides sizes
+   vector<unsigned int> primes;
+   unsigned int number = rays;
+
+   for (unsigned int k = 2; k <= number; k++){
+     while ( number % k == 0 )   {
+       primes.push_back(k);
+       number /= k;
+     }
+   }
+
+  //compute sides of small rectangles
+  unsigned int tempXRes, tempYRes;
+  tempXRes = tempYRes = 1;
+  for (unsigned int k = 0; k < primes.size(); k++){
+    if ( k % 2 == 0 ){
+      tempXRes *= primes[k];
+    } else {
+      tempYRes *= primes[k];
+    }
+  }
+
+  //number of rectangles in x axis
+  global_a = (tempXRes + a - 1) / a; //round up -> +a-1
+  //number of rectangles in y axis
+  global_b = (tempYRes + b - 1) / b;
+  threadsCount = global_a * global_b;
+}
+
 unsigned int RayHieararchy::MaxRaysPerCall(){
+    worgGroupSize = 32;
+
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once
-    return 100000;
+    cl_ulong gms = ocl->getGlobalMemSize();
+    //ray dir,o, bounds, tHit
+    unsigned int x;
+
+    //pointers to children
+    int total = threadsCount*0.5f*(1.0f - 1/(2^height));
+    //vertices
+    #define MAX_VERTICES 1500
+    if ( triangleCount > MAX_VERTICES) {
+      parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
+      trianglePartCount = (triangleCount + parts - 1)/ parts;
+      triangleLastPartCount = triangleCount - (parts-1)*trianglePartCount;
+    } else {
+      parts = 1;
+      trianglePartCount = triangleCount;
+      triangleLastPartCount = triangleCount;
+    }
+
+    //(GlobalMemorySize - vertices - pointersToChildren - counts)
+    x = (gms - sizeof(cl_float)*3*3*trianglePartCount //vertices
+             - sizeof(cl_int)*2*total //pointersToChildren
+             - sizeof(cl_uint)*threadsCount //counts
+             ) / (
+             sizeof(cl_uint) //index
+             + 9*sizeof(cl_float) //ray dir, o, bounds, tHit
+             );
+
+    //local mem - stack:
+    cl_ulong lms = ocl->getLocalMemSize();
+    cl_ulong localSize = sizeof(cl_int)*(2 + (height+1)*(height+2)/2)*worgGroupSize;
+    if ( lms < localSize){
+      Severe("Need local memory size at least %i Bytes, present %i B. Try to decrease hierarchy's height.", localSize, lms);
+    }
+
+
+    cout << "Global memory size on OpenCL device (in B): " << gms << endl;
+    cout << "Maximum memory allocation size at once: " << ocl->getMaxMemAllocSize() << endl;
+    cout << "Local memory size on OpenCL device: " << ocl->getLocalMemSize() << " needed: " << localSize << endl;
+    cout << "Constant memory size: " << ocl->getMaxConstantBufferSize() << endl;
+    cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
+
+    return min(x, xResolution*yResolution*samplesPerPixel);
 }
 
 //classical method for testing one ray
@@ -309,12 +427,29 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   if (!gpurayl->SetIntArgument(3,(cl_uint)threadsCount)) exit(EXIT_FAILURE);
 
   int temp = global_a;
+  int dx = global_a;
+  int dy = global_b;
   for ( cl_uint i = 1; i <= height; i++){
     if (!gpurayl->SetIntArgument(4,i)) exit(EXIT_FAILURE);
     if (!gpurayl->SetIntArgument(5,temp)) exit(EXIT_FAILURE);
+    if ( i % 2 == 0){
+      if ( dx & 0x1 == 1) //if it is even, last column hasn't any other node to merge
+        Assert(gpurayl->SetIntArgument(6, dx - 1));
+      else
+        Assert(gpurayl->SetIntArgument(6, dx ));
+    } else {
+      if ( dy & 0x1 == 1) //if it is even, last row hasn't any other node to merge
+        Assert(gpurayl->SetIntArgument(6, dx*dy - dx));
+      else
+        Assert(gpurayl->SetIntArgument(6, dx*dy));
+    }
+
     if (!gpurayl->Run())exit(EXIT_FAILURE);
     if ( i % 2 == 0){
       temp = (temp+1)/2;
+      dx = (dx+1)/2;
+    } else {
+      dy = (dy+1)/2;
     }
     gpurayl->WaitForKernel();
   }
@@ -326,11 +461,121 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   return tn; //return index to first task - so that buffers can be copied
 }
 
+//constructs ray hieararchy on GPU -> creates array of cones
+size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, cl_uint count,
+  cl_uint* countArray, unsigned int threadsCount ){
+
+  Assert(height > 0);
+  size_t tn = ocl->CreateTask(KERNEL_RAYCONSTRUCTP, threadsCount , cmd, 32);
+  OpenCLTask* gpuray = ocl->getTask(tn,cmd);
+
+  int total = 0;
+  int levelcount = threadsCount;
+  for ( cl_uint i = 0; i < height; i++){
+      total += levelcount;
+      levelcount = (levelcount+1)/2; //number of elements in level
+      if ( levelcount == 1 ){
+        height = i;
+        break;
+      }
+  }
+  topLevelCount = levelcount;
+  total += levelcount;
+  if ( height < 2) Severe("Too few rays for rayhierarchy! Try smaller chunks");
+  gpuray->InitBuffers(5);
+
+  Assert(gpuray->CreateBuffer(0,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray directions
+  Assert(gpuray->CreateBuffer(1,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray origins
+  Assert(gpuray->CreateBuffer(2,sizeof(cl_uint)*threadsCount, CL_MEM_READ_ONLY)); //number of rays per initial thread
+  Assert(gpuray->CreateBuffer(3, sizeof(cl_float)*nodeSize*total, CL_MEM_READ_WRITE)); //for cones
+  Assert(gpuray->CreateBuffer(4, sizeof(cl_int)*2*total, CL_MEM_WRITE_ONLY)); //for pointers to leaves
+  Assert(gpuray->SetIntArgument(5,(cl_uint)threadsCount));
+
+  Assert(gpuray->EnqueueWriteBuffer( 0, rayDir));
+  Assert(gpuray->EnqueueWriteBuffer( 1, rayO));
+  Assert(gpuray->EnqueueWriteBuffer( 2, countArray));
+
+  Assert(gpuray->Run());
+
+  Assert(!gpuray->SetPersistentBuff(0));
+  Assert(!gpuray->SetPersistentBuff(1));
+  Assert(!gpuray->SetPersistentBuff(3));
+  Assert(!gpuray->SetPersistentBuff(4));
+
+  size_t tasknum = ocl->CreateTask(KERNEL_RAYLEVELCONSTRUCTP, (threadsCount+1)/2, cmd,32);
+  OpenCLTask* gpurayl = ocl->getTask(tasknum,cmd);
+  gpurayl->InitBuffers(2);
+  gpurayl->CopyBuffer(3,0,gpuray);
+  gpurayl->CopyBuffer(4,1,gpuray);
+  if (!gpurayl->SetIntArgument(2,(cl_uint)count)) exit(EXIT_FAILURE);
+  if (!gpurayl->SetIntArgument(3,(cl_uint)threadsCount)) exit(EXIT_FAILURE);
+
+  for ( cl_uint i = 1; i <= height; i++){
+    if (!gpurayl->SetIntArgument(4,i)) exit(EXIT_FAILURE);
+    if (!gpurayl->Run())exit(EXIT_FAILURE);
+    gpurayl->WaitForKernel();
+  }
+
+  Assert(!gpurayl->SetPersistentBuff(0));
+  Assert(!gpurayl->SetPersistentBuff(1));
+  ocl->delTask(tasknum, cmd);
+
+  return tn; //return index to first task - so that buffers can be copied
+}
+
+#if defined STAT_PRAY_TRIANGLE || defined STAT_RAY_TRIANGLE
+#define MAX_COLOR_VALUE 255
+#define MIN_COLOR_VALUE 0
+inline RGBSpectrum RainbowColorMapping(const float _value)
+{
+  float color[3];
+
+  float value = 4.0f*(1.0f - (_value));
+
+  if (value < 0.0f)
+        value = 0.0f;
+  else
+        if (value > 4.0f)
+          value = 4.0f;
+
+  int band = (int)(value);
+  value -= band;
+
+  switch (band) {
+  case 0:
+        color[0] = MAX_COLOR_VALUE;
+        color[1] = value*MAX_COLOR_VALUE;
+        color[2] = MIN_COLOR_VALUE;
+        break;
+  case 1:
+        color[0] = (1.0f - value)*MAX_COLOR_VALUE;
+        color[1] = MAX_COLOR_VALUE;
+        color[2] = MIN_COLOR_VALUE;
+        break;
+  case 2:
+        color[0] = MIN_COLOR_VALUE;
+        color[1] = MAX_COLOR_VALUE;
+        color[2] = value*MAX_COLOR_VALUE;
+        break;
+  case 3:
+        color[0] = MIN_COLOR_VALUE;
+        color[1] = (1.0f - value)*MAX_COLOR_VALUE;
+        color[2] = MAX_COLOR_VALUE;
+        break;
+  default:
+        color[0] = value*MAX_COLOR_VALUE;
+        color[1] = MIN_COLOR_VALUE;
+        color[2] = MAX_COLOR_VALUE;
+        break;
+  }
+
+  return RGBSpectrum::FromRGB(color);
+}
+#endif
+
 //intersect computed on gpu with more rays
 void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
-                               float* rayWeight, bool* hit, unsigned int count,
-                               const unsigned int & xResolution, const unsigned int & yResolution,
-                               const unsigned int & samplesPerPixel
+                               float* rayWeight, bool* hit, unsigned int count
   #ifdef STAT_RAY_TRIANGLE
   , Spectrum *Ls
   #endif
@@ -338,17 +583,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   #ifdef GPU_TIMES
   cout << "# triangles: " << triangleCount << endl;
   #endif
-  this->xResolution = xResolution;
-  this->samplesPerPixel = samplesPerPixel;
-  //number of rectangles in x axis
-  global_a = (xResolution + a - 1) / a; //round up -> +a-1
-  //number of rectangles in y axis
-  global_b = (yResolution + b - 1) / b;
-  //x and y sizes of overlapping area
-  rest_x = global_a*a - xResolution;
-  rest_y = global_b*b - yResolution;
+  Preprocess();
   threadsCount = global_a * global_b;
-
   cl_float* rayDirArray = new cl_float[count*3];
   cl_float* rayOArray = new cl_float[count*3];
   cl_float* rayBoundsArray = new cl_float[count*2];
@@ -434,7 +670,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, count, countArray, threadsCount);
     OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
 
-    size_t tn2 = ocl->CreateTask(KERNEL_INTERSECTIONR, triangleCount, cmd,32);
+    size_t tn2 = ocl->CreateTask(KERNEL_INTERSECTIONR, trianglePartCount, cmd,32);
     OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
     #if (!defined STAT_RAY_TRIANGLE && !defined STAT_RAY_CONE)
@@ -452,7 +688,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->CopyBuffer(4,4,gpuray);
 
 
-    Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*triangleCount, CL_MEM_READ_ONLY )); //vertices
+    Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY )); //vertices
     Assert(gput->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_READ_ONLY )); //ray bounds
     Assert(gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_READ_WRITE)); // tHit
     Assert(gput->CreateBuffer(7,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY)); //index array
@@ -465,35 +701,41 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     //while outside for: 32*(toplevelCount*2 + (height+1)*(2+height)/2)
     //while inside for: 32*(2 + (height+1)*(2+height)/2)
-    Assert(gput->SetLocalArgument(c++,sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2)))); //stack for every thread
-    Assert(gput->SetIntArgument(c++,(cl_int)count));
-    Assert(gput->SetIntArgument(c++,(cl_int)triangleCount));
-    Assert(gput->SetIntArgument(c++,(cl_int)height));
-    Assert(gput->SetIntArgument(c++,(cl_int)threadsCount));
+    Assert(gput->SetLocalArgument(8,sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2)))); //stack for every thread
+    Assert(gput->SetIntArgument(9,(cl_int)count));
+    Assert(gput->SetIntArgument(11,(cl_int)height));
+    Assert(gput->SetIntArgument(12,(cl_int)threadsCount));
 
-    if (!gput->EnqueueWriteBuffer( 0, vertices ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 5, rayBoundsArray ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 6, tHitArray ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 7, indexArray ))exit(EXIT_FAILURE);
     #if (defined STAT_RAY_TRIANGLE || defined STAT_TRIANGLE_CONE)
     Assert(gput->EnqueueWriteBuffer( 8, picture));
     #endif
-
+    Assert(gput->SetIntArgument(10,(cl_int)trianglePartCount)); //number of uploaded triangles to GPU
+    for ( int i = 0; i < parts - 1; i++){
+      Assert(gput->SetIntArgument(13,(cl_uint)i*trianglePartCount)); //offset
+      if (!gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount))exit(EXIT_FAILURE);
+      if (!gput->Run())exit(EXIT_FAILURE);
+      gput->WaitForKernel();
+    }
+    //last part of vertices
+    Assert(gput->SetIntArgument(10,(cl_int)triangleLastPartCount));
+    Assert(gput->SetIntArgument(13,(cl_uint)(parts-1)*trianglePartCount));
+    if (!gput->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount, triangleLastPartCount))exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
 
     #ifdef STAT_RAY_TRIANGLE
     Assert(gput->EnqueueReadBuffer( 8, picture));
     uint i = 0;
-    uint temp;
+    uint temp = 0;
     gput->WaitForRead();
-    float colors[3];
     for (i = 0; i < count; i++){
-      colors[0] = picture[elem_index[i]]/25;
-      colors[1] = (picture[elem_index[i]] - (uint)colors[0]*25)/5;
-      colors[2] = (picture[elem_index[i]] - (uint)colors[0]*25 - (uint)colors[1]*5);
-      Ls[i] = RGBSpectrum::FromRGB(colors);
+      temp = max(picture[elem_index[i]],temp);
+      Ls[i] = RainbowColorMapping((float)(picture[elem_index[i]])/100.0f);
     }
+    cout << "Maximum intersection count: " << temp << endl;
     delete [] ((uint*)picture);
     workerSemaphore->Post();
     return;
@@ -515,7 +757,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     cl_uint* changedArray = new cl_uint[triangleCount];
     memset(changedArray, 0, sizeof(cl_uint)*triangleCount);
 
-    size_t tn4 = ocl->CreateTask(KERNEL_YETANOTHERINTERSECTION, triangleCount , cmd, 32);
+    size_t tn4 = ocl->CreateTask(KERNEL_YETANOTHERINTERSECTION, trianglePartCount , cmd, 32);
     OpenCLTask* anotherIntersect = ocl->getTask(tn4, cmd);
     anotherIntersect->InitBuffers(9);
     anotherIntersect->CopyBuffers(0,8,0,gput);
@@ -523,12 +765,23 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     Assert(anotherIntersect->SetLocalArgument(9,sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2)))); //stack for every thread
     Assert(anotherIntersect->SetIntArgument(10,(cl_int)count));
-    Assert(anotherIntersect->SetIntArgument(11,(cl_int)triangleCount));
     Assert(anotherIntersect->SetIntArgument(12,(cl_int)height));
     Assert(anotherIntersect->SetIntArgument(13,(cl_int)threadsCount));
     //TODO: make only one counter per work-group, use local memory
-    if (!anotherIntersect->EnqueueWriteBuffer( 8 , changedArray)) exit(EXIT_FAILURE);
+    Assert(anotherIntersect->SetIntArgument(11,(cl_int)trianglePartCount));
+    for ( int i = 0; i < parts - 1; i++){
+      Assert(anotherIntersect->SetIntArgument(14,(cl_int)i*trianglePartCount));
+      Assert(anotherIntersect->EnqueueWriteBuffer(8, changedArray + i*trianglePartCount));
+      if (!anotherIntersect->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount))exit(EXIT_FAILURE);
+      if (!anotherIntersect->Run())exit(EXIT_FAILURE);
+      anotherIntersect->WaitForKernel();
+    }
+    Assert(anotherIntersect->SetIntArgument(11,(cl_int)triangleLastPartCount));
+    Assert(anotherIntersect->SetIntArgument(14,(cl_int)(parts-1)*trianglePartCount));
+    Assert(anotherIntersect->EnqueueWriteBuffer(8, changedArray + (parts-1)*trianglePartCount));
+    if (!anotherIntersect->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount))exit(EXIT_FAILURE);
     if (!anotherIntersect->Run())exit(EXIT_FAILURE);
+
     if (!anotherIntersect->EnqueueReadBuffer( 8, changedArray ))exit(EXIT_FAILURE);
     if (!anotherIntersect->EnqueueReadBuffer( 6, tHitArray)) exit(EXIT_FAILURE);
     if (!anotherIntersect->EnqueueReadBuffer( 7, indexArray)) exit(EXIT_FAILURE);
@@ -561,6 +814,16 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     if (!gpuRayO->SetIntArgument(7,(cl_uint)count)) exit(EXIT_FAILURE);
 
     if (!gpuRayO->EnqueueWriteBuffer( 4 , uvs)) exit(EXIT_FAILURE);
+    for ( int i = 0; i < parts - 1; i++){
+      Assert(gpuRayO->SetIntArgument(8,i*trianglePartCount));
+      Assert(gpuRayO->SetIntArgument(9,(i+1)*trianglePartCount));
+      Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
+      if (!gpuRayO->Run())exit(EXIT_FAILURE);
+      gpuRayO->WaitForKernel();
+    }
+    Assert(gpuRayO->SetIntArgument(8,(cl_int)(parts-1)*triangleLastPartCount));
+    Assert(gpuRayO->SetIntArgument(9,(cl_int)triangleCount));
+    Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount));
     if (!gpuRayO->Run())exit(EXIT_FAILURE);
 
     Info("count %d", count);
@@ -664,7 +927,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
   cl_float* rayOArray = new cl_float[count*3]; //ray origins
   cl_float* rayBoundsArray = new cl_float[count*2]; //ray bounds
   cl_uint* countArray = new cl_uint[threadsCount];
-  size_t* size = new size_t[20];
+  cout << "Creating count Array with size of " << threadsCount << endl;
 
   unsigned int elem_counter = 0;
   #ifdef STAT_PRAY_TRIANGLE
@@ -691,34 +954,34 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
   ++elem_counter;
   }
 
-  threadsCount = (elem_counter + chunk - 1)/chunk;
-  for (int k = 0; k < threadsCount; ++k)
+  #ifdef GPU_TIMES
+  if ( first_run) {
+    cout << "# prays: " << elem_counter << " all rays: " << count << endl;
+    first_run = false;
+  }
+  #endif
+
+  if ( elem_counter == 0 ){
+    //nothing to intersect
+    #ifdef GPU_TIMES
+    first_run = true;
+    #endif
+    delete [] rayDirArray;
+    delete [] rayOArray;
+    delete [] rayBoundsArray;
+    delete [] countArray;
+    return;
+  }
+
+  //threadsCount = (elem_counter + chunk - 1)/chunk;
+  cl_uint threadsCountP = (elem_counter + chunk -1)/chunk;
+  for (int k = 0; k < threadsCountP; ++k)
     countArray[k] = chunk;
   //memset(countArray, chunk, sizeof(cl_uint)*number);
-  countArray[threadsCount - 1] -= (chunk*threadsCount - elem_counter);
-
-    #ifdef GPU_TIMES
-    if ( first_run) {
-      cout << "# prays: " << elem_counter << " all rays: " << count << endl;
-      first_run = false;
-    }
-    #endif
-
-    if ( elem_counter == 0 ){
-      //nothing to intersect
-      #ifdef GPU_TIMES
-      first_run = true;
-      #endif
-      delete [] rayDirArray;
-      delete [] rayOArray;
-      delete [] rayBoundsArray;
-      delete [] countArray;
-      delete [] size;
-      return;
-    }
+  countArray[threadsCountP - 1] -= (chunk*threadsCountP - elem_counter);
 
     workerSemaphore->Wait();
-    size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, elem_counter, countArray, threadsCount);
+    size_t tn1 = ConstructRayHierarchyP(rayDirArray, rayOArray, elem_counter, countArray, threadsCountP);
     OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
 
     Info("height of the ray hieararchy in IntersectP is %d",height);
@@ -731,7 +994,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     #endif
     gput->InitBuffers(c);
 
-    Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*triangleCount, CL_MEM_READ_ONLY )); //vertices
+    Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY )); //vertices
     gput->CopyBuffer(0,1,gpuray); //ray dir
     gput->CopyBuffer(1,2,gpuray); //ray o
     gput->CopyBuffer(3,3,gpuray); //cones
@@ -742,19 +1005,26 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     Assert(gput->CreateBuffer(7,sizeof(cl_uint)*elem_counter, CL_MEM_WRITE_ONLY));
     #endif
 
-    if (!gput->SetLocalArgument(c++,sizeof(cl_int)*sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2))));
-    if (!gput->SetIntArgument(c++,(cl_uint)elem_counter)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(c++,(cl_uint)triangleCount)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(c++,(cl_uint)height)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(c++,(cl_uint)threadsCount)) exit(EXIT_FAILURE);
+    if (!gput->SetLocalArgument(7,sizeof(cl_int)*sizeof(cl_int)*(32*(2 + (height+1)*(2+height)/2))));
+    if (!gput->SetIntArgument(8,(cl_uint)elem_counter)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(10,(cl_uint)height)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(11,(cl_uint)threadsCountP)) exit(EXIT_FAILURE);
 
-    if (!gput->EnqueueWriteBuffer( 0, vertices ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 5, rayBoundsArray ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 6, occluded ))exit(EXIT_FAILURE);
     #ifdef STAT_PRAY_TRIANGLE
     Assert(gput->EnqueueWriteBuffer( 7, picture));
     #endif
+    if (!gput->SetIntArgument(9,(cl_uint)trianglePartCount)) exit(EXIT_FAILURE);
+    for ( int i = 0; i < parts - 1; i++){
+      Assert(gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
+      if (!gput->Run())exit(EXIT_FAILURE);
+      gput->WaitForKernel();
+    }
+    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount));
+    if (!gput->SetIntArgument(9,(cl_uint)triangleLastPartCount)) exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
+
     if (!gput->EnqueueReadBuffer( 6, occluded ))exit(EXIT_FAILURE);
     #ifdef STAT_PRAY_TRIANGLE
     Assert(gput->EnqueueReadBuffer( 7, picture));
@@ -779,15 +1049,22 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     #ifdef STAT_PRAY_TRIANGLE
     uint i = 0;
     j = 0;
-    uint temp;
+    uint temp,t;
+    float colors[3];
     for (i = 0; i < count; i++){
       if (!hit[i]) continue;
-      temp = ((cl_uint*)picture)[j]; ///256;
-     // if ( temp > 0 ) cout << "spectrum " << temp << endl;
-      Ls[i] += Spectrum(temp);
-      Ls[i] = Ls[i].Clamp(0,255);
+      temp = ((cl_uint*)picture)[j];
+      t = max(temp,t);
+      /*colors[0] = temp/(100*100);
+      colors[1] = (temp - colors[0]*100*100)/100;
+      colors[2] = (temp - colors[0]*100*100 - colors[1]*100);
+
+      Ls[i] += RGBSpectrum::FromRGB(colors);*/
+      Ls[i] += RainbowColorMapping((float)(temp)/4000.0f);
+     // Ls[i] = Ls[i].Clamp(0,255);
       ++j;
     }
+    cout << "Maximum intersection count: " << t << endl;
     delete [] ((uint*)picture);
     #endif
 
@@ -804,7 +1081,6 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
     delete [] rayDirArray;
     delete [] rayOArray;
     delete [] rayBoundsArray;
-    delete [] size;
     delete [] countArray;
 }
 

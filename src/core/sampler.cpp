@@ -43,6 +43,16 @@ bool Sampler::ReportResults(Sample *samples, const RayDifferential *rays,
     return true;
 }
 
+void Sampler::TilesInXY(int count, int * nx, int* ny) const {
+    // Determine how many tiles to use in each dimension, _nx_ and _ny_
+    int dx = xPixelEnd - xPixelStart, dy = yPixelEnd - yPixelStart;
+    *nx = count, *ny = 1;
+    while ((*nx & 0x1) == 0 && 2 * dx * *ny < dy * *nx) {
+        *nx >>= 1;
+        *ny <<= 1;
+    }
+}
+
 
 void Sampler::ComputeSubWindow(int num, int count, int *newXStart,
         int *newXEnd, int *newYStart, int *newYEnd) const {

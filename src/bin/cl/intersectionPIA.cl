@@ -203,7 +203,7 @@ __local int* stack,
       child = vload2(0, pointers + (int)dmax.w );
 
       // check if triangle intersects IA node
-     // if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+      if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
       {
         //store child to the stack
         stack[wbeginStack + SPindex++] = child.x;
@@ -220,7 +220,7 @@ __local int* stack,
           dmax = vload4(0, cones + i + 9);
           child = vload2(0, pointers + (int)dmax.w);
 
-         // if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
+          if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
           {
             if ( child.x == -2) {
               rindex = computeRIndex(i, cones, pointers);

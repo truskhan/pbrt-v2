@@ -4,7 +4,7 @@
 void yetAnotherIntersectAllLeaves (const __global float* dir, const __global float* o,
 const __global float* bounds, __global int* index, __global float* tHit, __global int* changed,
 float4 v1, float4 v2, float4 v3,
-float4 e1, float4 e2, int chunk, int rindex
+float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
@@ -41,8 +41,8 @@ float4 e1, float4 e2, int chunk, int rindex
 
       if ( t > tHit[rindex + i] || index[rindex+i] == get_global_id(0)) continue;
         tHit[rindex + i] = t;
-        index[rindex + i] = get_global_id(0);
-        changed[get_global_id(0)] = rindex + i;
+        index[rindex + i] = get_global_id(0) + offsetGID;
+        changed[get_global_id(0)+offsetGID] = rindex + i;
     }
 
 }
@@ -132,7 +132,7 @@ __kernel void YetAnotherIntersection (
     const __global float* cones, const __global int* pointers, const __global float* bounds, __global float* tHit,
     __global int* index, __global int* changed,
     __local int* stack,
-     int count, int size, int height, unsigned int threadsCount
+     int count, int size, int height, unsigned int threadsCount, const unsigned int offsetGID
      #ifdef STAT_RAY_TRIANGLE
        , __global int* stat_rayTriangle
       #endif
@@ -223,7 +223,7 @@ __kernel void YetAnotherIntersection (
             //if the cones is at level 0 - check leaves
             if ( child.x == -2) {
               rindex = computeRIndex(i, cones, pointers);
-              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2, child.y, rindex
+              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2, child.y, rindex, offsetGID
               #ifdef STAT_RAY_TRIANGLE
                 , stat_rayTriangle
               #endif

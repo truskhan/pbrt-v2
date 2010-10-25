@@ -3,7 +3,7 @@
 
 void intersectAllLeaves (const __global float* dir, const __global float* o,
 const __global float* bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
-float4 e1, float4 e2, int chunk, int rindex
+float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
@@ -41,7 +41,7 @@ float4 e1, float4 e2, int chunk, int rindex
 
       if (t > tHit[rindex + i]) continue;
         tHit[rindex + i] = t;
-        index[rindex + i] = get_global_id(0);
+        index[rindex + i] = get_global_id(0) + offsetGID;
 
 
     }
@@ -142,7 +142,7 @@ __kernel void IntersectionR (
  __global int* stat_rayTriangle,
 #endif
     __local int* stack,
-     int count, int size, const int height, unsigned int threadsCount
+     int count, int size, const int height, unsigned int threadsCount, unsigned int offsetGID
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
@@ -224,7 +224,7 @@ __kernel void IntersectionR (
         dmax = vload4(0, cones + i + 9);
         child = vload2(0, pointers + (int)dmax.w);
 
-       // if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
+        if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
         {
           #ifdef STAT_TRIANGLE_CONE
            ++stat_triangleCone[iGID];
@@ -232,7 +232,7 @@ __kernel void IntersectionR (
           //if the cones is at level 0 - check leaves
           if ( child.x == -2) {
             rindex = computeRIndex(i,cones,pointers);
-            intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,child.y, rindex
+            intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,child.y, rindex, offsetGID
             #ifdef STAT_RAY_TRIANGLE
               , stat_rayTriangle
             #endif

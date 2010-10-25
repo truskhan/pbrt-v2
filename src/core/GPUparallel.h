@@ -80,7 +80,7 @@ class OpenCLTask {
     bool SetIntArgument(const size_t & it, const cl_int & arg);
     bool SetLocalArgument(const size_t & it, const size_t & size);
     bool EnqueueWriteBuffer(cl_mem_flags* flags,void** data);
-    bool EnqueueWriteBuffer(size_t it, void* data);
+    bool EnqueueWriteBuffer(size_t it, void* data, size_t size = 0);
     bool EnqueueReadBuffer(cl_mem_flags* flags,void** odata);
     bool EnqueueReadBuffer( size_t it, void* odata);
     bool Run();
@@ -103,6 +103,7 @@ class OpenCLQueue {
    size_t maxtasks;
    Mutex* globalmutex;
    public:
+   cl_device_id device;
    /**Creation of OpenCL queue
    param[in] context needs for all OpenCL API calls
    **/
@@ -168,6 +169,46 @@ class OpenCL {
   ///Mutex for thread safe call to CreateQueues etc.
   Mutex* mutex;
   public:
+    size_t getMaxWorkGroupSize(size_t q = 0) {
+      size_t result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(size_t), &result, 0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
+    cl_ulong getMaxMemAllocSize(size_t q = 0) {
+      cl_ulong result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_MAX_MEM_ALLOC_SIZE, sizeof(cl_ulong), &result, 0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
+    cl_ulong getMaxConstantBufferSize(size_t q = 0) {
+      cl_ulong result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE, sizeof(cl_ulong), &result, 0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
+    cl_ulong getLocalMemSize(size_t q = 0) {
+      cl_ulong result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &result, 0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
+    cl_ulong getGlobalMemSize(size_t q = 0) {
+      cl_ulong result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(cl_ulong), &result, 0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
     /**Initialize OpenCL
     @param[in] onGPU run on GPU with NVIDIA or on CPU with ATI-stream SDK
     @param[in] numKernels

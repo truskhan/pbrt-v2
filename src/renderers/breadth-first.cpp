@@ -29,7 +29,7 @@ void breadthFirstTask::Run() {
     RNG rng(taskNum);
 
     // Allocate space for samples and intersections
-    int maxSamples = scene->MaxRaysPerCall(); //(camera->film->xResolution* camera->film->yResolution)
+    int maxSamples = ((breadthFirst*) renderer)->maxRaysPerCall; //(camera->film->xResolution* camera->film->yResolution)
     Sample *samples = origSample->Duplicate(maxSamples);
 
     // Get samples from \use{Sampler} and update image
@@ -119,6 +119,7 @@ void breadthFirst::Render(const Scene *scene) {
     PBRT_STARTED_PREPROCESSING();
     surfaceIntegrator->Preprocess(scene, camera, this);
     volumeIntegrator->Preprocess(scene, camera, this);
+    scene->Preprocess(camera, sampler->samplesPerPixel);
     PBRT_FINISHED_PREPROCESSING();
     PBRT_STARTED_RENDERING();
     // Allocate and initialize _sample_
@@ -129,9 +130,15 @@ void breadthFirst::Render(const Scene *scene) {
 
     // Compute number of _SamplerRendererTask_s to create for rendering
     int nPixels = camera->film->xResolution * camera->film->yResolution;
-    int nTasks = (nPixels*sampler->samplesPerPixel+scene->MaxRaysPerCall()-1)/scene->MaxRaysPerCall();
+    maxRaysPerCall = scene->MaxRaysPerCall();
+    int nTasks = (nPixels*sampler->samplesPerPixel+ maxRaysPerCall - 1)/maxRaysPerCall;
     nTasks = RoundUpPow2(nTasks);
     ProgressReporter reporter(nTasks, "Rendering");
+
+    int nx, ny;
+    sampler->TilesInXY(nTasks, &nx, &ny);
+    scene->Preprocess(camera, sampler->samplesPerPixel, nx, ny);
+
     vector<Task *> renderTasks;
     for (int i = 0; i < nTasks; ++i)
         renderTasks.push_back(new breadthFirstTask(scene, this, camera,
@@ -153,8 +160,7 @@ void breadthFirst::Li(const Scene *scene, const RayDifferential* ray,
         Intersection *isect, Spectrum *T , Spectrum *Ls, float* rayWeight, int count ) const {
   bool* hit = new bool[count];
   Spectrum* Lo = new Spectrum[count];
-  scene->Intersect(ray, isect, hit, rayWeight, count, camera->film->xResolution, camera->film->yResolution,
-    sampler->samplesPerPixel
+  scene->Intersect(ray, isect, hit, rayWeight, count, sampler->samplesPerPixel
   #ifdef STAT_RAY_TRIANGLE
   , Ls
   #endif

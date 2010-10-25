@@ -55,7 +55,8 @@ public:
         const Transform &ObjectToWorld, MemoryArena &arena) const = 0;
     virtual BSSRDF *GetBSSRDF(const DifferentialGeometry &dg,
         const Transform &ObjectToWorld, MemoryArena &arena) const = 0;
-
+    virtual void Preprocess(const Camera* camera, const unsigned samplesPerPixel){}
+    virtual void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny){}
     // Primitive Public Data
     const uint32_t primitiveId;
 protected:

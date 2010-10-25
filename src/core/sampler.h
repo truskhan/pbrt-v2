@@ -52,6 +52,7 @@ public:
     const int xPixelStart, xPixelEnd, yPixelStart, yPixelEnd;
     const int samplesPerPixel;
     const float shutterOpen, shutterClose;
+    void TilesInXY(int count, int * nx, int* ny) const ;
 protected:
     // Sampler Protected Methods
     void ComputeSubWindow(int num, int count, int *xstart, int *xend, int *ystart, int *yend) const;

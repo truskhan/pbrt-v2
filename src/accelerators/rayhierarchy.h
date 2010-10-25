@@ -15,8 +15,7 @@ public:
     RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node);
     bool CanIntersect() const { return true; }
     ~RayHieararchy();
-    void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const unsigned int count,
-    const unsigned int & xResolution, const unsigned int & yResolution, const unsigned int & samplesPerPixel
+    void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const unsigned int count
     #ifdef STAT_RAY_TRIANGLE
     , Spectrum *Ls
     #endif
@@ -29,9 +28,14 @@ public:
     #endif
     );
     unsigned int MaxRaysPerCall();
-
+    void PreprocessP(const int rays);
+    void Preprocess();
+    void Preprocess(const Camera* camera, const unsigned samplesPerPixel);
+    void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny);
 private:
     size_t ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl_uint count,
+    cl_uint* countArray, unsigned int threadsCount);
+    size_t ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, cl_uint count,
     cl_uint* countArray, unsigned int threadsCount);
     bool Intersect(const Triangle* shape, const Ray &ray, float *tHit,
                   Vector &dpdu, Vector &dpdv, float &tu, float &tv, float uv[3][2],const Point p[3]
@@ -41,6 +45,9 @@ private:
     vector<Reference<Primitive> > primitives;
     BBox bbox;
     size_t triangleCount;
+    size_t trianglePartCount;
+    size_t triangleLastPartCount;
+    unsigned int parts;
     cl_float* vertices; cl_float* uvs;
     bool onGPU;
     cl_uint height;
@@ -50,6 +57,7 @@ private:
     unsigned a,b, global_a,global_b;
     unsigned samplesPerPixel;
     cl_uint threadsCount;
+    cl_uint worgGroupSize;
     unsigned int rest_x, rest_y;
     mutable unsigned int xResolution;
     unsigned int yResolution;

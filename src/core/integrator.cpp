@@ -304,6 +304,8 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
     }
 
     }
+
+
     delete [] wi;
     delete [] lightPdf;
     delete [] visibility;

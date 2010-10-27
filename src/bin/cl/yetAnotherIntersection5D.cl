@@ -4,7 +4,11 @@
 void yetAnotherIntersectAllLeaves (const __global float* dir, const __global float* o,
 const __global float* bounds, __global int* index, __global float* tHit, __global int* changed,
 float4 v1, float4 v2, float4 v3,
-float4 e1, float4 e2, int chunk, int rindex ){
+float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID
+#ifdef STAT_RAY_TRIANGLE
+, __global int* stat_rayTriangle
+#endif
+ ){
     float4 s1, s2, d, rayd, rayo;
     float divisor, invDivisor, t, b1, b2;
     // process all rays in the cone
@@ -13,7 +17,9 @@ float4 e1, float4 e2, int chunk, int rindex ){
       rayd = vload4(0, dir + 3*rindex + 3*i);
       rayo = vload4(0, o + 3*rindex + 3*i);
       rayd.w = 0; rayo.w = 0;
-
+      #ifdef STAT_RAY_TRIANGLE
+       ++stat_rayTriangle[rindex + i];
+      #endif
       s1 = cross(rayd, e2);
       divisor = dot(s1, e1);
       if ( divisor == 0.0f) continue;
@@ -36,7 +42,7 @@ float4 e1, float4 e2, int chunk, int rindex ){
       //if (t >= tHit[rindex + i]) continue;
       if ( t > tHit[rindex + i] || index[rindex+i] == get_global_id(0)) continue;
         tHit[rindex + i] = t;
-        index[rindex + i] = get_global_id(0);
+        index[rindex + i] = get_global_id(0) + offsetGID;
         changed[get_global_id(0)] = rindex + i;
     }
 
@@ -72,7 +78,10 @@ __kernel void YetAnotherIntersection (
     const __global float* cones, const __global int* pointers, const __global float* bounds, __global float* tHit,
     __global int* index, __global int* changed,
     __local int* stack,
-     int count, int size, int height, unsigned int threadsCount
+     int count, int size, int height, unsigned int threadsCount, const unsigned int offsetGID
+     #ifdef STAT_RAY_TRIANGLE
+       , __global int* stat_rayTriangle
+      #endif
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
@@ -156,7 +165,11 @@ __kernel void YetAnotherIntersection (
             //if the cones is at level 0 - check leaves
             if ( child.x == -2) {
               rindex = computeRIndex(i, cones, pointers);
-              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,child.y, rindex);
+              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,child.y, rindex, offsetGID
+              #ifdef STAT_RAY_TRIANGLE
+                , stat_rayTriangle
+              #endif
+              );
             }
             else {
               //save the intersected cone to the stack

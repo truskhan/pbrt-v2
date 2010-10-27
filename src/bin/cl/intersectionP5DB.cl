@@ -56,8 +56,11 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
  float2 tmin, tmax;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ray = omax - omin;
- ocenter = ray/2 + omin;
+ ray = (omax - omin)/2;
+ bmin -= ray;
+ bmax += ray;
+
+ ocenter = ray + omin;
  ocenter.w = 0;
 
  ray = (float4)0;
@@ -116,11 +119,10 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
  const __global float* cones, const __global int* pointers, const __global float* bounds,
-__global unsigned char* tHit,
+__global unsigned char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount
 #ifdef STAT_PRAY_TRIANGLE
- __global int* stat_rayTriangle,
+ ,__global int* stat_rayTriangle
 #endif
-__local int* stack, int count, int size, int height,unsigned int threadsCount
 )
 {
     int iGID = get_global_id(0);

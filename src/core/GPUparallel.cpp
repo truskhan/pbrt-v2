@@ -291,7 +291,7 @@ bool OpenCLTask::CreateBuffers( size_t* size, cl_mem_flags* flags){
   return true;
 }
 
-bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags){
+bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
   // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
@@ -305,7 +305,8 @@ bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags){
     cmBuffers = NULL;
     Severe("clCreateBuffer failed at buffer number %d with error %d %s", i, ciErrNum, stringError(ciErrNum));
   }
-  ciErrNum = clSetKernelArg(ckKernel, i, sizeof(cl_mem), (void*)&cmBuffers[i]);
+  if ( argPos == -1 ) argPos = i;
+  ciErrNum = clSetKernelArg(ckKernel, argPos, sizeof(cl_mem), (void*)&cmBuffers[i]);
   if (ciErrNum != CL_SUCCESS)
     Severe("failed setting %i parameter, error: %i %s", i, ciErrNum, stringError(ciErrNum));
 

@@ -134,21 +134,20 @@ int computeRIndex( unsigned int j, const __global float* cones, const __global i
 __kernel void IntersectionR (
     const __global float* vertex, const __global float* dir, const __global float* o,
     const __global float* cones, const __global int* pointers, const __global float* bounds, __global float* tHit,
-    __global int* index,
+    __global int* index,  __local int* stack,
+     int count, int size, const int height, unsigned int threadsCount, unsigned int offsetGID
 #ifdef STAT_TRIANGLE_CONE
- __global int* stat_triangleCone,
+ , __global int* stat_triangleCone
 #endif
 #ifdef STAT_RAY_TRIANGLE
- __global int* stat_rayTriangle,
+ , __global int* stat_rayTriangle
 #endif
-    __local int* stack,
-     int count, int size, const int height, unsigned int threadsCount, unsigned int offsetGID
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
     int iLID = get_local_id(0);
     #ifdef STAT_TRIANGLE_CONE
-    stat_triangleCone[iGID] = 0;
+    stat_triangleCone[iGID + offsetGID] = 0;
     #endif
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
@@ -207,7 +206,7 @@ __kernel void IntersectionR (
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
       {
         #ifdef STAT_TRIANGLE_CONE
-         ++stat_triangleCone[iGID];
+         ++stat_triangleCone[iGID + offsetGID];
         #endif
         //store child to the stack
         stack[wbeginStack + SPindex++] = child.x;
@@ -227,7 +226,7 @@ __kernel void IntersectionR (
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
         {
           #ifdef STAT_TRIANGLE_CONE
-           ++stat_triangleCone[iGID];
+           ++stat_triangleCone[iGID + offsetGID];
           #endif
           //if the cones is at level 0 - check leaves
           if ( child.x == -2) {

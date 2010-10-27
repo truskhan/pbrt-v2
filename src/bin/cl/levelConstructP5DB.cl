@@ -1,8 +1,8 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
-__kernel void levelConstruct(__global float* cones, __global int* pointers, const int count,
-  const int threadsCount, const int level, const int xwidth, const int last){
+__kernel void levelConstructP(__global float* cones, __global int* pointers, const int count,
+  const int threadsCount, const int level){
   int iGID = get_global_id(0);
 
   int beginr = 0;
@@ -25,41 +25,21 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
   //2D bounding box for uv
   float2 uvmin1, uvmax1, uvmin2, uvmax2;
 
-  if ( level & 0x1 == 1){
-    help = iGID / xwidth;
-    omin1 = vload4(0, cones + 11*beginr + 11*iGID + 11*help*xwidth);
-    omax1 = vload4(0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 3);
-    uvmin1 = vload2( 0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 6);
-    uvmax1 = vload2( 0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 8);
-    child.x = 11*beginr + 11*iGID + 11*help*xwidth;
-
-  } else {
     omin1 = vload4(0, cones + 11*beginr + 22*iGID);
     omax1 = vload4(0, cones + 11*beginr + 22*iGID + 3);
     uvmin1 = vload2( 0, cones + 11*beginr + 22*iGID + 6);
     uvmax1 = vload2( 0, cones + 11*beginr + 22*iGID + 8);
     child.x = 11*beginr + 22*iGID;
-  }
+
   child.y = -1;
 
-  for ( int i = 0; i < 1; i++) {
+  if ( !(iGID == (levelcount - 1) && temp % 2 == 1) ) {
     //last thread only copies node1 to the output
-    if ( level & 0x1 == 1){
-       if ( iGID > last) break;
-      ++help;
-      omin2 = vload4(0, cones + 11*beginr + 11*iGID + 11*help*xwidth);
-      omax2 = vload4(0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 3);
-      uvmin2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 6);
-      uvmax2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 8);
-      child.y = 11*beginr + 11*iGID + 11*help*xwidth;
-    } else {
-      if ( iGID == xwidth*last) break;
       omin2 = vload4(0, cones + 11*beginr + 22*iGID + 11);
       omax2 = vload4(0, cones + 11*beginr + 22*iGID + 14);
       uvmin2 = vload2( 0, cones + 11*beginr + 22*iGID + 17);
       uvmax2 = vload2( 0, cones + 11*beginr + 22*iGID + 19);
       child.y = 11*beginr + 22*iGID + 11;
-    }
 
     //find 2D boundign box for uv
     uvmin1 = min(uvmin1, uvmin2);

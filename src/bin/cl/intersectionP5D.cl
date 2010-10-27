@@ -69,11 +69,10 @@ bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float r
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
  const __global float* cones, const __global int* pointers, const __global float* bounds,
-__global unsigned char* tHit,
+__global unsigned char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount
 #ifdef STAT_PRAY_TRIANGLE
- __global int* stat_rayTriangle,
+ , __global int* stat_rayTriangle
 #endif
-__local int* stack, int count, int size, int height,unsigned int threadsCount
 )
 {
     int iGID = get_global_id(0);

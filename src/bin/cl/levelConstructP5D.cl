@@ -1,8 +1,8 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
-__kernel void levelConstruct(__global float* cones, __global int* pointers, const int count,
-  const int threadsCount, const int level, const int xwidth, const int last){
+__kernel void levelConstructP(__global float* cones, __global int* pointers, const int count,
+  const int threadsCount, const int level){
   int iGID = get_global_id(0);
 
   int beginr = 0;
@@ -29,38 +29,22 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
   float tempRadius;
   float2 tempu, tempv;
 
-  if ( level & 0x1 == 1){
-    help = iGID / xwidth;
-    center1 = vload4(0,cones + 9*beginr + 9*iGID + 9*help*xwidth);
-    uvmin1 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth  + 4);
-    uvmax1 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 6);
-    child.x = 9*beginr + 9*iGID + 9*help*xwidth;
-  } else {
     center1 = vload4(0,cones + 9*beginr + 18*iGID);
     uvmin1 = vload2(0,cones + 9*beginr + 18*iGID + 4);
     uvmax1 = vload2(0,cones + 9*beginr + 18*iGID + 6);
     child.x = 9*beginr + 18*iGID;
-  }
+
   radius1 = center1.w;
   center1.w = 0;
   child.y = -1;
 
-  for ( int i = 0; i < 1; i++) {
+  if ( !( iGID == (levelcount - 1) && temp % 2 == 1 )) {
     //last thread only copies node1 to the output
-    if ( level & 0x1 == 1){
-      if ( iGID > last) break;
-    ++help;
-      center2 = vload4(0,cones + 9*beginr + 9*iGID + 9*help*xwidth);
-      uvmin2 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 4);
-      uvmax2 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 6);
-      child.y = 9*beginr + 9*iGID + 9*help*xwidth;
-    } else {
-      if ( iGID == xwidth*last) break;
       center2 = vload4(0,cones + 9*beginr + 18*iGID + 9);
       uvmin2 = vload2(0,cones + 9*beginr + 18*iGID + 13);
       uvmax2 = vload2(0,cones + 9*beginr + 18*iGID + 15);
       child.y = 9*beginr + 18*iGID + 9;
-    }
+
     radius2 = center2.w;
     center2.w = 0;
 

@@ -8,6 +8,7 @@
 // core/GPUparallel.h*
 #include <CL/cl.h>
 #include <iostream>
+#include <stdint.h>
 #include <fstream>
 #include <string.h>
 #include "core/parallel.h"
@@ -65,7 +66,7 @@ class OpenCLTask {
     \sa CreateBuffers"(size_t, cl_mem_flags*)"
     \sa CreateBuffers"("")"
     **/
-    bool CreateBuffer( size_t i, size_t size, cl_mem_flags flags);
+    bool CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos = -1);
     bool CreateBuffers(size_t* size, cl_mem_flags* flags);
     void CopyBuffer(size_t src, size_t dst, OpenCLTask* oclt);
     void CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, OpenCLTask* oclt);

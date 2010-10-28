@@ -44,72 +44,62 @@ float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID ){
 
 int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
-  for ( int i = 0; i < j; i += 11){
-    rindex += pointers[(int)(cones[i+10]) + 1];
+  for ( int i = 0; i < j; i += 13){
+    rindex += pointers[(int)(cones[i+12]) + 1];
   }
   return rindex;
 }
 
-bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
+bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
- float2 uv;
- float2 tmin, tmax;
+ float4 tmin, tmax;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
  ray = omax - omin;
  ocenter = ray/2 + omin;
  ocenter.w = 0;
 
+ uvmin.w = uvmax.w = 0;
+
  ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
- tmin.x = tmax.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- tmin.y = tmax.y = ray.z;
+ tmin = ray;
+ tmax = ray;
 
  ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmin.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmax.x, bmax.y, bmin.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
- uv.y = ray.z;
- tmin = min(tmin, uv);
- tmax = max(tmax, uv);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
 
- if ( ( max(tmin.x, uvmin.x) < min(tmax.x, uvmax.x)) && (max(tmin.y, uvmin.y) < min(tmax.y, uvmax.y)))
-  return true;
+ tmin = max(tmin, uvmin);
+ tmax = min(tmax, uvmax);
+
+ if ( tmin.x < tmax.x && tmin.y < tmax.y && tmin.z < tmax.z )
+   return true;
 
   return false;
 }
@@ -170,16 +160,16 @@ __kernel void YetAnotherIntersection (
     //3D bounding box of the origin
     float4 omin, omax;
     //2D bounding box for uv
-    float2 uvmin, uvmax;
+    float4 uvmin, uvmax;
 
-    begin = 11*num;
+    begin = 13*num;
     for ( int j = 0; j < levelcount; j++){
       // get node description
-      omin = vload4(0, cones + begin + 11*j);
-      omax = vload4(0, cones + begin + 11*j + 3);
-      uvmin = vload2(0, cones + begin + 11*j + 6);
-      uvmax = vload2(0, cones + begin + 11*j + 8);
-      child = vload2(0, pointers + (int)(cones[begin + 11*j + 10]));
+      omin = vload4(0, cones + begin + 13*j);
+      omax = vload4(0, cones + begin + 13*j + 3);
+      uvmin = vload4(0, cones + begin + 13*j + 6);
+      uvmax = vload4(0, cones + begin + 13*j + 9);
+      child = vload2(0, pointers + (int)(cones[begin + 13*j + 12]));
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
@@ -194,9 +184,9 @@ __kernel void YetAnotherIntersection (
           i = stack[wbeginStack + SPindex];
           omin = vload4(0, cones + i);
           omax = vload4(0, cones + i + 3);
-          uvmin = vload2(0, cones + i + 6);
-          uvmax = vload2(0, cones + i + 8);
-          child = vload2(0, pointers + (int)(cones[i + 10]));
+          uvmin = vload4(0, cones + i + 6);
+          uvmax = vload4(0, cones + i + 9);
+          child = vload2(0, pointers + (int)(cones[i + 12]));
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {

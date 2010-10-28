@@ -78,6 +78,16 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     cout << "accel nodes : 5D nodes with boxes" << endl;
     nodeSize = 11;
   }
+  if ( node == "box_dir") {
+    names[0] = "cl/intersection6DB.cl";
+    names[1] = "cl/intersectionP6DB.cl";
+    names[2] = "cl/rayhconstruct6DB.cl";
+    names[3] = "cl/levelConstruct6DB.cl";
+    names[4] = "cl/yetAnotherIntersection6DB.cl";
+    names[6] = "cl/levelConstructP6DB.cl";
+    cout << "accel nodes : 6D nodes with boxes" << endl;
+    nodeSize = 13;
+  }
   if ( nodeSize == 0){
     cout << "Unknown accelarator node type " << node << endl;
     abort();
@@ -274,9 +284,9 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     unsigned int x;
 
     //pointers to children
-    int total = threadsCount*0.5f*(1.0f - 1/(2^height));
+    int total = threadsCount*0.5f*(1.0f - 1/pow(2,height));
     //vertices
-    #define MAX_VERTICES 3500
+    #define MAX_VERTICES 1000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -311,7 +321,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
 
     cout << "Needed rays " << xResolution*yResolution*samplesPerPixel << " device maximu rays " << x << endl;
-    //x = 1000;
+    x = 16000;
     return min(x, xResolution*yResolution*samplesPerPixel);
 }
 
@@ -723,7 +733,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     //last part of vertices
     Assert(gput->SetIntArgument(10,(cl_int)triangleLastPartCount));
     Assert(gput->SetIntArgument(13,(cl_int)(parts-1)*trianglePartCount));
-    if (!gput->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount))exit(EXIT_FAILURE);
+    if (!gput->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount))exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
 
@@ -779,8 +789,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     }
     Assert(anotherIntersect->SetIntArgument(11,(cl_int)triangleLastPartCount));
     Assert(anotherIntersect->SetIntArgument(14,(cl_int)(parts-1)*trianglePartCount));
-    Assert(anotherIntersect->EnqueueWriteBuffer(8, changedArray + (parts-1)*trianglePartCount, triangleLastPartCount));
-    if (!anotherIntersect->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount))exit(EXIT_FAILURE);
+    Assert(anotherIntersect->EnqueueWriteBuffer(8, changedArray + (parts-1)*trianglePartCount, sizeof(cl_uint)*triangleLastPartCount));
+    if (!anotherIntersect->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount))exit(EXIT_FAILURE);
     if (!anotherIntersect->Run())exit(EXIT_FAILURE);
 
     if (!anotherIntersect->EnqueueReadBuffer( 8, changedArray ))exit(EXIT_FAILURE);
@@ -972,6 +982,9 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
             continue;
 
       if ( IntersectP(r[k])) occluded[k] = '1';
+      #ifdef STAT_PRAY_TRIANGLE
+      Ls[k] = RainbowColorMapping(1);
+      #endif
     }
 
   } else {
@@ -1061,16 +1074,11 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
       if (!hit[i]) continue;
       temp = ((cl_uint*)picture)[j];
       t = max(temp,t);
-      /*colors[0] = temp/(100*100);
-      colors[1] = (temp - colors[0]*100*100)/100;
-      colors[2] = (temp - colors[0]*100*100 - colors[1]*100);
-
-      Ls[i] += RGBSpectrum::FromRGB(colors);*/
       Ls[i] = RainbowColorMapping((float)(temp)/(float)triangleCount);
      // Ls[i] = Ls[i].Clamp(0,255);
       ++j;
     }
-    cout << "Maximum intersection count: " << t << endl;
+    cout << "Maximum intersectionP count: " << t << endl;
     delete [] ((uint*)picture);
     #endif
 

@@ -74,7 +74,7 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
- ray = normalize((float4)(bmin.x, bmax.y, bmin.x,0) - ocenter);
+ ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
  uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);

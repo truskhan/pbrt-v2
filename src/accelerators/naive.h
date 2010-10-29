@@ -30,8 +30,9 @@ private:
     vector<Reference<Primitive> > primitives;
     BBox bbox;
     size_t triangleCount;
-    void* data[9];
-    size_t size[9];
+    size_t trianglePartCount;
+    size_t triangleLastPartCount;
+    unsigned int parts;
     float* vertices; float* uvs;
     bool onGPU;
     OpenCL* ocl;

@@ -321,7 +321,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
 
     cout << "Needed rays " << xResolution*yResolution*samplesPerPixel << " device maximu rays " << x << endl;
-    x = 16000;
+    x = 10000;
     return min(x, xResolution*yResolution*samplesPerPixel);
 }
 
@@ -744,7 +744,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->WaitForRead();
     for (i = 0; i < count; i++){
       temp = max(picture[elem_index[i]],temp);
-      Ls[i] = RainbowColorMapping((float)(picture[elem_index[i]])/100.0f);
+      Ls[i] = RainbowColorMapping((float)(picture[elem_index[i]])/500.0f);
+      //cout << ' ' << temp;
     }
     cout << "Maximum intersection count: " << temp << endl;
     delete [] ((uint*)picture);
@@ -818,14 +819,14 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gpuRayO->InitBuffers(7);
     gpuRayO->CopyBuffers(0,3,0,gput); // 0 vertex, 1 dir, 2 origin
     gpuRayO->CopyBuffer(7,3,gput); // 3 index
-    Assert(gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*triangleCount, CL_MEM_READ_ONLY )); //uvs
+    Assert(gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*trianglePartCount, CL_MEM_READ_ONLY )); //uvs
     Assert(gpuRayO->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY )); // tu,tv
     Assert(gpuRayO->CreateBuffer(6,sizeof(cl_float)*6*count, CL_MEM_WRITE_ONLY )); //dpdu, dpdv
 
     if (!gpuRayO->SetIntArgument(7,(cl_uint)count)) exit(EXIT_FAILURE);
 
-    if (!gpuRayO->EnqueueWriteBuffer( 4 , uvs)) exit(EXIT_FAILURE);
     for ( int i = 0; i < parts - 1; i++){
+      Assert(gpuRayO->EnqueueWriteBuffer( 4 , uvs + 6*i*trianglePartCount));
       Assert(gpuRayO->SetIntArgument(8,i*trianglePartCount));
       Assert(gpuRayO->SetIntArgument(9,(i+1)*trianglePartCount));
       Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
@@ -834,7 +835,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     }
     Assert(gpuRayO->SetIntArgument(8,(cl_int)(parts-1)*triangleLastPartCount));
     Assert(gpuRayO->SetIntArgument(9,(cl_int)triangleCount));
-    Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount));
+    Assert(gpuRayO->EnqueueWriteBuffer(4, uvs + 6*(parts-1)*triangleLastPartCount, 6*sizeof(cl_float)*triangleLastPartCount));
+    Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount,9*sizeof(cl_float)*triangleLastPartCount));
     if (!gpuRayO->Run())exit(EXIT_FAILURE);
 
     Info("count %d", count);
@@ -1075,6 +1077,7 @@ void RayHieararchy::IntersectP(const Ray* r, unsigned char* occluded, const size
       temp = ((cl_uint*)picture)[j];
       t = max(temp,t);
       Ls[i] = RainbowColorMapping((float)(temp)/(float)triangleCount);
+     // cout << ' ' << temp  ;
      // Ls[i] = Ls[i].Clamp(0,255);
       ++j;
     }

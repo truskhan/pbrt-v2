@@ -116,9 +116,20 @@ BBox NaiveAccel::WorldBound() const {
 }
 
 unsigned int NaiveAccel::MaxRaysPerCall(){
+    #define MAX_VERTICES 1000
+    if ( triangleCount > MAX_VERTICES) {
+      parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
+      trianglePartCount = (triangleCount + parts - 1)/ parts;
+      triangleLastPartCount = triangleCount - (parts-1)*trianglePartCount;
+    } else {
+      parts = 1;
+      trianglePartCount = triangleCount;
+      triangleLastPartCount = triangleCount;
+    }
+
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once
-    return 100000;
+    return 10000;
 }
 
 bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
@@ -185,23 +196,22 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
                                float* rayWeight, bool* hit, const int count, const unsigned int & samplesPerPixel)  {
 
     this->samplesPerPixel = samplesPerPixel;
-   // count *= samplesPerPixel;
-    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , triangleCount, cmd, 32);
+    workerSem->Wait();
+    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , trianglePartCount, cmd, 32);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(9);
 
-    gput->CreateBuffer(0,sizeof(cl_float)*3*3*triangleCount, CL_MEM_READ_ONLY ); //for vertices
+    gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY ); //for vertices
     gput->CreateBuffer(1,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY); //for ray directions
     gput->CreateBuffer(2,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY); //for ray origins
     gput->CreateBuffer(3,sizeof(cl_float)*2*count, CL_MEM_READ_ONLY); //for ray bounds
-    gput->CreateBuffer(4,sizeof(cl_float)*6*triangleCount, CL_MEM_READ_ONLY); //for uvs
+    gput->CreateBuffer(4,sizeof(cl_float)*6*trianglePartCount, CL_MEM_READ_ONLY); //for uvs
     gput->CreateBuffer(5,sizeof(cl_float)*count, CL_MEM_READ_WRITE); //for Thit
     gput->CreateBuffer(6,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY); //for tu,tv
     gput->CreateBuffer(7,sizeof(cl_float)*2*3*count, CL_MEM_WRITE_ONLY); //for dpdu, dpdv
     gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_READ_WRITE); //index to shape
 
     gput->SetIntArgument(9, count);
-    gput->SetIntArgument(10,(int&)triangleCount);
 
     cl_float* rayDirArray = new cl_float[count*3];//ray directions
     cl_float* rayOArray = new cl_float[count*3];//ray origins
@@ -226,20 +236,28 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
         indexArray[k] = 0;
     }
 
-    gput->EnqueueWriteBuffer( 0, vertices );
+
     gput->EnqueueWriteBuffer( 1, rayDirArray);
     gput->EnqueueWriteBuffer( 2, rayOArray);
     gput->EnqueueWriteBuffer( 3, rayBoundsArray);
-    gput->EnqueueWriteBuffer( 4, uvs);
     gput->EnqueueWriteBuffer( 5, tHitArray);
     gput->EnqueueWriteBuffer( 8, indexArray);
 
-    if (!gput->Run())exit(EXIT_FAILURE);
+    for ( int i = 0; i < parts - 1; i ++){
+      Assert(gput->SetIntArgument(10,(cl_int)trianglePartCount));
+      Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
+      Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*i*trianglePartCount));
+      if (!gput->Run())exit(EXIT_FAILURE);
+      gput->WaitForKernel();
+    }
+    Assert(gput->SetIntArgument(10, (cl_int)triangleLastPartCount));
+    Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*(parts-1)*trianglePartCount, sizeof(cl_float)*6*triangleLastPartCount));
+    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount));
 
-    data[6] = new float[2*count];
-    data[7] = new float[2*3*count];
-    gput->EnqueueReadBuffer(6, data[6]); //tu,tv
-    gput->EnqueueReadBuffer(7, data[7]); //dpdu, dpdv
+    float* TuTvArray = new float[2*count];
+    float* DpDuArray = new float[2*3*count];
+    gput->EnqueueReadBuffer(6, TuTvArray); //tu,tv
+    gput->EnqueueReadBuffer(7, DpDuArray); //dpdu, dpdv
     gput->EnqueueReadBuffer(8, indexArray);
     gput->EnqueueReadBuffer(5, tHitArray);
     gput->WaitForRead();
@@ -255,21 +273,21 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
         const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
         const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());
 
-        dpdu = Vector(((float*)data[7])[6*i],((float*)data[7])[6*i+1],((float*)data[7])[6*i+2]);
-        dpdv = Vector(((float*)data[7])[6*i+3],((float*)data[7])[6*i+4],((float*)data[7])[6*i+5]);
+        dpdu = Vector(DpDuArray[6*i],DpDuArray[6*i+1],DpDuArray[6*i+2]);
+        dpdv = Vector(DpDuArray[6*i+3],DpDuArray[6*i+4],DpDuArray[6*i+5]);
 
         // Test intersection against alpha texture, if present
         if (shape->GetMeshPtr()->alphaTexture) {
             DifferentialGeometry dgLocal(r[i](tHitArray[i]), dpdu, dpdv,
                                          Normal(0,0,0), Normal(0,0,0),
-                                         ((float*)data[6])[2*i], ((float*)data[6])[2*i+1], shape);
+                                         TuTvArray[2*i], TuTvArray[2*i+1], shape);
             if (shape->GetMeshPtr()->alphaTexture->Evaluate(dgLocal) == 0.f)
                 continue;
         }
         // Fill in _DifferentialGeometry_ from triangle hit
         in[i].dg =  DifferentialGeometry(r[i](tHitArray[i]), dpdu, dpdv,
                                          Normal(0,0,0), Normal(0,0,0),
-                                         ((float*)data[6])[2*i],((float*)data[6])[2*i+1], shape);
+                                         TuTvArray[2*i],TuTvArray[2*i+1], shape);
         in[i].primitive = p;
         in[i].WorldToObject = *shape->WorldToObject;
         in[i].ObjectToWorld = *shape->ObjectToWorld;
@@ -281,13 +299,14 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
     }
 
     ocl->delTask(tn,cmd);
-    delete [] ((float*)data[6]);
-    delete [] ((float*)data[7]);
+    delete [] TuTvArray;
+    delete [] DpDuArray;
     delete [] rayDirArray;
     delete [] rayOArray;
     delete [] rayBoundsArray;
     delete [] tHitArray;
     delete [] indexArray;
+    workerSem->Post();
 }
 
 bool NaiveAccel::Intersect(const Ray &ray, Intersection *isect) const {
@@ -309,7 +328,8 @@ bool NaiveAccel::IntersectP(const Ray &ray) const {
 
 void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t count, const bool* hit) {
    // size_t count = co * samplesPerPixel;
-    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, count, cmd, 32);
+    workerSem->Wait();
+    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, trianglePartCount, cmd, 32);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(5);
 
@@ -335,22 +355,28 @@ void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t 
         ++elem_counter;
     }
 
-    gput->CreateBuffer(0,sizeof(cl_float)*3*3*triangleCount, CL_MEM_READ_ONLY ); //for vertices
+    gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY ); //for vertices
     gput->CreateBuffer(1,sizeof(cl_float)*3*elem_counter, CL_MEM_READ_ONLY); //for ray directions
     gput->CreateBuffer(2,sizeof(cl_float)*3*elem_counter, CL_MEM_READ_ONLY); //for ray origins
     gput->CreateBuffer(3,sizeof(cl_float)*2*elem_counter, CL_MEM_READ_ONLY); //for ray bounds
     gput->CreateBuffer(4,sizeof(cl_uchar)*elem_counter, CL_MEM_READ_WRITE); //for Thit
 
     if (!gput->SetIntArgument(5,(int&)elem_counter)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(6,(int&)triangleCount)) exit(EXIT_FAILURE);
 
-    gput->EnqueueWriteBuffer( 0, vertices );
     gput->EnqueueWriteBuffer( 1, rayDirArray);
     gput->EnqueueWriteBuffer( 2, rayOArray);
     gput->EnqueueWriteBuffer( 3, rayBoundsArray);
     gput->EnqueueWriteBuffer( 4, temp);
 
-    if (!gput->Run())exit(EXIT_FAILURE);
+    for ( int i = 0; i < parts - 1; i++){
+      Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
+      Assert(gput->SetIntArgument(6,(cl_int)trianglePartCount));
+      Assert(gput->Run());
+      gput->WaitForKernel();
+    }
+    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts - 1)*trianglePartCount,sizeof(cl_float)*3*3*triangleLastPartCount));
+    Assert(gput->SetIntArgument(6, (cl_int)triangleLastPartCount));
+    Assert(gput->Run());
 
     gput->EnqueueReadBuffer( 4, occluded);
     gput->WaitForRead();
@@ -363,6 +389,7 @@ void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t 
     }
 
     ocl->delTask(tn,cmd);
+    workerSem->Post();
     delete [] rayDirArray;
     delete [] rayOArray;
     delete [] rayBoundsArray;

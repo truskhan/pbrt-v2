@@ -35,10 +35,9 @@ NaiveAccel::NaiveAccel(const vector<Reference<Primitive> > &p, bool onG) {
       strncpy(file[i]+lenP, names[i], lenF[i]+1);
     }
 
+    cmd = ocl->CreateCmdQueue();
     ocl->CompileProgram(file[0], "Intersection", "oclIntersection.ptx", KERNEL_INTERSECTION);
     ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
-
-    cmd = ocl->CreateCmdQueue();
 
     delete [] lenF;
     for (int i = 0; i < 2; i++){
@@ -326,13 +325,8 @@ bool NaiveAccel::IntersectP(const Ray &ray) const {
     return Intersect(ray, &isect);
 }
 
-void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t count, const bool* hit) {
+void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, const bool* hit) {
    // size_t count = co * samplesPerPixel;
-    workerSem->Wait();
-    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, trianglePartCount, cmd, 32);
-    OpenCLTask* gput = ocl->getTask(tn);
-    gput->InitBuffers(5);
-
     cl_float* rayDirArray = new cl_float[count*3];//ray directions
     cl_float* rayOArray = new cl_float[count*3];//ray origins
     cl_float* rayBoundsArray = new cl_float[count*2];//ray bounds
@@ -354,6 +348,18 @@ void NaiveAccel::IntersectP(const Ray* r, unsigned char* occluded, const size_t 
         ((unsigned char*)temp)[elem_counter] = '0';
         ++elem_counter;
     }
+    if ( elem_counter == 0 ){
+      delete [] rayDirArray;
+      delete [] rayOArray;
+      delete [] rayBoundsArray;
+      delete [] temp;
+      return;
+    }
+
+    workerSem->Wait();
+    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, trianglePartCount, cmd, 32);
+    OpenCLTask* gput = ocl->getTask(tn);
+    gput->InitBuffers(5);
 
     gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY ); //for vertices
     gput->CreateBuffer(1,sizeof(cl_float)*3*elem_counter, CL_MEM_READ_ONLY); //for ray directions

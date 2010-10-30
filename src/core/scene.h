@@ -67,7 +67,7 @@ public:
         PBRT_FINISHED_RAY_INTERSECTIONP(const_cast<Ray *>(&ray), int(hit));
         return hit;
     }
-    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count, const bool* hit
+    void IntersectP(const Ray* ray, char* occluded, const size_t count, const bool* hit
       #ifdef STAT_PRAY_TRIANGLE
       , Spectrum *Ls
       #endif

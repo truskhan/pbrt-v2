@@ -20,7 +20,7 @@ public:
     void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const int counter, const unsigned int & samplesPerPixel);
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
-    void IntersectP(const Ray* ray, unsigned char* occluded, const size_t count, const bool* hit);
+    void IntersectP(const Ray* ray, char* occluded, const size_t count, const bool* hit);
 
 private:
     bool Intersect(const Triangle* shape, const Ray &ray, float *tHit,

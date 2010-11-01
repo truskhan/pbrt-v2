@@ -1,19 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
-int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers, int count){
-  int rindex = 0;
-  int temp = 1;
-  for ( int i = 0; i < j; i += 11){
-    rindex += pointers[temp];
-    temp += 2;
-    //rindex += pointers[(int)(cones[i+10]) + 1];
-  }
-  if ( rindex < count)
-    return rindex;
-  return 0;
-}
-
 bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
@@ -84,7 +71,7 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
  const __global float* cones, const __global int* pointers, const __global float* bounds,
-__global char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount
+__global char* tHit, __local int* stack, int size, int height,unsigned int threadsCount, unsigned int chunk
 #ifdef STAT_PRAY_TRIANGLE
  ,__global int* stat_rayTriangle
 #endif
@@ -107,6 +94,9 @@ __global char* tHit, __local int* stack, int count, int size, int height,unsigne
     e1 = v2 - v1;
     e2 = v3 - v1;
 
+    float4 s1, s2, d, rayd, rayo;
+    float divisor, invDivisor, t, b1, b2;
+
     //calculate bounding box
     float4 bmin, bmax;
 
@@ -119,17 +109,15 @@ __global char* tHit, __local int* stack, int count, int size, int height,unsigne
     //find number of elements in top level of the ray hieararchy
     uint levelcount = threadsCount; //end of level0
     uint num = 0;
-    uint lastlevelnum = 0;
 
     for ( int i = 1; i <= height; i++){
-        lastlevelnum = levelcount;
         num += levelcount;
         levelcount = (levelcount+1)/2; //number of elements in level
     }
 
     int SPindex = 0;
     int wbeginStack = (2 + height*(height+1)/2)*iLID;
-    uint begin,rindex;
+    uint begin,rindex,temp;
     int i = 0;
     int2 child;
 
@@ -169,23 +157,27 @@ __global char* tHit, __local int* stack, int count, int size, int height,unsigne
           {
             //if the cones is at level 0 - check leaves
             if ( child.x == -2){
-              rindex = computeRIndex(i,cones, pointers, count);
+              rindex = 0;
+              temp = 1;
+              for ( int f = 0; f < i; f += 11){
+                rindex += chunk; //pointers[temp];
+                temp += 2;
+              }
 
-              //float4 s1, s2, d, rayd, rayo;
-              //float divisor, invDivisor, t, b1, b2;
+              //rindex = computeRIndex(i,cones, pointers, count);
               // process all rays in the cone
               for ( int k = 0; k < child.y; k++){
                 #ifdef STAT_PRAY_TRIANGLE
                  ++stat_rayTriangle[rindex + k];
                 #endif
 
-                /*rayd.x = dir[3*rindex + 3*i];
-                rayd.y = dir[3*rindex + 3*i + 1];
-                rayd.z = dir[3*rindex + 3*i + 2];
+                rayd.x = dir[3*rindex + 3*k];
+                rayd.y = dir[3*rindex + 3*k + 1];
+                rayd.z = dir[3*rindex + 3*k + 2];
 
-                rayo.x = o[3*rindex + 3*i];
-                rayo.y = o[3*rindex + 3*i + 1];
-                rayo.z = o[3*rindex + 3*i + 2];
+                rayo.x = o[3*rindex + 3*k];
+                rayo.y = o[3*rindex + 3*k + 1];
+                rayo.z = o[3*rindex + 3*k + 2];
                 rayd.w = 0; rayo.w = 0;
 
                 s1 = cross(rayd, e2);
@@ -205,9 +197,9 @@ __global char* tHit, __local int* stack, int count, int size, int height,unsigne
 
                 // Compute _t_ to intersection point
                 t = dot(e2, s2) * invDivisor;
-                if (t < bounds[2*rindex + i*2]) continue;*/
+                if (t < bounds[2*rindex + k*2]) continue;
 
-                 tHit[rindex + k] = ((char)'1');
+                tHit[rindex + k] = '1';
               }
 
             }

@@ -390,7 +390,7 @@ size_t topLevelCount;
 
 //constructs ray hieararchy on GPU -> creates array of cones
 size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl_uint count,
-  cl_uint* countArray, unsigned int threadsCount, int* heightr ){
+  cl_int* countArray, unsigned int threadsCount, int* heightr ){
 
   Assert(height > 0);
   *heightr = height;
@@ -475,7 +475,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
 
 //constructs ray hieararchy on GPU -> creates array of cones
 size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, cl_uint count,
-  cl_uint* countArray, unsigned int threadsCount, int* heightp ){
+  cl_int* countArray, unsigned int threadsCount, int* heightp ){
 
   Assert(height > 0);
   size_t tn = ocl->CreateTask(KERNEL_RAYCONSTRUCT, threadsCount , cmd, 32);
@@ -499,7 +499,7 @@ size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, c
 
   Assert(gpuray->CreateBuffer(0,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray directions
   Assert(gpuray->CreateBuffer(1,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray origins
-  Assert(gpuray->CreateBuffer(2,sizeof(cl_uint)*threadsCount, CL_MEM_READ_ONLY)); //number of rays per initial thread
+  Assert(gpuray->CreateBuffer(2,sizeof(cl_int)*threadsCount, CL_MEM_READ_ONLY)); //number of rays per initial thread
   Assert(gpuray->CreateBuffer(3, sizeof(cl_float)*nodeSize*total, CL_MEM_READ_WRITE)); //for cones
   Assert(gpuray->CreateBuffer(4, sizeof(cl_int)*2*total, CL_MEM_WRITE_ONLY)); //for pointers to leaves
   Assert(gpuray->SetIntArgument(5,(cl_uint)threadsCount));
@@ -604,7 +604,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   cl_float* rayBoundsArray = new cl_float[count*2];
   cl_float* tHitArray = new cl_float[count];
   cl_uint* indexArray = new cl_uint[count];
-  cl_uint* countArray = new cl_uint[threadsCount]; //number of rays to deal with for every thread
+  cl_int* countArray = new cl_int[threadsCount]; //number of rays to deal with for every thread
   unsigned int* elem_index = new unsigned int [count];
   #ifdef STAT_RAY_TRIANGLE
   cl_uint* picture = new cl_uint[count];
@@ -839,9 +839,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
       if (!gpuRayO->Run())exit(EXIT_FAILURE);
       gpuRayO->WaitForKernel();
     }
-    Assert(gpuRayO->SetIntArgument(8,(cl_int)(parts-1)*triangleLastPartCount));
+    Assert(gpuRayO->SetIntArgument(8,(cl_int)(parts-1)*trianglePartCount));
     Assert(gpuRayO->SetIntArgument(9,(cl_int)triangleCount));
-    Assert(gpuRayO->EnqueueWriteBuffer(4, uvs + 6*(parts-1)*triangleLastPartCount, 6*sizeof(cl_float)*triangleLastPartCount));
+    Assert(gpuRayO->EnqueueWriteBuffer(4, uvs + 6*(parts-1)*trianglePartCount, 6*sizeof(cl_float)*triangleLastPartCount));
     Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount,9*sizeof(cl_float)*triangleLastPartCount));
     if (!gpuRayO->Run())exit(EXIT_FAILURE);
 
@@ -996,7 +996,7 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
     }
 
   } else {
-  cl_uint* countArray = new cl_uint[threadsCountP];
+  cl_int* countArray = new cl_int[threadsCountP];
   for (int k = 0; k < threadsCountP; ++k)
     countArray[k] = chunk;
   //memset(countArray, chunk, sizeof(cl_uint)*number);
@@ -1024,29 +1024,29 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
     gput->CopyBuffer(4,4,gpuray); //pointers to children
     ocl->delTask(tn1,cmd);
     Assert(gput->CreateBuffer(5,sizeof(cl_float)*2*elem_counter, CL_MEM_READ_ONLY)); //ray bounds
-    Assert(gput->CreateBuffer(6,sizeof(cl_char)*elem_counter, CL_MEM_READ_WRITE)); //tHit
+    Assert(gput->CreateBuffer(6,sizeof(cl_char)*elem_counter, CL_MEM_WRITE_ONLY)); //tHit
     #ifdef STAT_PRAY_TRIANGLE
     Assert(gput->CreateBuffer(7,sizeof(cl_uint)*elem_counter, CL_MEM_WRITE_ONLY, 12));
     #endif
 
     if (!gput->SetLocalArgument(7,sizeof(cl_int)*(32*(2 + (heightp+1)*(2+heightp)/2))));
-    if (!gput->SetIntArgument(8,(cl_uint)elem_counter)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(10,(cl_uint)heightp)) exit(EXIT_FAILURE);
-    if (!gput->SetIntArgument(11,(cl_uint)threadsCountP)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(9,(cl_uint)heightp)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(10,(cl_uint)threadsCountP)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(11,(cl_int)chunk)) exit(EXIT_FAILURE);
 
     if (!gput->EnqueueWriteBuffer( 5, rayBoundsArray ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 6, occluded ))exit(EXIT_FAILURE);
     #ifdef STAT_PRAY_TRIANGLE
     Assert(gput->EnqueueWriteBuffer( 7, picture));
     #endif
-    if (!gput->SetIntArgument(9,(cl_int)trianglePartCount)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(8,(cl_int)trianglePartCount)) exit(EXIT_FAILURE);
     for ( int i = 0; i < parts - 1; i++){
       Assert(gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
       if (!gput->Run())exit(EXIT_FAILURE);
       gput->WaitForKernel();
     }
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount));
-    if (!gput->SetIntArgument(9,(cl_int)triangleLastPartCount)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(8,(cl_int)triangleLastPartCount)) exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
 
     if (!gput->EnqueueReadBuffer( 6, occluded ))exit(EXIT_FAILURE);

@@ -34,9 +34,9 @@ public:
     void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny);
 private:
     size_t ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl_uint count,
-    cl_uint* countArray, unsigned int threadsCount, int* height);
+    cl_int* countArray, unsigned int threadsCount, int* height);
     size_t ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, cl_uint count,
-    cl_uint* countArray, unsigned int threadsCount, int * height);
+    cl_int* countArray, unsigned int threadsCount, int * height);
     bool Intersect(const Triangle* shape, const Ray &ray, float *tHit,
                   Vector &dpdu, Vector &dpdv, float &tu, float &tv, float uv[3][2],const Point p[3]
                   ,float* coord) const;

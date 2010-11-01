@@ -59,8 +59,9 @@ int main(int argc, char *argv[]) {
 
     size_t len = strlen(argv[0]) - 1; // minus name of the program "pbrt"
     while(argv[0][len] != '/') --len;
-    options.pbrtPath = new char[len + 1];
+    options.pbrtPath = new char[len + 2];
     strncpy(options.pbrtPath, argv[0], len + 1);
+    options.pbrtPath[len+1] = '\0';
 
     // Print welcome banner
     if (!options.quiet) {

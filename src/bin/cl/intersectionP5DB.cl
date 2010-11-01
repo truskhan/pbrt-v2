@@ -1,52 +1,17 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
-void intersectPAllLeaves (const __global float* dir, const __global float* o, const __global float* bounds,
-__global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex
-#ifdef STAT_PRAY_TRIANGLE
- ,__global int* stat_rayTriangle
-#endif
-){
-    float4 s1, s2, d, rayd, rayo;
-    float divisor, invDivisor, t, b1, b2;
-    // process all rays in the cone
-    for ( int i = 0; i < chunk; i++){
-      #ifdef STAT_PRAY_TRIANGLE
-       ++stat_rayTriangle[rindex + i];
-      #endif
-
-      rayd = vload4(0, dir + 3*rindex + 3*i);
-      rayo = vload4(0, o + 3*rindex + 3*i);
-      rayd.w = 0; rayo.w = 0;
-      s1 = cross(rayd, e2);
-      divisor = dot(s1, e1);
-      if ( divisor == 0.0f) continue;
-      invDivisor = 1.0f/ divisor;
-
-      // compute first barycentric coordinate
-      d = rayo - v1;
-      b1 = dot(d, s1) * invDivisor;
-      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
-
-      // compute second barycentric coordinate
-      s2 = cross(d, e1);
-      b2 = dot(rayd, s2) * invDivisor;
-      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
-
-      // Compute _t_ to intersection point
-      t = dot(e2, s2) * invDivisor;
-      if (t < bounds[2*rindex + i*2]) continue;
-
-      tHit[rindex+i] = '1';
-    }
-}
-
-int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
+int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers, int count){
   int rindex = 0;
+  int temp = 1;
   for ( int i = 0; i < j; i += 11){
-    rindex += pointers[(int)(cones[i+10]) + 1];
+    rindex += pointers[temp];
+    temp += 2;
+    //rindex += pointers[(int)(cones[i+10]) + 1];
   }
-  return rindex;
+  if ( rindex < count)
+    return rindex;
+  return 0;
 }
 
 bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
@@ -119,7 +84,7 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
  const __global float* cones, const __global int* pointers, const __global float* bounds,
-__global unsigned char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount
+__global char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount
 #ifdef STAT_PRAY_TRIANGLE
  ,__global int* stat_rayTriangle
 #endif
@@ -135,7 +100,9 @@ __global unsigned char* tHit, __local int* stack, int count, int size, int heigh
     float4 v1, v2, v3;
     v1 = vload4(0, vertex + 9*iGID);
     v2 = vload4(0, vertex + 9*iGID + 3);
-    v3 = vload4(0, vertex + 9*iGID + 6);
+    v3.x = v2.w;
+    v3.y = vertex[9*iGID + 7];
+    v3.z = vertex[9*iGID + 8];
     v1.w = 0; v2.w = 0; v3.w = 0;
     e1 = v2 - v1;
     e2 = v3 - v1;
@@ -202,12 +169,47 @@ __global unsigned char* tHit, __local int* stack, int count, int size, int heigh
           {
             //if the cones is at level 0 - check leaves
             if ( child.x == -2){
-              rindex = computeRIndex(i,cones, pointers);
-              intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,child.y,rindex
-              #ifdef STAT_PRAY_TRIANGLE
-               ,stat_rayTriangle
-              #endif
-              );
+              rindex = computeRIndex(i,cones, pointers, count);
+
+              //float4 s1, s2, d, rayd, rayo;
+              //float divisor, invDivisor, t, b1, b2;
+              // process all rays in the cone
+              for ( int k = 0; k < child.y; k++){
+                #ifdef STAT_PRAY_TRIANGLE
+                 ++stat_rayTriangle[rindex + k];
+                #endif
+
+                /*rayd.x = dir[3*rindex + 3*i];
+                rayd.y = dir[3*rindex + 3*i + 1];
+                rayd.z = dir[3*rindex + 3*i + 2];
+
+                rayo.x = o[3*rindex + 3*i];
+                rayo.y = o[3*rindex + 3*i + 1];
+                rayo.z = o[3*rindex + 3*i + 2];
+                rayd.w = 0; rayo.w = 0;
+
+                s1 = cross(rayd, e2);
+                divisor = dot(s1, e1);
+                if ( divisor == 0.0f) continue;
+                invDivisor = 1.0f/ divisor;
+
+                // compute first barycentric coordinate
+                d = rayo - v1;
+                b1 = dot(d, s1) * invDivisor;
+                if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+
+                // compute second barycentric coordinate
+                s2 = cross(d, e1);
+                b2 = dot(rayd, s2) * invDivisor;
+                if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+
+                // Compute _t_ to intersection point
+                t = dot(e2, s2) * invDivisor;
+                if (t < bounds[2*rindex + i*2]) continue;*/
+
+                 tHit[rindex + k] = ((char)'1');
+              }
+
             }
             else {
               //save the intersected cone to the stack

@@ -494,7 +494,7 @@ size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, c
   }
   topLevelCount = levelcount;
   total += levelcount;
-  if ( *heightp < 1) Severe("Too few rays for rayhierarchy! Try smaller chunks");
+  if ( *heightp < 2) Severe("Too few rays for rayhierarchy! Try smaller chunks");
   gpuray->InitBuffers(5);
 
   Assert(gpuray->CreateBuffer(0,sizeof(cl_float)*3*count, CL_MEM_READ_ONLY )); //ray directions
@@ -518,6 +518,7 @@ size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, c
   size_t tasknum = ocl->CreateTask(KERNEL_RAYLEVELCONSTRUCTP, (threadsCount+1)/2, cmd,32);
   OpenCLTask* gpurayl = ocl->getTask(tasknum,cmd);
   gpurayl->InitBuffers(2);
+  ocl->Finish();
   gpurayl->CopyBuffer(3,0,gpuray);
   gpurayl->CopyBuffer(4,1,gpuray);
   if (!gpurayl->SetIntArgument(2,(cl_uint)count)) exit(EXIT_FAILURE);
@@ -960,6 +961,9 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
    rayBoundsArray[2*elem_counter] = r[k].mint;
    rayBoundsArray[2*elem_counter+1] = INFINITY;
    occluded[elem_counter] = '0';
+  #ifdef STAT_PRAY_TRIANGLE
+  picture[elem_counter] = 0;
+  #endif
 
   ++elem_counter;
   }
@@ -1035,14 +1039,14 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
     #ifdef STAT_PRAY_TRIANGLE
     Assert(gput->EnqueueWriteBuffer( 7, picture));
     #endif
-    if (!gput->SetIntArgument(9,(cl_uint)trianglePartCount)) exit(EXIT_FAILURE);
+    if (!gput->SetIntArgument(9,(cl_int)trianglePartCount)) exit(EXIT_FAILURE);
     for ( int i = 0; i < parts - 1; i++){
       Assert(gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
       if (!gput->Run())exit(EXIT_FAILURE);
       gput->WaitForKernel();
     }
-    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount));
-    if (!gput->SetIntArgument(9,(cl_uint)triangleLastPartCount)) exit(EXIT_FAILURE);
+    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount));
+    if (!gput->SetIntArgument(9,(cl_int)triangleLastPartCount)) exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
 
     if (!gput->EnqueueReadBuffer( 6, occluded ))exit(EXIT_FAILURE);

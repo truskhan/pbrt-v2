@@ -252,6 +252,8 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->SetIntArgument(10, (cl_int)triangleLastPartCount));
     Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*(parts-1)*trianglePartCount, sizeof(cl_float)*6*triangleLastPartCount));
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount));
+    if (!gput->Run())exit(EXIT_FAILURE);
+    gput->WaitForKernel();
 
     float* TuTvArray = new float[2*count];
     float* DpDuArray = new float[2*3*count];

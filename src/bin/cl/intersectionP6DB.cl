@@ -2,7 +2,7 @@
 #define EPS 0.000002f
 
 void intersectPAllLeaves (const __global float* dir, const __global float* o, const __global float* bounds,
-__global unsigned char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex
+__global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int chunk, int rindex
 #ifdef STAT_PRAY_TRIANGLE
  ,__global int* stat_rayTriangle
 #endif
@@ -107,7 +107,7 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
 __kernel void IntersectionP (
 const __global float* vertex, const __global float* dir, const __global float* o,
  const __global float* cones, const __global int* pointers, const __global float* bounds,
-__global unsigned char* tHit, __local int* stack, int count, int size, int height,unsigned int threadsCount
+__global char* tHit, __local int* stack, int size, int height,unsigned int threadsCount, unsigned int chunk
 #ifdef STAT_PRAY_TRIANGLE
  ,__global int* stat_rayTriangle
 #endif

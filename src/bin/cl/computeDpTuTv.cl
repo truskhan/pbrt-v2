@@ -8,7 +8,7 @@ __kernel void computeDpTuTv (const __global float* vertex, const __global float*
     int i = index[iGID];
     if ( i == 0 ) return;
     if ( i < lowerBound || i >= upperBound) return;
-      else i %= (upperBound - lowerBound);
+      else i -= lowerBound;
 
     float4 rayd,rayo, v1, v2, v3, e1, e2;
     float b1,b2,invDivisor;

@@ -133,7 +133,7 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
       omax = vload4(0, cones + begin + 11*j + 3);
       uvmin = vload2(0, cones + begin + 11*j + 6);
       uvmax = vload2(0, cones + begin + 11*j + 8);
-      child = vload2(0, pointers + (int)(cones[begin + 11*j + 10]));
+      child = vload2(0, pointers + (begin/11 + j)*2);
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
@@ -151,19 +151,13 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
           omax = vload4(0, cones + i + 3);
           uvmin = vload2(0, cones + i + 6);
           uvmax = vload2(0, cones + i + 8);
-          child = vload2(0, pointers + (int)(cones[i+10]));
+          child = vload2(0, pointers + (i/11)*2);
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {
             //if the cones is at level 0 - check leaves
             if ( child.x == -2){
-              rindex = 0;
-              temp = 1;
-              for ( int f = 0; f < i; f += 11){
-                rindex += chunk; //pointers[temp];
-                temp += 2;
-              }
-
+              rindex = (i/11)*chunk;
               //rindex = computeRIndex(i,cones, pointers, count);
               // process all rays in the cone
               for ( int k = 0; k < child.y; k++){
@@ -197,7 +191,7 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
 
                 // Compute _t_ to intersection point
                 t = dot(e2, s2) * invDivisor;
-                if (t < bounds[2*rindex + k*2]) continue;
+                if (t < bounds[2*rindex + k*2] || t > bounds[2*rindex + k*2 +1]) continue;
 
                 tHit[rindex + k] = '1';
               }

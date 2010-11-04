@@ -49,8 +49,10 @@ float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID
 
 int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
+  int temp = 1;
   for ( int i = 0; i < j; i += 13){
-    rindex += pointers[(int)(cones[i+12]) + 1];
+    rindex += pointers[temp];
+    temp += 2;
   }
   return rindex;
 }
@@ -193,7 +195,7 @@ __kernel void YetAnotherIntersection (
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
-      child = vload2(0, pointers + (int)dmax.w);
+      child = vload2(0, pointers + (begin/13 +j)*2);
 
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -213,7 +215,7 @@ __kernel void YetAnotherIntersection (
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (int)dmax.w);
+          child = vload2(0, pointers + (i/13)*2);
 
           if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
           {

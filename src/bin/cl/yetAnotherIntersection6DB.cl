@@ -44,8 +44,10 @@ float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID ){
 
 int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
+  int temp = 1;
   for ( int i = 0; i < j; i += 13){
-    rindex += pointers[(int)(cones[i+12]) + 1];
+    rindex += pointers[temp];
+    temp += 2;
   }
   return rindex;
 }
@@ -62,12 +64,11 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
 
  uvmin.w = uvmax.w = 0;
 
- ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
  tmin = ray;
  tmax = ray;
 
- ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
+ ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
@@ -76,10 +77,6 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
- tmin = min(tmin, ray);
- tmax = max(tmax, ray);
-
- ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
@@ -92,6 +89,10 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
@@ -137,9 +138,6 @@ __kernel void YetAnotherIntersection (
     bmax = max(v1,v2);
     bmax = max(bmax, v3);
 
-    float4 a,x;
-    float fi;
-
     //find number of elements in top level of the ray hieararchy
     uint levelcount = threadsCount; //end of level0
     uint num = 0;
@@ -169,7 +167,7 @@ __kernel void YetAnotherIntersection (
       omax = vload4(0, cones + begin + 13*j + 3);
       uvmin = vload4(0, cones + begin + 13*j + 6);
       uvmax = vload4(0, cones + begin + 13*j + 9);
-      child = vload2(0, pointers + (int)(cones[begin + 13*j + 12]));
+      child = vload2(0, pointers + (begin/13 + j)*2);
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
@@ -186,7 +184,7 @@ __kernel void YetAnotherIntersection (
           omax = vload4(0, cones + i + 3);
           uvmin = vload4(0, cones + i + 6);
           uvmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (int)(cones[i + 12]));
+          child = vload2(0, pointers + (i/13)*2);
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {

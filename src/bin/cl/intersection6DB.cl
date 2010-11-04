@@ -50,8 +50,10 @@ float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID
 
 int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
+  int temp = 1;
   for ( int i = 0; i < j; i += 13){
-    rindex += pointers[(int)(cones[i+12]) + 1];
+    rindex += pointers[temp];
+    temp += 2;
   }
   return rindex;
 }
@@ -68,7 +70,6 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
 
  uvmin.w = uvmax.w = 0;
 
- ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
  tmin = ray;
  tmax = ray;

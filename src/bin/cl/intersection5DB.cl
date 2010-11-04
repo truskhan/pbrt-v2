@@ -50,8 +50,10 @@ float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID
 
 int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
+  int temp = 1;
   for ( int i = 0; i < j; i += 11){
-    rindex += pointers[(int)(cones[i+10]) + 1];
+    rindex += pointers[temp];
+    temp += 2;
   }
   return rindex;
 }
@@ -190,7 +192,7 @@ __kernel void IntersectionR (
       omax = vload4(0, cones + begin + 11*j + 3);
       uvmin = vload2(0, cones + begin + 11*j + 6);
       uvmax = vload2(0, cones + begin + 11*j + 8);
-      child = vload2(0, pointers + (int)(cones[begin + 11*j + 10]));
+      child = vload2(0, pointers + (begin/11 + j)*2);
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
@@ -210,7 +212,7 @@ __kernel void IntersectionR (
           omax = vload4(0, cones + i + 3);
           uvmin = vload2(0, cones + i + 6);
           uvmax = vload2(0, cones + i + 8);
-          child = vload2(0, pointers + (int)(cones[i + 10]));
+          child = vload2(0, pointers + (i/11)*2);
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {

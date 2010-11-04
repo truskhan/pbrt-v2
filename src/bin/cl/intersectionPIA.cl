@@ -35,7 +35,7 @@ __global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int 
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
-      if (t < bounds[2*rindex + i*2]) continue;
+      if (t < bounds[2*rindex + i*2] || t > bounds[2*rindex + 2*i + 1]) continue;
 
       tHit[rindex+i] = '1';
     }
@@ -58,14 +58,6 @@ int computeChild (unsigned int threadsCount, int i, int * level){
   int offset = i - index;
 
   return (index - 13*temp) + 2*offset;
-}
-
-int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
-  int rindex = 0;
-  for ( int i = 0; i < j; i += 13){
-    rindex += pointers[(int)(cones[i+12]) + 1];
-  }
-  return rindex;
 }
 
 bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4 dmin, float4 dmax){
@@ -198,7 +190,7 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
       omax = vload4(0, cones + begin+13*j + 3);
       dmin = vload4(0, cones + begin+13*j + 6);
       dmax = vload4(0, cones + begin+13*j + 9);
-      child = vload2(0, pointers + (int)dmax.w );
+      child = vload2(0, pointers + (begin/13+j)*2);
 
       // check if triangle intersects IA node
       if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -216,12 +208,12 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
           omax = vload4(0, cones + i + 3);
           dmin = vload4(0, cones + i + 6);
           dmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (int)dmax.w);
+          child = vload2(0, pointers + (i/13)*2);
 
           if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax))
           {
             if ( child.x == -2) {
-              rindex = computeRIndex(i, cones, pointers);
+              rindex = (i/13)*chunk;
               intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2, child.y, rindex
               #ifdef STAT_PRAY_TRIANGLE
                 , stat_rayTriangle

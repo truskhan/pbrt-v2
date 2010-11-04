@@ -36,21 +36,12 @@ __global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int 
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
-      if (t < bounds[2*rindex + i*2]) continue;
+      if (t < bounds[2*rindex + i*2] || t > bounds[2*rindex + i*2+1] ) continue;
 
       tHit[rindex+i] = '1';
     }
 }
 
-int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
-  int rindex = 0;
-  int temp = 1;
-  for ( int i = 0; i < j; i += 13){
-    rindex += pointers[temp];
-    temp += 2;
-  }
-  return rindex;
-}
 
 bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
@@ -65,12 +56,11 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  ocenter = ray + omin;
  ocenter.w = 0;
 
- ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
  tmin = ray;
  tmax = ray;
 
- ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
+ ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
@@ -79,10 +69,6 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
- tmin = min(tmin, ray);
- tmax = max(tmax, ray);
-
- ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
@@ -95,6 +81,10 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmax = max(tmax, ray);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 

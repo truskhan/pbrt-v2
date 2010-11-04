@@ -35,18 +35,10 @@ __global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int 
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
-      if (t < bounds[2*rindex + i*2]) continue;
+      if (t < bounds[2*rindex + i*2] || t > bounds[2*rindex + i*2 + 1]) continue;
 
       tHit[rindex+i] = '1';
     }
-}
-
-int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
-  int rindex = 0;
-  for ( int i = 0; i < j; i += 9){
-    rindex += pointers[(int)(cones[i+8]) + 1];
-  }
-  return rindex;
 }
 
 bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float radius) {
@@ -128,7 +120,7 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
       center1.w = 0;
       u = vload2(0, cones + begin + 9*j + 4);
       v = vload2(0, cones + begin + 9*j + 6);
-      child = vload2(0, pointers + (int)(cones[begin + 9*j + 8]));
+      child = vload2(0, pointers + (begin/9 + j)*2);
 
       // check if triangle intersects cone
       if ( intersectsNode(center1, u, v, center, radius1 ))
@@ -147,13 +139,13 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
           center1.w = 0;
           u = vload2(0, cones + i + 4);
           v = vload2(0, cones + i + 6);
-          child = vload2(0, pointers + (int)(cones[i+8]));
+          child = vload2(0, pointers + (i/9)*2);
 
           if ( intersectsNode(center1, u, v, center, radius1 ))
           {
             //if the cones is at level 0 - check leaves
             if ( child.x == -2){
-              rindex = computeRIndex(i,cones, pointers);
+              rindex = (i/9)*chunk;
               intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,child.y,rindex
               #ifdef STAT_PRAY_TRIANGLE
                ,stat_rayTriangle

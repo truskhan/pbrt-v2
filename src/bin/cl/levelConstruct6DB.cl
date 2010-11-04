@@ -57,7 +57,7 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
       omin2 = vload4(0, cones + 13*beginr + 26*iGID + 13);
       omax2 = vload4(0, cones + 13*beginr + 26*iGID + 16);
       uvmin2 = vload4( 0, cones + 13*beginr + 26*iGID + 19);
-      uvmax2 = vload4( 0, cones + 13*beginr + 26*iGID + 12);
+      uvmax2 = vload4( 0, cones + 13*beginr + 26*iGID + 22);
       child.y = 13*beginr + 26*iGID + 13;
     }
 

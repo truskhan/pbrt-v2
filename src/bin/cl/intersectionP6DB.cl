@@ -1,4 +1,5 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+//#pragma OPENCL EXTENSION cl_amd_printf : enable
 #define EPS 0.000002f
 
 void intersectPAllLeaves (const __global float* dir, const __global float* o, const __global float* bounds,
@@ -43,8 +44,10 @@ __global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int 
 
 int computeRIndex( unsigned int j, const __global float* cones, const __global int* pointers){
   int rindex = 0;
+  int temp = 1;
   for ( int i = 0; i < j; i += 13){
-    rindex += pointers[(int)(cones[i+12]) + 1];
+    rindex += pointers[temp];
+    temp += 2;
   }
   return rindex;
 }
@@ -150,7 +153,7 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
 
     int SPindex = 0;
     int wbeginStack = (2 + height*(height+1)/2)*iLID;
-    uint begin,rindex;
+    uint begin, rindex;
     int i = 0;
     int2 child;
 
@@ -166,7 +169,7 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
       omax = vload4(0, cones + begin + 13*j + 3);
       uvmin = vload4(0, cones + begin + 13*j + 6);
       uvmax = vload4(0, cones + begin + 13*j + 9);
-      child = vload2(0, pointers + (int)(cones[begin + 13*j + 12]));
+      child = vload2(0, pointers + (begin/13 + j)*2);
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
@@ -184,13 +187,15 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
           omax = vload4(0, cones + i + 3);
           uvmin = vload4(0, cones + i + 6);
           uvmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (int)(cones[i+12]));
+          child = vload2(0, pointers + (i/13)*2);
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {
             //if the cones is at level 0 - check leaves
             if ( child.x == -2){
-              rindex = computeRIndex(i,cones, pointers);
+              rindex = (i/13)*chunk;
+              //printf ( "rindex %d je spocten z i %i, chunk %i , (i/13) %i \n", rindex, i, chunk, i/13);
+              //rindex = computeRIndex(i,cones, pointers);
               intersectPAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,child.y,rindex
               #ifdef STAT_PRAY_TRIANGLE
                ,stat_rayTriangle

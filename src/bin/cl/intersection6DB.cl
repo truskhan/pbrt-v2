@@ -180,7 +180,7 @@ __kernel void IntersectionR (
       omax = vload4(0, cones + begin + 13*j + 3);
       uvmin = vload4(0, cones + begin + 13*j + 6);
       uvmax = vload4(0, cones + begin + 13*j + 9);
-      child = vload2(0, pointers + (int)(cones[begin + 13*j + 12]));
+      child = vload2(0, pointers + (begin/13 + j)*2);
 
       // check if triangle intersects cone
       if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
@@ -200,7 +200,7 @@ __kernel void IntersectionR (
           omax = vload4(0, cones + i + 3);
           uvmin = vload4(0, cones + i + 6);
           uvmax = vload4(0, cones + i + 9);
-          child = vload2(0, pointers + (int)(cones[i + 12]));
+          child = vload2(0, pointers + (i/13)*2);
 
           if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
           {

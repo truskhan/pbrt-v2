@@ -25,9 +25,16 @@ Semaphore *workerSemaphore;
 
 // RayHieararchy Method Definitions
 RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height,
-  string node) {
+  string node
+    #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
+    , int scale
+    #endif
+  ) {
     this->chunk = chunk;
     this->height = height;
+    #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
+    this->scale = scale;
+    #endif
     triangleCount = 0;
     onGPU = onG;
 
@@ -746,7 +753,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->WaitForRead();
     for (i = 0; i < count; i++){
       temp = max(picture[elem_index[i]],temp);
-      Ls[i] = RainbowColorMapping((float)(picture[elem_index[i]])/500.0f);
+      Ls[i] = RainbowColorMapping((float)(picture[elem_index[i]])/(float)scale);
       //cout << ' ' << temp;
     }
     cout << "Maximum intersection count: " << temp << endl;
@@ -1080,7 +1087,7 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
       if (!hit[i]) continue;
       temp = ((cl_uint*)picture)[j];
       t = max(temp,t);
-      Ls[i] = RainbowColorMapping((float)(temp)/(float)triangleCount);
+      Ls[i] = RainbowColorMapping((float)(temp)/scale);
      // cout << ' ' << temp  ;
      // Ls[i] = Ls[i].Clamp(0,255);
       ++j;
@@ -1113,7 +1120,14 @@ RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
     int chunk = ps.FindOneInt("chunkSize",20);
     int height = ps.FindOneInt("height",3);
     string node = ps.FindOneString("node", "sphere_uv");
-    return new RayHieararchy(prims,onGPU,chunk,height,node);
+    #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
+    int scale = ps.FindOneInt("scale",50);
+    #endif
+    return new RayHieararchy(prims,onGPU,chunk,height,node
+    #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
+    , scale
+    #endif
+    );
 }
 
 

@@ -286,7 +286,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     //pointers to children
     int total = threadsCount*0.5f*(1.0f - 1/pow(2,height));
     //vertices
-    #define MAX_VERTICES 1000
+    #define MAX_VERTICES 40000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -321,7 +321,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
 
     cout << "Needed rays " << xResolution*yResolution*samplesPerPixel << " device maximu rays " << x << endl;
-    x = 10000;
+    x = 60000;
     return min(x, xResolution*yResolution*samplesPerPixel);
 }
 
@@ -444,25 +444,23 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
   for ( cl_uint i = 1; i <= *heightr; i++){
     if (!gpurayl->SetIntArgument(4,i)) exit(EXIT_FAILURE);
     if (!gpurayl->SetIntArgument(5,temp)) exit(EXIT_FAILURE);
-    if ( i % 2 == 0){
-      if ( dx & 0x1 == 1) //if it is even, last column hasn't any other node to merge
-        Assert(gpurayl->SetIntArgument(6, dx - 1));
-      else
-        Assert(gpurayl->SetIntArgument(6, dx ));
-    } else {
+    if ( i & 0x1 == 1){
       if ( dy & 0x1 == 1) //if it is even, last row hasn't any other node to merge
-        Assert(gpurayl->SetIntArgument(6, dx*dy - dx));
+        Assert(gpurayl->SetIntArgument(6, dx*dy/2 - dx));
       else
-        Assert(gpurayl->SetIntArgument(6, dx*dy));
+        Assert(gpurayl->SetIntArgument(6, dx*dy/2));
+      dy = (dy+1)/2;
+    } else {
+
+      if ( dx & 0x1 == 1) //if it is even, last column hasn't any other node to merge
+        Assert(gpurayl->SetIntArgument(6, dx/2 - 1));
+      else
+        Assert(gpurayl->SetIntArgument(6, 0 ));
+      temp = (temp+1)/2;
+      dx = (dx+1)/2;
     }
 
     if (!gpurayl->Run())exit(EXIT_FAILURE);
-    if ( i % 2 == 0){
-      temp = (temp+1)/2;
-      dx = (dx+1)/2;
-    } else {
-      dy = (dy+1)/2;
-    }
     gpurayl->WaitForKernel();
   }
 
@@ -736,7 +734,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     }
     //last part of vertices
     Assert(gput->SetIntArgument(10,(cl_int)triangleLastPartCount));
-    Assert(gput->SetIntArgument(13,(cl_int)(parts-1)*trianglePartCount));
+    Assert(gput->SetIntArgument(13,(cl_uint)(parts-1)*trianglePartCount));
     if (!gput->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount))exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
@@ -959,7 +957,7 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
    rayOArray[3*elem_counter+2] = r[k].o[2];
 
    rayBoundsArray[2*elem_counter] = r[k].mint;
-   rayBoundsArray[2*elem_counter+1] = INFINITY;
+   rayBoundsArray[2*elem_counter+1] = r[k].maxt;
    occluded[elem_counter] = '0';
   #ifdef STAT_PRAY_TRIANGLE
   picture[elem_counter] = 0;

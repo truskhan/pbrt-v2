@@ -50,12 +50,12 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
     if ( level & 0x1 == 1){
       if ( iGID > last) break;
     ++help;
-      center2 = vload4(0,cones + 9*beginr + 9*iGID + 9*help*xwidth);
-      uvmin2 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 4);
-      uvmax2 = vload2(0,cones + 9*beginr + 9*iGID + 9*help*xwidth + 6);
-      child.y = 9*beginr + 9*iGID + 9*help*xwidth;
+      center2 = vload4(0,cones + 9*beginr + 9*iGID + 9*xwidth + 9*help*xwidth);
+      uvmin2 = vload2(0,cones + 9*beginr + 9*iGID + 9*xwidth + 9*help*xwidth + 4);
+      uvmax2 = vload2(0,cones + 9*beginr + 9*iGID + 9*xwidth + 9*help*xwidth + 6);
+      child.y = 9*beginr + 9*iGID + 9*xwidth + 9*help*xwidth;
     } else {
-      if ( iGID == xwidth*last) break;
+      if ( last != 0 && iGID % last == 0) break;
       center2 = vload4(0,cones + 9*beginr + 18*iGID + 9);
       uvmin2 = vload2(0,cones + 9*beginr + 18*iGID + 13);
       uvmax2 = vload2(0,cones + 9*beginr + 18*iGID + 15);

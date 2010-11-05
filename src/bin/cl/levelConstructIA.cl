@@ -46,13 +46,13 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
     if ( level & 0x1 == 1){
       if ( iGID > last) break;
     ++help;
-    omin2 = vload4(0,cones + 13*beginr + 13*iGID +  13*help*xwidth);
-    omax2 = vload4(0,cones + 13*beginr + 13*iGID +  3 + 13*help*xwidth);
-    dmin2 = vload4(0,cones + 13*beginr + 13*iGID +  6 + 13*help*xwidth);
-    dmax2 = vload4(0,cones + 13*beginr + 13*iGID +  9 + 13*help*xwidth);
-    child.y = 13*beginr + 13*iGID + 13*help*xwidth;
+    omin2 = vload4(0,cones + 13*beginr + 13*iGID +  13*xwidth + 13*help*xwidth);
+    omax2 = vload4(0,cones + 13*beginr + 13*iGID +  3 + 13*xwidth + 13*help*xwidth);
+    dmin2 = vload4(0,cones + 13*beginr + 13*iGID +  6 + 13*xwidth + 13*help*xwidth);
+    dmax2 = vload4(0,cones + 13*beginr + 13*iGID +  9 + 13*xwidth + 13*help*xwidth);
+    child.y = 13*beginr + 13*iGID + 13*xwidth + 13*help*xwidth;
     }else {
-      if ( iGID == xwidth*last) break;
+      if ( last != 0 && iGID % last == 0) break;
     omin2 = vload4(0,cones + 13*beginr + 26*iGID + 13);
     omax2 = vload4(0,cones + 13*beginr + 26*iGID + 16);
     dmin2 = vload4(0,cones + 13*beginr + 26*iGID + 19);

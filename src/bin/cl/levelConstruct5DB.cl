@@ -47,13 +47,13 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
     if ( level & 0x1 == 1){
        if ( iGID > last) break;
       ++help;
-      omin2 = vload4(0, cones + 11*beginr + 11*iGID + 11*help*xwidth);
-      omax2 = vload4(0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 3);
-      uvmin2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 6);
-      uvmax2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*help*xwidth + 8);
-      child.y = 11*beginr + 11*iGID + 11*help*xwidth;
+      omin2 = vload4(0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth);
+      omax2 = vload4(0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth + 3);
+      uvmin2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth + 6);
+      uvmax2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth + 8);
+      child.y = 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth;
     } else {
-      if ( iGID == xwidth*last) break;
+      if ( last != 0 && iGID % last == 0) break;
       omin2 = vload4(0, cones + 11*beginr + 22*iGID + 11);
       omax2 = vload4(0, cones + 11*beginr + 22*iGID + 14);
       uvmin2 = vload2( 0, cones + 11*beginr + 22*iGID + 17);

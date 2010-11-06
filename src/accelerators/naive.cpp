@@ -115,7 +115,7 @@ BBox NaiveAccel::WorldBound() const {
 }
 
 unsigned int NaiveAccel::MaxRaysPerCall(){
-    #define MAX_VERTICES 1000
+    #define MAX_VERTICES 40000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -128,7 +128,7 @@ unsigned int NaiveAccel::MaxRaysPerCall(){
 
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once
-    return 10000;
+    return 60000;
 }
 
 bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
@@ -244,12 +244,15 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
 
     for ( int i = 0; i < parts - 1; i ++){
       Assert(gput->SetIntArgument(10,(cl_int)trianglePartCount));
+      Assert(gput->SetIntArgument(11, i*trianglePartCount));
       Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
       Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*i*trianglePartCount));
+      ocl->Finish();
       if (!gput->Run())exit(EXIT_FAILURE);
       gput->WaitForKernel();
     }
     Assert(gput->SetIntArgument(10, (cl_int)triangleLastPartCount));
+    Assert(gput->SetIntArgument(11, (parts-1)*trianglePartCount));
     Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*(parts-1)*trianglePartCount, sizeof(cl_float)*6*triangleLastPartCount));
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount));
     if (!gput->Run())exit(EXIT_FAILURE);
@@ -345,7 +348,7 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
         rayOArray[3*elem_counter+2] = r[k].o[2];
 
         rayBoundsArray[2*elem_counter] = r[k].mint;
-        rayBoundsArray[2*elem_counter+1] = INFINITY;
+        rayBoundsArray[2*elem_counter+1] = r[k].maxt;
 
         ((unsigned char*)temp)[elem_counter] = '0';
         ++elem_counter;

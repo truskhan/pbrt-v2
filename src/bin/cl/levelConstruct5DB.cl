@@ -46,7 +46,6 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
     //last thread only copies node1 to the output
     if ( level & 0x1 == 1){
        if ( iGID > last) break;
-      ++help;
       omin2 = vload4(0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth);
       omax2 = vload4(0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth + 3);
       uvmin2 = vload2( 0, cones + 11*beginr + 11*iGID + 11*xwidth + 11*help*xwidth + 6);

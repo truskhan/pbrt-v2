@@ -26,6 +26,14 @@
 #include "stdafx.h"
 #include "accelerators/kdtreeaccel.h"
 #include "paramset.h"
+#ifdef GPU_TIMES
+ #include <iostream>
+ using namespace std;
+
+ Semaphore *iSem;
+ Semaphore *pSem;
+ bool init = false;
+#endif
 
 // KdTreeAccel Local Declarations
 struct KdAccelNode {
@@ -122,6 +130,15 @@ KdTreeAccel::KdTreeAccel(const vector<Reference<Primitive> > &p,
     delete[] prims0;
     delete[] prims1;
     PBRT_KDTREE_FINISHED_CONSTRUCTION(this);
+    #ifdef GPU_TIMES
+    if ( !init){
+      run = runP = 0;
+      sum = sumP = 0;
+      iSem = new Semaphore(1);
+      pSem = new Semaphore(1);
+      init = true;
+    }
+    #endif
 }
 
 
@@ -143,6 +160,11 @@ void KdAccelNode::initLeaf(uint32_t *primNums, int np,
 
 
 KdTreeAccel::~KdTreeAccel() {
+    #ifdef GPU_TIMES
+    cout << "Measured time in seconds" << endl;
+    cout << "Intersection (" << run << " run): " << (((double)sum)/CLOCKS_PER_SEC) << endl;
+    cout << "IntersectionP (" << runP << " run): " << (((double)sumP)/CLOCKS_PER_SEC) << endl;
+    #endif
     FreeAligned(nodes);
 }
 
@@ -268,12 +290,22 @@ void KdTreeAccel::buildTree(int nodeNum, const BBox &nodeBounds,
 
 bool KdTreeAccel::Intersect(const Ray &ray,
                             Intersection *isect) const {
+    #ifdef GPU_TIMES
+    iSem->Wait();
+    ++run;
+    start = clock();
+    #endif
     PBRT_KDTREE_INTERSECTION_TEST(const_cast<KdTreeAccel *>(this), const_cast<Ray *>(&ray));
     // Compute initial parametric range of ray inside kd-tree extent
     float tmin, tmax;
     if (!bounds.IntersectP(ray, &tmin, &tmax))
     {
         PBRT_KDTREE_RAY_MISSED_BOUNDS();
+        #ifdef GPU_TIMES
+        finish = clock();
+        sum += (finish - start);
+        iSem->Post();
+        #endif
         return false;
     }
 
@@ -336,6 +368,11 @@ bool KdTreeAccel::Intersect(const Ray &ray,
                 if (prim->Intersect(ray, isect))
                 {
                     PBRT_KDTREE_INTERSECTION_HIT(const_cast<Primitive *>(prim.GetPtr()));
+                    #ifdef GPU_TIMES
+                    finish = clock();
+                    sum += (finish - start);
+                    iSem->Post();
+                    #endif
                     hit = true;
                 }
             }
@@ -348,6 +385,11 @@ bool KdTreeAccel::Intersect(const Ray &ray,
                     if (prim->Intersect(ray, isect))
                     {
                         PBRT_KDTREE_INTERSECTION_HIT(const_cast<Primitive *>(prim.GetPtr()));
+                        #ifdef GPU_TIMES
+                        finish = clock();
+                        sum += (finish - start);
+                        iSem->Post();
+                        #endif
                         hit = true;
                     }
                 }
@@ -365,17 +407,32 @@ bool KdTreeAccel::Intersect(const Ray &ray,
         }
     }
     PBRT_KDTREE_INTERSECTION_FINISHED();
+    #ifdef GPU_TIMES
+    finish = clock();
+    sum += (finish - start);
+    iSem->Post();
+    #endif
     return hit;
 }
 
 
 bool KdTreeAccel::IntersectP(const Ray &ray) const {
+    #ifdef GPU_TIMES
+    pSem->Wait();
+    ++runP;
+    startP = clock();
+    #endif
     PBRT_KDTREE_INTERSECTIONP_TEST(const_cast<KdTreeAccel *>(this), const_cast<Ray *>(&ray));
     // Compute initial parametric range of ray inside kd-tree extent
     float tmin, tmax;
     if (!bounds.IntersectP(ray, &tmin, &tmax))
     {
         PBRT_KDTREE_RAY_MISSED_BOUNDS();
+        #ifdef GPU_TIMES
+        finishP = clock();
+        sumP += (finishP - startP);
+        pSem->Post();
+        #endif
         return false;
     }
 
@@ -395,6 +452,11 @@ bool KdTreeAccel::IntersectP(const Ray &ray) const {
                 PBRT_KDTREE_INTERSECTIONP_PRIMITIVE_TEST(const_cast<Primitive *>(prim.GetPtr()));
                 if (prim->IntersectP(ray)) {
                     PBRT_KDTREE_INTERSECTIONP_HIT(const_cast<Primitive *>(prim.GetPtr()));
+                    #ifdef GPU_TIMES
+                    finishP = clock();
+                    sumP += (finishP - startP);
+                    pSem->Post();
+                    #endif
                     return true;
                 }
             }
@@ -405,6 +467,11 @@ bool KdTreeAccel::IntersectP(const Ray &ray) const {
                     PBRT_KDTREE_INTERSECTIONP_PRIMITIVE_TEST(const_cast<Primitive *>(prim.GetPtr()));
                     if (prim->IntersectP(ray)) {
                         PBRT_KDTREE_INTERSECTIONP_HIT(const_cast<Primitive *>(prim.GetPtr()));
+                        #ifdef GPU_TIMES
+                        finishP = clock();
+                        sumP += (finishP - startP);
+                        pSem->Post();
+                        #endif
                         return true;
                     }
                 }
@@ -458,6 +525,11 @@ bool KdTreeAccel::IntersectP(const Ray &ray) const {
         }
     }
     PBRT_KDTREE_INTERSECTIONP_MISSED();
+    #ifdef GPU_TIMES
+    finishP = clock();
+    sumP += (finishP - startP);
+    pSem->Post();
+    #endif
     return false;
 }
 

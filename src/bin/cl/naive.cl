@@ -3,7 +3,7 @@
 __kernel void Intersection (
     const __global float* vertex, const __global float* dir, const __global float* o, const __global float* bounds, const __global float* uvs,
     __global float* tHit, __global float* tutv, __global float* dp,
-    __global int* index, int count, int size   ) {
+    __global int* index, int count, int size, int offset   ) {
     // find position in global arrays
     int iGID = get_global_id(0);
 
@@ -48,7 +48,7 @@ __kernel void Intersection (
         if (tHit[i] != INFINITY && tHit[i] != NAN && t > tHit[i]) continue;
 
         tHit[i] = t;
-        index[i] = iGID;
+        index[i] = iGID + offset;
 
         float du1 = uvs[6*iGID]   - uvs[6*iGID+4];
         float du2 = uvs[6*iGID+2] - uvs[6*iGID+4];
@@ -131,8 +131,7 @@ __global unsigned char* tHit, int count, int size)
 
         // Compute _t_ to intersection point
         t = dot(e2, s2) * invDivisor;
-        if (t < bounds[i*2]) continue;
-        if (tHit[i] != INFINITY && tHit[i] != NAN && t > tHit[i]) continue;
+        if (t < bounds[2*i] || t > bounds[2*i +1]) continue;
         tHit[i] = '1';
      }
 }

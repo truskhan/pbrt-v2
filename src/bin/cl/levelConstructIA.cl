@@ -45,7 +45,6 @@ __kernel void levelConstruct(__global float* cones, __global int* pointers, cons
     //posledni vlakno jen prekopiruje
     if ( level & 0x1 == 1){
       if ( iGID > last) break;
-    ++help;
     omin2 = vload4(0,cones + 13*beginr + 13*iGID +  13*xwidth + 13*help*xwidth);
     omax2 = vload4(0,cones + 13*beginr + 13*iGID +  3 + 13*xwidth + 13*help*xwidth);
     dmin2 = vload4(0,cones + 13*beginr + 13*iGID +  6 + 13*xwidth + 13*help*xwidth);

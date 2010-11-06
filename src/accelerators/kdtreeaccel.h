@@ -31,6 +31,10 @@
 // accelerators/kdtreeaccel.h*
 #include "pbrt.h"
 #include "primitive.h"
+#ifdef GPU_TIMES
+#include <time.h>
+#endif
+
 
 // KdTreeAccel Declarations
 struct KdAccelNode;
@@ -60,6 +64,11 @@ private:
     int nAllocedNodes, nextFreeNode;
     BBox bounds;
     MemoryArena arena;
+    #ifdef GPU_TIMES
+    mutable clock_t start, finish, sum;
+    mutable clock_t startP, finishP, sumP;
+    mutable unsigned int run, runP;
+    #endif
 };
 
 

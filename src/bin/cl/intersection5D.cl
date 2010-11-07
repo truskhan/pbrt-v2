@@ -1,4 +1,5 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #define EPS 0.000002f
 
 void intersectAllLeaves (const __global float* dir, const __global float* o,
@@ -17,7 +18,8 @@ float4 e1, float4 e2, int chunk, int rindex, unsigned int offsetGID
       rayo = vload4(0, o + 3*rindex + 3*i);
       rayd.w = 0; rayo.w = 0;
       #ifdef STAT_RAY_TRIANGLE
-       ++stat_rayTriangle[rindex + i];
+      atom_add(stat_rayTriangle + rindex + i, 1);
+      // ++stat_rayTriangle[rindex + i];
       #endif
       s1 = cross(rayd, e2);
       divisor = dot(s1, e1);

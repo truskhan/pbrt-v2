@@ -1,4 +1,5 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #define EPS 0.000002f
 
 void intersectPAllLeaves (const __global float* dir, const __global float* o, const __global float* bounds,
@@ -12,7 +13,8 @@ __global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int 
     // process all rays in the cone
     for ( int i = 0; i < chunk; i++){
       #ifdef STAT_PRAY_TRIANGLE
-       ++stat_rayTriangle[rindex + i];
+      atom_add(stat_rayTriangle + rindex + i, 1);
+      // ++stat_rayTriangle[rindex + i];
       #endif
 
       rayd = vload4(0, dir + 3*rindex + 3*i);

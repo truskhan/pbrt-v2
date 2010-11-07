@@ -1,4 +1,5 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 //#pragma OPENCL EXTENSION cl_amd_printf : enable
 #define EPS 0.000002f
 
@@ -13,7 +14,8 @@ __global char* tHit, float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, int 
     // process all rays in the cone
     for ( int i = 0; i < chunk; i++){
       #ifdef STAT_PRAY_TRIANGLE
-       ++stat_rayTriangle[rindex + i];
+      atom_add(stat_rayTriangle + rindex + i, 1);
+      // ++stat_rayTriangle[rindex + i];
       #endif
 
       rayd = vload4(0, dir + 3*rindex + 3*i);
@@ -91,7 +93,7 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = max(tmin, uvmin);
  tmax = min(tmax, uvmax);
 
- if ( tmin.x < tmax.x && tmin.y < tmax.y && tmin.z < tmax.z )
+ if ( tmin.x < tmax.x + EPS && tmin.y < tmax.y + EPS && tmin.z < tmax.z + EPS)
    return true;
 
   return false;

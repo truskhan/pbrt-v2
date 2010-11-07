@@ -99,7 +99,7 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = max(tmin, uvmin);
  tmax = min(tmax, uvmax);
 
- if ( tmin.x < tmax.x && tmin.y < tmax.y && tmin.z < tmax.z )
+ if ( tmin.x < tmax.x + EPS && tmin.y < tmax.y + EPS && tmin.z < tmax.z + EPS)
    return true;
 
   return false;

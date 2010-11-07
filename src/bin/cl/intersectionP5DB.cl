@@ -1,4 +1,5 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #define EPS 0.000002f
 
 bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
@@ -162,7 +163,8 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
               // process all rays in the cone
               for ( int k = 0; k < child.y; k++){
                 #ifdef STAT_PRAY_TRIANGLE
-                 ++stat_rayTriangle[rindex + k];
+                atom_add(stat_rayTriangle + rindex + k, 1);
+                // ++stat_rayTriangle[rindex + k];
                 #endif
 
                 rayd.x = dir[3*rindex + 3*k];

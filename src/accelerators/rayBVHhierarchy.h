@@ -1,24 +1,25 @@
 
-#ifndef PBRT_ACCELERATORS_RAYHIERARCHY_H
-#define PBRT_ACCELERATORS_RAYHIERARCHY_H
+#ifndef PBRT_ACCELERATORS_RAYBVHHIERARCHY_H
+#define PBRT_ACCELERATORS_RAYBVHHIERARCHY_H
 
 #include "pbrt.h"
 #include "primitive.h"
 #include "shapes/trianglemesh.h"
+#include "accelerators/bvh.h"
 #include "GPUparallel.h"
 
-// RayHieararchy Declarations
-class RayHieararchy : public Aggregate {
+// RayBVHHieararchy Declarations
+class RayBVHHieararchy : public Aggregate {
 public:
-    // RayHieararchy Public Methods
+    // RayBVHHieararchy Public Methods
     BBox WorldBound() const;
-    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node
+    RayBVHHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
     );
     bool CanIntersect() const { return true; }
-    ~RayHieararchy();
+    ~RayBVHHieararchy();
     void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const unsigned int count
     #ifdef STAT_RAY_TRIANGLE
     , Spectrum *Ls
@@ -45,8 +46,7 @@ private:
                   Vector &dpdu, Vector &dpdv, float &tu, float &tv, float uv[3][2],const Point p[3]
                   ,float* coord) const;
 
-    // RayHieararchy Private Methods
-    vector<Reference<Primitive> > primitives;
+    // RayBVHHieararchy Private Methods
     BBox bbox;
     size_t triangleCount;
     size_t trianglePartCount;
@@ -69,14 +69,16 @@ private:
     mutable unsigned int xResolution;
     unsigned int yResolution;
     Semaphore *workerSemaphore;
-
     size_t topLevelCount;
+
+    BVHAccel*  bvh;
+
     string node;
     size_t nodeSize;
 };
 
 
-RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
+RayBVHHieararchy *CreateRayBVHHieararchy(const vector<Reference<Primitive> > &prims,
         const ParamSet &ps);
 
 #endif // PBRT_ACCELERATORS_RAYHIERARCHY_H

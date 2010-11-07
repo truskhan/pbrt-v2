@@ -34,6 +34,7 @@
 #include "integrator.h"
 #include "intersection.h"
 #include "accelerators/rayhierarchy.h"
+#include "accelerators/rayBVHhierarchy.h"
 #include "accelerators/naive.h"
 
 // Scene Declarations
@@ -75,6 +76,15 @@ public:
       RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
       if ( rh != NULL) {
         rh->IntersectP(ray, occluded, count, hit
+          #ifdef STAT_PRAY_TRIANGLE
+          , Ls
+          #endif
+        );
+        return;
+      }
+      RayBVHHieararchy* rbvh = dynamic_cast<RayBVHHieararchy*>(aggregate);
+      if ( rbvh != NULL) {
+        rbvh->IntersectP(ray, occluded, count, hit
           #ifdef STAT_PRAY_TRIANGLE
           , Ls
           #endif

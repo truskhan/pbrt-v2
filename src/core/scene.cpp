@@ -56,6 +56,9 @@ unsigned int Scene::MaxRaysPerCall() const {
   RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
   if ( rh != NULL)
     return rh->MaxRaysPerCall();
+  RayBVHHieararchy* rbvh = dynamic_cast<RayBVHHieararchy*>(aggregate);
+  if ( rbvh != NULL)
+    return rbvh->MaxRaysPerCall();
   NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
   if ( na != NULL)
     return na->MaxRaysPerCall();
@@ -73,6 +76,15 @@ void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit
     RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
     if ( rh != NULL){
       rh->Intersect(ray, isect, rayWeight, hit, count
+      #ifdef STAT_RAY_TRIANGLE
+        ,Ls
+      #endif
+      );
+      return;
+    }
+    RayBVHHieararchy* rbvh = dynamic_cast<RayBVHHieararchy*>(aggregate);
+    if ( rbvh != NULL){
+      rbvh->Intersect(ray, isect, rayWeight, hit, count
       #ifdef STAT_RAY_TRIANGLE
         ,Ls
       #endif

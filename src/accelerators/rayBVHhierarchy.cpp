@@ -1,4 +1,4 @@
-#include "accelerators/rayhierarchy.h"
+#include "accelerators/rayBVHhierarchy.h"
 #include "core/probes.h"
 #include "core/camera.h"
 #include "core/film.h"
@@ -22,9 +22,8 @@
 
 using namespace std;
 
-
-// RayHieararchy Method Definitions
-RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height,
+// RayBVHHieararchy Method Definitions
+RayBVHHieararchy::RayBVHHieararchy(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height,
   string node
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
@@ -126,14 +125,16 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     delete [] names;
     delete [] file;
 
-    for (uint32_t i = 0; i < p.size(); ++i)
-        p[i]->FullyRefine(primitives);
+    bvh = new BVHAccel(p, 64, "sah");
+
+    //for (uint32_t i = 0; i < p.size(); ++i)
+   //     p[i]->FullyRefine(primitives);
 
     //store vertices and uvs in linear order
-    vertices = new cl_float[3*3*primitives.size()];
-    uvs = new cl_float[6*primitives.size()];
-    for (uint32_t i = 0; i < primitives.size(); ++i) {
-        const GeometricPrimitive* gp = (dynamic_cast<const GeometricPrimitive*> (primitives[i].GetPtr()));
+    vertices = new cl_float[3*3*bvh->primitives.size()];
+    uvs = new cl_float[6*bvh->primitives.size()];
+    for (uint32_t i = 0; i < bvh->primitives.size(); ++i) {
+        const GeometricPrimitive* gp = (dynamic_cast<const GeometricPrimitive*> (bvh->primitives[i].GetPtr()));
         if ( gp == 0 ) continue;
         const Triangle* shape = dynamic_cast<const Triangle*> (gp->GetShapePtr());
         if ( shape == 0) continue;
@@ -171,9 +172,9 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     }
 
     // Compute bounds of all primitives
-    for (uint32_t i = 0; i < p.size(); ++i) {
+    for (uint32_t i = 0; i < bvh->primitives.size(); ++i) {
 
-        bbox = Union(bbox, p[i]->WorldBound());
+        bbox = Union(bbox, bvh->primitives[i]->WorldBound());
     }
     //TODO: check how many threads can be proccessed at once (depends on MaxRaysPerCall)
     workerSemaphore = new Semaphore(1);
@@ -198,9 +199,10 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
       b *= primes[k];
     }
   }
+
 }
 
-RayHieararchy::~RayHieararchy() {
+RayBVHHieararchy::~RayBVHHieararchy() {
   ocl->DeleteCmdQueue(cmd);
   #ifdef GPU_TIMES
   ocl->PrintTimes();
@@ -209,13 +211,14 @@ RayHieararchy::~RayHieararchy() {
   delete [] vertices;
   delete [] uvs;
   delete workerSemaphore;
+  delete bvh;
 }
 
-BBox RayHieararchy::WorldBound() const {
+BBox RayBVHHieararchy::WorldBound() const {
     return bbox;
 }
 
-void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPixel,
+void RayBVHHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPixel,
   const int nx, const int ny){
   xResolution /= nx;
   yResolution /= ny;
@@ -230,7 +233,7 @@ void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPi
   threadsCount = global_a * global_b;
 }
 
-void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPixel){
+void RayBVHHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPixel){
   this->xResolution = camera->film->xResolution;
   this->yResolution = camera->film->yResolution;
   this->samplesPerPixel = samplesPerPixel;
@@ -244,14 +247,14 @@ void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPi
   threadsCount = global_a * global_b;
 }
 
-void RayHieararchy::Preprocess(){
+void RayBVHHieararchy::Preprocess(){
   global_a = (xResolution + a - 1) / a; //round up -> +a-1
   //number of rectangles in y axis
   global_b = (yResolution + b - 1) / b;
   threadsCount = global_a * global_b;
 }
 
-void RayHieararchy::PreprocessP(const int rays){
+void RayBVHHieararchy::PreprocessP(const int rays){
    //do brute force factorization -> compute ideal small rectangle sides sizes
    vector<unsigned int> primes;
    unsigned int number = rays;
@@ -281,7 +284,7 @@ void RayHieararchy::PreprocessP(const int rays){
   threadsCount = global_a * global_b;
 }
 
-unsigned int RayHieararchy::MaxRaysPerCall(){
+unsigned int RayBVHHieararchy::MaxRaysPerCall(){
     worgGroupSize = 32;
 
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
@@ -333,7 +336,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
 }
 
 //classical method for testing one ray
-bool RayHieararchy::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
+bool RayBVHHieararchy::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
                            Vector &dpdu, Vector &dpdv, float& tu, float &tv,
                            float uvs[3][2], const Point p[3], float* coord) const {
     // Get triangle vertices in _p1_, _p2_, and _p3_
@@ -393,8 +396,9 @@ bool RayHieararchy::Intersect(const Triangle* shape, const Ray &ray, float *tHit
     return true;
 }
 
+
 //constructs ray hieararchy on GPU -> creates array of cones
-size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl_uint count,
+size_t RayBVHHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl_uint count,
   cl_int* countArray, unsigned int threadsCount, int* heightr ){
 
   Assert(height > 0);
@@ -477,7 +481,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, cl
 }
 
 //constructs ray hieararchy on GPU -> creates array of cones
-size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, cl_uint count,
+size_t RayBVHHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO, cl_uint count,
   cl_int* countArray, unsigned int threadsCount, int* heightp ){
 
   Assert(height > 0);
@@ -591,7 +595,7 @@ inline RGBSpectrum RainbowColorMapping(const float _value)
 #endif
 
 //intersect computed on gpu with more rays
-void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
+void RayBVHHieararchy::Intersect(const RayDifferential *r, Intersection *in,
                                float* rayWeight, bool* hit, unsigned int count
   #ifdef STAT_RAY_TRIANGLE
   , Spectrum *Ls
@@ -869,7 +873,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
         hit[i] = false;
         if ( !index ) continue;
         Assert( index < triangleCount);
-        const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
+        const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (bvh->primitives[index].GetPtr()));
         const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());
 
         dpdu = Vector(dpduArray[6*j],dpduArray[6*j+1],dpduArray[6*j+2]);
@@ -908,11 +912,11 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     delete [] countArray;
 }
 
-bool RayHieararchy::Intersect(const Ray &ray, Intersection *isect) const {
-    if (primitives.size() == 0) return false;
+bool RayBVHHieararchy::Intersect(const Ray &ray, Intersection *isect) const {
+    if (bvh->primitives.size() == 0) return false;
     bool hit = false;
-    for (uint32_t it = 0; it < primitives.size(); ++it) {
-        if (primitives[it]->Intersect(ray,isect)) {
+    for (uint32_t it = 0; it < bvh->primitives.size(); ++it) {
+        if (bvh->primitives[it]->Intersect(ray,isect)) {
             hit = true;
         }
     }
@@ -920,11 +924,11 @@ bool RayHieararchy::Intersect(const Ray &ray, Intersection *isect) const {
 }
 
 
-bool RayHieararchy::IntersectP(const Ray &ray) const {
-    if (primitives.size() == 0) return false;
+bool RayBVHHieararchy::IntersectP(const Ray &ray) const {
+    if (bvh->primitives.size() == 0) return false;
     bool hit = false;
-    for (uint32_t it = 0; it < primitives.size(); ++it) {
-        if (primitives[it]->IntersectP(ray)) {
+    for (uint32_t it = 0; it < bvh->primitives.size(); ++it) {
+        if (bvh->primitives[it]->IntersectP(ray)) {
             hit = true;
             PBRT_RAY_TRIANGLE_INTERSECTIONP_HIT(&ray,0);
         }
@@ -934,7 +938,7 @@ bool RayHieararchy::IntersectP(const Ray &ray) const {
 }
 
 
-void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count, const bool* hit
+void RayBVHHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count, const bool* hit
     #ifdef STAT_PRAY_TRIANGLE
     , Spectrum *Ls
     #endif
@@ -1112,7 +1116,7 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
 }
 
 
-RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
+RayBVHHieararchy *CreateRayBVHHieararchy(const vector<Reference<Primitive> > &prims,
                                    const ParamSet &ps) {
     bool onGPU = ps.FindOneBool("onGPU",true);
     int chunk = ps.FindOneInt("chunkSize",20);
@@ -1121,7 +1125,7 @@ RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale = ps.FindOneInt("scale",50);
     #endif
-    return new RayHieararchy(prims,onGPU,chunk,height,node
+    return new RayBVHHieararchy(prims,onGPU,chunk,height,node
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , scale
     #endif

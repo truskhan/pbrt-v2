@@ -34,7 +34,7 @@ float4 e1, float4 e2, int chunk, int rindex, const unsigned int offsetGID ){
       if (t < bounds[2*rindex + i*2]) continue;
 
       //if (t >= tHit[rindex + i]) continue;
-      if ( t > tHit[rindex + i] || index[rindex+i] == get_global_id(0)) continue;
+      if ( t > tHit[rindex + i] || index[rindex+i] == (get_global_id(0)+ offsetGID)) continue;
         tHit[rindex + i] = t;
         index[rindex + i] = get_global_id(0) + offsetGID;
         changed[get_global_id(0)] = rindex + i;

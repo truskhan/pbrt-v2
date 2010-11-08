@@ -196,7 +196,7 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
 
     this->samplesPerPixel = samplesPerPixel;
     workerSem->Wait();
-    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , trianglePartCount, cmd, 32);
+    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , trianglePartCount, cmd, 64);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(9);
 
@@ -362,7 +362,7 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
     }
 
     workerSem->Wait();
-    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, trianglePartCount, cmd, 32);
+    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, trianglePartCount, cmd, 64);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(5);
 

@@ -5,11 +5,11 @@ sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE
 
 __kernel void rayhconstruct(__read_only image2d_t dir, __read_only image2d_t o,
   __write_only image2d_t nodes, const int globalWidth, const int globalHeight,
-  const int lheight, const int lwidth){
+  const int lwidth, const int lheight){
 
   int xGID = get_global_id(0);
   int yGID = get_global_id(1);
-  if ( xGID > globalWidth || yGID > globalHeight ) return;
+  if ( xGID >= globalWidth || yGID >= globalHeight ) return;
 
   float4 omin, omax, dmin, dmax;
   float4 dtemp, otemp;
@@ -37,7 +37,7 @@ __kernel void rayhconstruct(__read_only image2d_t dir, __read_only image2d_t o,
   omin.w = omax.x;
   dmax.w = omax.y;
   dmin.w = omax.z;
-  write_imagef(nodes, (int2)(xGID,                      yGID + get_global_size(1)),dmax);
-  write_imagef(nodes, (int2)(xGID + get_global_size(0), yGID + get_global_size(1)),omin);
+  write_imagef(nodes, (int2)(xGID,                      yGID + globalHeight),dmax);
+  write_imagef(nodes, (int2)(xGID + globalWidth,        yGID + globalHeight),omin);
   write_imagef(nodes, (int2)(xGID,                      yGID),dmin);
 }

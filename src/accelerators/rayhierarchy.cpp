@@ -411,7 +411,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, in
 
   gpuray->CreateImage2D(0, CL_MEM_READ_ONLY , &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
   gpuray->CreateImage2D(1, CL_MEM_READ_ONLY , &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
-  gpuray->CreateImage2D(2, CL_MEM_WRITE_ONLY, &imageFormat, xResolution*samplesPerPixel, yResolution, 0); //for hierarchy nodes
+  gpuray->CreateImage2D(2, CL_MEM_WRITE_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0); //for hierarchy nodes
   gpuray->SetIntArgument(3, globalSize[0]);
   gpuray->SetIntArgument(4, globalSize[1]);
   gpuray->SetIntArgument(5, a);
@@ -438,7 +438,7 @@ size_t RayHieararchy::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, in
   OpenCLTask* gpurayl = ocl->getTask(tasknum,cmd);
   gpurayl->InitBuffers(2);
   gpurayl->CopyBuffer(2,0,gpuray);
-  gpurayl->CreateImage2D(1, CL_MEM_READ_ONLY, &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
+  gpurayl->CreateImage2D(1, CL_MEM_READ_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0);
 
   for ( cl_uint i = 1; i < height; i++){
     gpurayl->CopyImage2D(0,1,gpurayl);

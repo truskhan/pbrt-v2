@@ -39,7 +39,7 @@
 #include "accelerators/grid.h"
 #include "accelerators/kdtreeaccel.h"
 #include "accelerators/rayhierarchy.h"
-#include "accelerators/rayBVHhierarchy.h"
+//#include "accelerators/rayBVHhierarchy.h"
 #include "accelerators/naive.h"
 #include "cameras/environment.h"
 #include "cameras/orthographic.h"
@@ -587,8 +587,8 @@ Primitive *MakeAccelerator(const string &name,
         accel = CreateKdTreeAccelerator(prims, paramSet);
     else if (name == "rayhierarchy")
         accel = CreateRayHieararchy(prims, paramSet);
-    else if (name == "ray-bvh")
-        accel = CreateRayBVHHieararchy(prims, paramSet);
+   /* else if (name == "ray-bvh")
+        accel = CreateRayBVHHieararchy(prims, paramSet);*/
     else if (name == "naive")
         accel = CreateNaiveAccelerator(prims, paramSet);
     else

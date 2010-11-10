@@ -1,11 +1,7 @@
-sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-
-__kernel void computeDpTuTv (const __global float* vertex,
-                             __read_only image2d_t dir, __read_only image2d_t o,
+__kernel void computeDpTuTv (const __global float* vertex, const __global float* dir, const __global float* o,
                              const __global int* index, const __global float* uvs,
                              __global float* tutv, __global float* dp, int count,
-                             const unsigned int lowerBound, const unsigned int upperBound,
-                             const int width ){
+                             const unsigned int lowerBound, const unsigned int upperBound ){
 
     int iGID = get_global_id(0);
     if ( iGID >= count ) return;
@@ -17,10 +13,8 @@ __kernel void computeDpTuTv (const __global float* vertex,
     float4 rayd,rayo, v1, v2, v3, e1, e2;
     float b1,b2,invDivisor;
 
-    int y = iGID / width;
-    int x = iGID - y*width;
-    rayd = read_imagef(dir, imageSampler, (int2)(x, y));
-    rayo = read_imagef(o, imageSampler, (int2)(x, y));
+    rayd = (float4)(dir[3*iGID], dir[3*iGID+1], dir[3*iGID+2],0);
+    rayo = (float4)(o[3*iGID], o[3*iGID+1], o[3*iGID+2],0);
 
     v1 = (float4)(vertex[9*i], vertex[9*i+1], vertex[9*i+2],0);
     v2 = (float4)(vertex[9*i + 3], vertex[9*i + 4], vertex[9*i + 5],0);

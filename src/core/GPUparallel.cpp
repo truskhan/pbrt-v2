@@ -143,6 +143,7 @@ void pfn_notify(cl_program p, void* user_data){
  //cout << endl << (char*)user_data<< " len " << len << " " << log << endl;
  cout << endl << " len " << len << " " << log << endl;
  delete [] log;
+
  return;
 }
 
@@ -188,7 +189,7 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
     "-DSTAT_TRIANGLE_CONE",
   #endif
   #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
-    "-cl-nv-verbose -cl-nv-maxrregcount=70",
+    "-cl-nv-verbose -cl-nv-maxrregcount=70 -Werror",
   #endif
   &pfn_notify, (void*) &(queue[0]->device));
 #endif
@@ -201,16 +202,29 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
     Severe( "Failed building program \"%s\" !", function);
   }
 
+  size_t size;
+  clGetProgramInfo(cpPrograms[i], CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &size,0);
+  unsigned char* binary = new unsigned char [size];
+  clGetProgramInfo(cpPrograms[i], CL_PROGRAM_BINARIES, sizeof(unsigned char)*size, &binary, 0);
+  FILE* f = fopen(function, "w");
+  fputs((const char*)binary, f);
+  fclose(f);
+  delete [] binary;
+ //cout << binary << endl;
+
   functions[i] =  function;
 }
 
 OpenCLTask::OpenCLTask(size_t kernel, cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
- const char* function, size_t szLWS, size_t szGWS){
+ const char* function, cl_uint dim, size_t* szLWS, size_t* szGWS){
   this->context = context;
   this->queue = queue;
   this->kernel = kernel;
-  szLocalWorkSize = szLWS;
-  szGlobalWorkSize = szGWS;
+  this->dim = dim;
+  for ( int i = 0; i < dim; i++){
+    szLocalWorkSize[i] = szLWS[i];
+    szGlobalWorkSize[i] = szGWS[i];
+  }
   persistent = createBuff = NULL;
 
   cl_int ciErrNum;
@@ -229,6 +243,8 @@ OpenCLTask::OpenCLTask(size_t kernel, cl_context & context, cl_command_queue & q
 
 void OpenCLTask::InitBuffers(size_t count){
   cmBuffers = new cl_mem[count];
+  width = new size_t[count];
+  height = new size_t[count];
   buffCount = count;
   persistent = new bool[count];
   createBuff = new bool[count];
@@ -242,6 +258,8 @@ void OpenCLTask::InitBuffers(size_t count){
 void OpenCLTask::CopyBuffer(size_t src, size_t dst, OpenCLTask* oclt){
   cmBuffers[dst] = oclt->cmBuffers[src];
   sizeBuff[dst] = oclt->sizeBuff[src];
+  width[dst] = oclt->width[src];
+  height[dst]= oclt->height[src];
   createBuff[dst] = false;
 
   cl_int ciErrNum = clSetKernelArg(ckKernel, dst, sizeof(cl_mem), (void*)(&(cmBuffers[dst])));
@@ -256,6 +274,8 @@ void OpenCLTask::CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, Op
   for ( size_t i = srcstart; i < srcend; i++){
     cmBuffers[j] = oclt->cmBuffers[i];
     sizeBuff[j] = oclt->sizeBuff[i];
+    width[j] = oclt->width[i];
+    height[j] = oclt->height[i];
     createBuff[j] = false;
 
     ciErrNum = clSetKernelArg(ckKernel, j, sizeof(cl_mem),  (void*)(&(cmBuffers[j])));
@@ -306,11 +326,41 @@ bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int ar
     Severe("clCreateBuffer failed at buffer number %d with error %d %s", i, ciErrNum, stringError(ciErrNum));
   }
   if ( argPos == -1 ) argPos = i;
-  ciErrNum = clSetKernelArg(ckKernel, argPos, sizeof(cl_mem), (void*)&cmBuffers[i]);
+  ciErrNum = clSetKernelArg(ckKernel, argPos, sizeof(cl_mem), &cmBuffers[i]);
   if (ciErrNum != CL_SUCCESS)
     Severe("failed setting %i parameter, error: %i %s", i, ciErrNum, stringError(ciErrNum));
 
   return true;
+}
+
+void OpenCLTask::CreateImage2D(size_t i, cl_mem_flags flags, const cl_image_format * imageFormat, size_t width,
+  size_t height, void* host_ptr, int argPos){
+  cl_int ciErrNum;
+  MutexLock lock(*globalmutex);
+  if (!createBuff[i]) return;
+  this->width[i] = width;
+  this->height[i] = height;
+  cmBuffers[i] = clCreateImage2D(context, flags, imageFormat, width, height, 0, host_ptr, &ciErrNum);
+  if (ciErrNum != CL_SUCCESS)
+    Severe("failed creating %i image2D, error: %i %s", i, ciErrNum, stringError(ciErrNum));
+  if ( argPos == -1 ) argPos = i;
+  ciErrNum = clSetKernelArg(ckKernel, argPos, sizeof(cl_mem), (void*)&cmBuffers[i]);
+  if (ciErrNum != CL_SUCCESS)
+    Severe("failed setting %i parameter, error: %i %s", i, ciErrNum, stringError(ciErrNum));
+}
+
+void OpenCLTask::CopyImage2D(size_t src, size_t dst, OpenCLTask* oclt){
+  cl_int ciErrNum;
+  size_t origin[3];
+  origin[0] = origin[1] = origin[2] = 0;
+  size_t region[3];
+  region[0] = oclt->width[src]; region[1] = oclt->height[src]; region[2] = 1;
+  width[dst] = oclt->width[src];
+  height[dst] = oclt->height[src];
+  MutexLock lock(*globalmutex);
+  ciErrNum = clEnqueueCopyImage(queue, oclt->cmBuffers[src], cmBuffers[dst], origin, origin, region, 0, 0, &writeEvents[writeENum++]);
+  if (ciErrNum != CL_SUCCESS)
+    Severe("failed copying image, error: %i %s\n", ciErrNum, stringError(ciErrNum));
 }
 
 bool OpenCLTask::CreateConstantBuffer( size_t i, size_t size, void* data){
@@ -338,7 +388,7 @@ bool OpenCLTask::CreateConstantBuffer( size_t i, size_t size, void* data){
 }
 
 
-bool OpenCLTask::SetIntArgument(const size_t & it, const cl_int & arg){
+void OpenCLTask::SetIntArgument(const size_t & it, const cl_int & arg){
   #ifdef DEBUG_OUTPUT
   cout << "set int argument " << it << endl;
   #endif
@@ -346,10 +396,8 @@ bool OpenCLTask::SetIntArgument(const size_t & it, const cl_int & arg){
   cl_int ciErrNum;
   ciErrNum = clSetKernelArg(ckKernel, it, sizeof(cl_int), (void*)&arg);
   if (ciErrNum != CL_SUCCESS){
-    cout << "Failed setting parameters " << ciErrNum << " " << stringError(ciErrNum) <<  endl;
-    return false;
+    Severe("Failed setting parameters %i %s\n", ciErrNum, stringError(ciErrNum));
   }
-  return true;
 }
 
 
@@ -409,6 +457,26 @@ bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data, size_t size){
   return true;
 }
 
+void OpenCLTask::EnqueueWrite2DImage( size_t it, void* data){
+  cl_int ciErrNum;
+  MutexLock lock(*globalmutex);
+  size_t origin[3];
+  origin[0] = origin[1] = origin[2] = 0;
+  size_t region[3];
+  region[0] = width[it]; region[1] = height[it]; region[2] = 1;
+  ciErrNum = clEnqueueWriteImage(queue, cmBuffers[it], CL_FALSE, origin, region,
+              0, 0, data, 0, NULL, &writeEvents[writeENum++]);
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed asynchronous data transfer at %i image buffer %i %s", it, ciErrNum, stringError(ciErrNum));
+
+  #ifdef GPU_TIMES
+  ciErrNum = clFinish(queue);
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
+  wmem_times += executionTime(writeEvents[writeENum - 1]);
+  #endif
+}
+
 bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
@@ -422,6 +490,26 @@ bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
   rmem_times += executionTime(readEvents[readENum - 1]);
   #endif
   return true;
+}
+
+void OpenCLTask::EnqueueRead2DImage( size_t it, void* data){
+  cl_int ciErrNum;
+  MutexLock lock(*globalmutex);
+  size_t origin[3];
+  origin[0] = origin[1] = origin[2] = 0;
+  size_t region[3];
+  region[0] = width[it]; region[1] = height[it]; region[2] = 1;
+  ciErrNum = clEnqueueReadImage(queue, cmBuffers[it], CL_FALSE, origin, region,
+              0, 0, data, 1, &kernelEvent, &readEvents[readENum++]);
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed asynchronous data transfer at %i image buffer %i %s", it, ciErrNum, stringError(ciErrNum));
+
+  #ifdef GPU_TIMES
+  ciErrNum = clFinish(queue);
+  if ( ciErrNum != CL_SUCCESS)
+    Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
+  rmem_times += executionTime(readEvents[readENum - 1]);
+  #endif
 }
 
 double executionTime(cl_event &event)
@@ -443,9 +531,9 @@ bool OpenCLTask::Run(){
     cl_int ciErrNum;
 
     if ( szLocalWorkSize == 0) //let OpenCL implementation to choose local work size
-    ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, 1, NULL, &szGlobalWorkSize, NULL, writeENum, (writeENum == 0)?0:writeEvents,  &kernelEvent);
+    ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, dim, NULL, szGlobalWorkSize, NULL, writeENum, (writeENum == 0)?0:writeEvents,  &kernelEvent);
     else
-    ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, 1, NULL, &szGlobalWorkSize, &szLocalWorkSize, writeENum, (writeENum == 0)?0:writeEvents,  &kernelEvent);
+    ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, dim, NULL, szGlobalWorkSize, szLocalWorkSize, writeENum, (writeENum == 0)?0:writeEvents,  &kernelEvent);
     //OpenCL implementace vybere velikost bloku
     //ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, 1, NULL, &szGlobalWorkSize, NULL, 0, NULL,  NULL);
     if ( ciErrNum != CL_SUCCESS)
@@ -496,6 +584,8 @@ OpenCLTask::~OpenCLTask(){
     for ( size_t i = 0; i < buffCount; i++){
        clReleaseMemObject(cmBuffers[i]);
     }
+    delete [] width;
+    delete [] height;
     if (cmBuffers) delete [] cmBuffers;
     if (createBuff) delete [] createBuff;
     if (persistent) delete [] persistent;

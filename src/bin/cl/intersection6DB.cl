@@ -1,5 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define EPS 0.000002f
 
 void intersectAllLeaves (const __global float* dir, const __global float* o,

@@ -29,12 +29,17 @@ double executionTime(cl_event &event);
 /**Class for holding OpenCL kernel and auxiliary variables**/
 class OpenCLTask {
     size_t kernel;
+    cl_uint dim;
     /// # of work-itmes in 1D work group
-    size_t szLocalWorkSize;
+    size_t szLocalWorkSize[3];
+    /// Total # of work items in the 1D range
+    size_t szGlobalWorkSize[3];
     /// OpenCL kernel
     cl_kernel ckKernel;
     /// array of memory buffers
     cl_mem* cmBuffers;
+    size_t* width;
+    size_t* height;
     /// total number of buffer count
     size_t buffCount;
     /// indicates which memory buffer should stay in the memory after this task is finished
@@ -54,10 +59,8 @@ class OpenCLTask {
     cl_event* readEvents;
     Mutex* globalmutex;
   public:
-    /// Total # of work items in the 1D range
-    size_t szGlobalWorkSize;
     OpenCLTask(size_t kernel,cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
-    const char* function, size_t szLWS, size_t szGWS);
+    const char* function, cl_uint dim, size_t* szLWS, size_t* szGWS);
     ~OpenCLTask();
     void InitBuffers(size_t count);
     bool CreateConstantBuffer( size_t i, size_t size, void* data);
@@ -68,6 +71,8 @@ class OpenCLTask {
     **/
     bool CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos = -1);
     bool CreateBuffers(size_t* size, cl_mem_flags* flags);
+    void CreateImage2D(size_t i, cl_mem_flags flags, const cl_image_format * imageFormat,
+                    size_t width, size_t height, void* host_ptr, int argPos = -1);
     void CopyBuffer(size_t src, size_t dst, OpenCLTask* oclt);
     void CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, OpenCLTask* oclt);
     int SetPersistentBuff( size_t i ) { return clRetainMemObject(cmBuffers[i]);}
@@ -78,10 +83,13 @@ class OpenCLTask {
       }
       return result;
     }
-    bool SetIntArgument(const size_t & it, const cl_int & arg);
+    void SetIntArgument(const size_t & it, const cl_int & arg);
     bool SetLocalArgument(const size_t & it, const size_t & size);
     bool EnqueueWriteBuffer(cl_mem_flags* flags,void** data);
     bool EnqueueWriteBuffer(size_t it, void* data, size_t size = 0);
+    void EnqueueRead2DImage( size_t it, void* data);
+    void EnqueueWrite2DImage( size_t it, void* data);
+    void CopyImage2D(size_t src, size_t dst, OpenCLTask* oclt);
     bool EnqueueReadBuffer(cl_mem_flags* flags,void** odata);
     bool EnqueueReadBuffer( size_t it, void* odata);
     bool Run();
@@ -119,7 +127,7 @@ class OpenCLQueue {
     /**Creation of OpenCL Task
     \see OpenCL:CreateTask() for detail description of parameters
     **/
-    size_t CreateTask(size_t kernel, cl_context & context, cl_program & program, const char* func, size_t szLWS, size_t szGWS){
+    size_t CreateTask(size_t kernel, cl_context & context, cl_program & program, const char* func, cl_uint dim, size_t* szLWS, size_t* szGWS){
       MutexLock lock(*globalmutex);
       if ( numtasks == maxtasks) {
         OpenCLTask** temp = new OpenCLTask*[2*maxtasks];
@@ -131,7 +139,7 @@ class OpenCLQueue {
        tasks = temp;
        maxtasks *= 2;
       }
-      tasks[numtasks++] = (new OpenCLTask(kernel, context, cmd_queue, globalmutex, program, func , szLWS, szGWS));
+      tasks[numtasks++] = (new OpenCLTask(kernel, context, cmd_queue, globalmutex, program, func , dim, szLWS, szGWS));
       return numtasks-1;
     }
     OpenCLTask* getTask(size_t i = 0){
@@ -277,12 +285,16 @@ class OpenCL {
     Creates new OpenCL Task which is simply a one kernel
     @param[in] kernel index to cpPrograms and functions which kernel to make
     @param[in] count total number of tasks
+    @param[in] dim dimension of NDrange
     @param[in] i index to command queues
     @param[in] szLWS number of work-itmes in a block
     @param[in] szGWS global number of work-items, should be multiple of szLWS
     **/
-    size_t CreateTask(size_t kernel, size_t count, size_t i = 0, size_t szLWS = 0, size_t szGWS = 0){
-        size_t task = queue[i]->CreateTask(kernel, cxContext, cpPrograms[kernel], functions[kernel], szLWS, shrRoundUp((int)szLWS, count));
+    size_t CreateTask(size_t kernel, size_t dim, size_t* szGWS = 0, size_t* szLWS = 0, size_t i = 0){
+        for ( int i = 0; i < dim; i++){
+          szGWS[i] = shrRoundUp((int)szLWS[i], szGWS[i]);
+        }
+        size_t task = queue[i]->CreateTask(kernel, cxContext, cpPrograms[kernel], functions[kernel], dim, szLWS, szGWS);
         Info("Created Task %d in queue %d.",task, i);
         return task;
     }

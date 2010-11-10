@@ -196,7 +196,9 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
 
     this->samplesPerPixel = samplesPerPixel;
     workerSem->Wait();
-    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , trianglePartCount, cmd, 64);
+    size_t gws = trianglePartCount;
+    size_t lws = 64;
+    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , 1, &gws , &lws, cmd);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(9);
 
@@ -243,16 +245,16 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
     gput->EnqueueWriteBuffer( 8, indexArray);
 
     for ( int i = 0; i < parts - 1; i ++){
-      Assert(gput->SetIntArgument(10,(cl_int)trianglePartCount));
-      Assert(gput->SetIntArgument(11, i*trianglePartCount));
+      gput->SetIntArgument(10,(cl_int)trianglePartCount);
+      gput->SetIntArgument(11, i*trianglePartCount);
       Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
       Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*i*trianglePartCount));
       ocl->Finish();
       if (!gput->Run())exit(EXIT_FAILURE);
       gput->WaitForKernel();
     }
-    Assert(gput->SetIntArgument(10, (cl_int)triangleLastPartCount));
-    Assert(gput->SetIntArgument(11, (parts-1)*trianglePartCount));
+    gput->SetIntArgument(10, (cl_int)triangleLastPartCount);
+    gput->SetIntArgument(11, (parts-1)*trianglePartCount);
     Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*(parts-1)*trianglePartCount, sizeof(cl_float)*6*triangleLastPartCount));
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount));
     if (!gput->Run())exit(EXIT_FAILURE);
@@ -362,7 +364,9 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
     }
 
     workerSem->Wait();
-    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, trianglePartCount, cmd, 64);
+    size_t gws = trianglePartCount;
+    size_t lws = 64;
+    size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, 1, &gws, &lws, cmd);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(5);
 
@@ -372,7 +376,7 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
     gput->CreateBuffer(3,sizeof(cl_float)*2*elem_counter, CL_MEM_READ_ONLY); //for ray bounds
     gput->CreateBuffer(4,sizeof(cl_uchar)*elem_counter, CL_MEM_READ_WRITE); //for Thit
 
-    if (!gput->SetIntArgument(5,(int&)elem_counter)) exit(EXIT_FAILURE);
+    gput->SetIntArgument(5,(int&)elem_counter);
 
     gput->EnqueueWriteBuffer( 1, rayDirArray);
     gput->EnqueueWriteBuffer( 2, rayOArray);
@@ -381,12 +385,12 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
 
     for ( int i = 0; i < parts - 1; i++){
       Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
-      Assert(gput->SetIntArgument(6,(cl_int)trianglePartCount));
+      gput->SetIntArgument(6,(cl_int)trianglePartCount);
       Assert(gput->Run());
       gput->WaitForKernel();
     }
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts - 1)*trianglePartCount,sizeof(cl_float)*3*3*triangleLastPartCount));
-    Assert(gput->SetIntArgument(6, (cl_int)triangleLastPartCount));
+    gput->SetIntArgument(6, (cl_int)triangleLastPartCount);
     Assert(gput->Run());
 
     gput->EnqueueReadBuffer( 4, occluded);

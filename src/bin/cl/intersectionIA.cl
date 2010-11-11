@@ -20,7 +20,7 @@ const unsigned int offsetGID
   for ( int i = 0; i < lheight; i++){
     for ( int j = 0; j < lwidth; j++) {
       #ifdef STAT_RAY_TRIANGLE
-      atom_add(stat_rayTriangle + rindex + i, 1);
+      atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
       #endif
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
@@ -234,7 +234,11 @@ __kernel void IntersectionR (
               //if it is a leaf node
               if ( tempOffsetX == 0) {
                 intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,
-                      tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID);
+                      tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID
+                      #ifdef STAT_RAY_TRIANGLE
+                      , stat_rayTriangle
+                      #endif
+                      );
               } else {
                 //store the children to the stack
                 stack[wbeginStack + SPindex] = tempWidth*2;

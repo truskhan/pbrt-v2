@@ -74,6 +74,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[3] = "cl/levelConstruct5D.cl";
     names[4] = "cl/yetAnotherIntersection5D.cl";
     names[6] = "cl/levelConstructP5D.cl";
+    names[7] = "cl/rayhconstructP5D.cl";
     cout << "accel nodes : 5D nodes with spheres" << endl;
     nodeSize = 9;
   }
@@ -84,6 +85,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[3] = "cl/levelConstruct5DB.cl";
     names[4] = "cl/yetAnotherIntersection5DB.cl";
     names[6] = "cl/levelConstructP5DB.cl";
+    names[7] = "cl/rayhconstructP5DB.cl";
     cout << "accel nodes : 5D nodes with boxes" << endl;
     nodeSize = 11;
   }
@@ -94,6 +96,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[3] = "cl/levelConstruct6DB.cl";
     names[4] = "cl/yetAnotherIntersection6DB.cl";
     names[6] = "cl/levelConstructP6DB.cl";
+    names[7] = "cl/rayhconstructP6DB.cl";
     cout << "accel nodes : 6D nodes with boxes" << endl;
     nodeSize = 13;
   }

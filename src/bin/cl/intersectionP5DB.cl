@@ -1,6 +1,60 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define EPS 0.000002f
+
+sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
+
+void intersectAllLeaves (
+  __read_only image2d_t dir, __read_only image2d_t o,
+const __global float* bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
+float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y
+#ifdef STAT_PRAY_TRIANGLE
+, __global int* stat_rayTriangle
+#endif
+ ){
+  float4 s1, s2, d, rayd, rayo;
+  float divisor, invDivisor, t, b1, b2;
+  // process all rays in the cone
+
+  //read the tile
+  for ( int i = 0; i < lheight; i++){
+    for ( int j = 0; j < lwidth; j++) {
+      rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
+      if ( rayd.w < 0 ) continue; //not a valid ray
+      rayd.w = 0;
+      rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
+
+      #ifdef STAT_PRAY_TRIANGLE
+      atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
+      #endif
+
+      s1 = cross(rayd, e2);
+      divisor = dot(s1, e1);
+      if ( divisor == 0.0f) continue; //degenarate triangle
+      invDivisor = 1.0f/ divisor;
+
+      // compute first barycentric coordinate
+      d = rayo - v1;
+      b1 = dot(d, s1) * invDivisor;
+      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+
+      // compute second barycentric coordinate
+      s2 = cross(d, e1);
+      b2 = dot(rayd, s2) * invDivisor;
+      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+
+      // Compute _t_ to intersection point
+      t = dot(e2, s2) * invDivisor;
+
+      if (t < bounds[2*(totalWidth*(y + i) + x + j)] || t > bounds[2*(totalWidth*(y + i) + x + j)+1]) continue;
+
+      tHit[totalWidth*(y + i) + x + j] = '1';
+    }
+  }
+
+
+}
 
 bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
@@ -9,11 +63,8 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
  float2 tmin, tmax;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ray = (omax - omin)/2;
- bmin -= ray;
- bmax += ray;
-
- ocenter = ray + omin;
+ ray = omax - omin;
+ ocenter = ray/2 + omin;
  ocenter.w = 0;
 
  ray = (float4)0;
@@ -70,33 +121,34 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 }
 
 __kernel void IntersectionP (
-const __global float* vertex, const __global float* dir, const __global float* o,
- const __global float* cones, const __global int* pointers, const __global float* bounds,
-__global char* tHit, __local int* stack, int size, int height,unsigned int threadsCount, unsigned int chunk
+  const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
+  __read_only image2d_t nodes, __read_only image2d_t validity,
+  const __global float* bounds, __global char* tHit,
+  __local int* stack,
+  int roffsetX, int xWidth, int yWidth,
+  const int lwidth, const int lheight,
+    int size,  int stackSize //, __write_only image2d_t kontrola
 #ifdef STAT_PRAY_TRIANGLE
- ,__global int* stat_rayTriangle
+ , __global int* stat_rayTriangle
 #endif
-)
-{
+) {
+    // find position in global and shared arrays
     int iGID = get_global_id(0);
     int iLID = get_local_id(0);
+
+    // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= size) return;
 
-    // process all geometry
+    // find geometry for the work-item
     float4 e1, e2;
 
     float4 v1, v2, v3;
     v1 = vload4(0, vertex + 9*iGID);
     v2 = vload4(0, vertex + 9*iGID + 3);
-    v3.x = v2.w;
-    v3.y = vertex[9*iGID + 7];
-    v3.z = vertex[9*iGID + 8];
+    v3 = vload4(0, vertex + 9*iGID + 6);
     v1.w = 0; v2.w = 0; v3.w = 0;
     e1 = v2 - v1;
     e2 = v3 - v1;
-
-    float4 s1, s2, d, rayd, rayo;
-    float divisor, invDivisor, t, b1, b2;
 
     //calculate bounding box
     float4 bmin, bmax;
@@ -106,109 +158,126 @@ __global char* tHit, __local int* stack, int size, int height,unsigned int threa
     bmax = max(v1,v2);
     bmax = max(bmax, v3);
 
-
-    //find number of elements in top level of the ray hieararchy
-    uint levelcount = threadsCount; //end of level0
-    uint num = 0;
-
-    for ( int i = 1; i <= height; i++){
-        num += levelcount;
-        levelcount = (levelcount+1)/2; //number of elements in level
-    }
-
     int SPindex = 0;
-    int wbeginStack = (2 + height*(height+1)/2)*iLID;
-    uint begin,rindex,temp;
-    int i = 0;
-    int2 child;
+    int wbeginStack = stackSize*iLID;
 
     //3D bounding box of the origin
-    float4 omin, omax;
+    float4 omin, omax, uv;
     //2D bounding box for uv
     float2 uvmin, uvmax;
+    int4 valid;
 
-    begin = 11*num;
-    for ( int j = 0; j < levelcount; j++){
-      // get node description
-      omin = vload4(0, cones + begin + 11*j);
-      omax = vload4(0, cones + begin + 11*j + 3);
-      uvmin = vload2(0, cones + begin + 11*j + 6);
-      uvmax = vload2(0, cones + begin + 11*j + 8);
-      child = vload2(0, pointers + (begin/11 + j)*2);
+    int tempOffsetX, tempWidth, tempHeight;
+    int tempX, tempY;
+    for ( int j = 0; j < yWidth; j++){
+      for ( int k = 0; k < xWidth; k++){
+        valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
+        if ( valid.x == 0) continue;
+        omax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          yWidth + j));
+        uv = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
+        omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          j));
 
-      // check if triangle intersects cone
-      if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
-      {
-        //store child to the stack
-        stack[wbeginStack + SPindex++] = child.x;
-        if ( child.y != -1)
-          stack[wbeginStack + SPindex++] = child.y;
+        uvmin.x = uv.x;
+        uvmin.y = uv.z;
+        uvmax.x = uv.y;
+        uvmax.y = uv.w;
 
-        while ( SPindex > 0 ){
-          //take the cones from the stack and check them
-          --SPindex;
-          i = stack[wbeginStack + SPindex];
-          omin = vload4(0, cones + i);
-          omax = vload4(0, cones + i + 3);
-          uvmin = vload2(0, cones + i + 6);
-          uvmax = vload2(0, cones + i + 8);
-          child = vload2(0, pointers + (i/11)*2);
+        // check if triangle intersects node
+        if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
+        {
+          //store all 4 children to the stack (one is enough, the other 3 are nearby)
+          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex + 1] = yWidth*2;
+          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
+          stack[wbeginStack + SPindex + 3] = 2*k;
+          stack[wbeginStack + SPindex + 4] = 2*j;
+          SPindex += 5;
 
-          if ( intersectsNode( omin, omax , uvmin, uvmax, bmin, bmax ))
-          {
-            //if the cones is at level 0 - check leaves
-            if ( child.x == -2){
-              rindex = (i/11)*chunk;
-              //rindex = computeRIndex(i,cones, pointers, count);
-              // process all rays in the cone
-              for ( int k = 0; k < child.y; k++){
-                #ifdef STAT_PRAY_TRIANGLE
-                atom_add(stat_rayTriangle + rindex + k, 1);
-                // ++stat_rayTriangle[rindex + k];
-                #endif
+          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex + 1] = yWidth*2;
+          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
+          stack[wbeginStack + SPindex + 3] = 2*k + 1;
+          stack[wbeginStack + SPindex + 4] = 2*j;
+          SPindex += 5;
 
-                rayd.x = dir[3*rindex + 3*k];
-                rayd.y = dir[3*rindex + 3*k + 1];
-                rayd.z = dir[3*rindex + 3*k + 2];
+          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex + 1] = yWidth*2;
+          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
+          stack[wbeginStack + SPindex + 3] = 2*k + 1;
+          stack[wbeginStack + SPindex + 4] = 2*j + 1;
+          SPindex += 5;
 
-                rayo.x = o[3*rindex + 3*k];
-                rayo.y = o[3*rindex + 3*k + 1];
-                rayo.z = o[3*rindex + 3*k + 2];
-                rayd.w = 0; rayo.w = 0;
+          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex + 1] = yWidth*2;
+          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
+          stack[wbeginStack + SPindex + 3] = 2*k;
+          stack[wbeginStack + SPindex + 4] = 2*j + 1;
+          SPindex += 5;
 
-                s1 = cross(rayd, e2);
-                divisor = dot(s1, e1);
-                if ( divisor == 0.0f) continue;
-                invDivisor = 1.0f/ divisor;
+          while ( SPindex > 0) {
+            SPindex -= 5;
+            tempWidth = stack[wbeginStack + SPindex];
+            tempHeight = stack[wbeginStack + SPindex + 1];
+            tempOffsetX = stack[wbeginStack + SPindex + 2];
+            tempX = stack[wbeginStack + SPindex + 3];
+            tempY = stack[wbeginStack + SPindex + 4];
 
-                // compute first barycentric coordinate
-                d = rayo - v1;
-                b1 = dot(d, s1) * invDivisor;
-                if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+            valid = read_imageui(validity, imageSampler, (int2)(tempOffsetX + tempX, tempY));
+            if ( valid.x == 0) continue;
+            omax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
+            uv = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
+            omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempY));
+            uvmin.x = uv.x;
+            uvmin.y = uv.z;
+            uvmax.x = uv.y;
+            uvmax.y = uv.w;
 
-                // compute second barycentric coordinate
-                s2 = cross(d, e1);
-                b2 = dot(rayd, s2) * invDivisor;
-                if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+            if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
+            {
+              //if it is a leaf node
+              if ( tempOffsetX == 0) {
+                intersectAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,
+                      tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight
+                      #ifdef STAT_PRAY_TRIANGLE
+                      , stat_rayTriangle
+                      #endif
+                      );
+              } else {
+                //store the children to the stack
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX;
+                stack[wbeginStack + SPindex + 4] = 2*tempY;
+                SPindex += 5;
 
-                // Compute _t_ to intersection point
-                t = dot(e2, s2) * invDivisor;
-                if (t < bounds[2*rindex + k*2] || t > bounds[2*rindex + k*2 +1]) continue;
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
+                stack[wbeginStack + SPindex + 4] = 2*tempY;
+                SPindex += 5;
 
-                tHit[rindex + k] = '1';
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
+                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
+                SPindex += 5;
+
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX;
+                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
+                SPindex += 5;
               }
+            }
 
-            }
-            else {
-              //save the intersected cone to the stack
-              stack[wbeginStack + SPindex++] = child.x;
-              if ( child.y != -1)
-                stack[wbeginStack + SPindex++] = child.y;
-            }
+
           }
         }
       }
-
     }
 
 }

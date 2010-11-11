@@ -1,63 +1,115 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
-__kernel void levelConstructP(__global float* cones, __global int* pointers, const int count,
-  const int threadsCount, const int level ){
-  int iGID = get_global_id(0);
+sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
-  int beginr = 0;
-  int beginw = 0;
-  int levelcount = threadsCount; //end of level0
-  int temp;
-  int help;
+//takes for nodes and merge them
+//offsetX and offsetY says where to begin with storing
+__kernel void levelConstructP(
+   __write_only image2d_t wnodes, __write_only image2d_t wvalidity,
+    __read_only image2d_t nodes, __read_only image2d_t validity,
+  int roffsetX, int woffsetX, int width, int height )
+{
 
-  for ( int i = 0; i < level; i++){
-      beginw += levelcount;
-      temp = levelcount;
-      levelcount = (levelcount+1)/2; //number of elements in level
-  }
-  beginr = beginw - temp;
+  int xGID = get_global_id(0);
+  int yGID = get_global_id(1);
 
-  if ( iGID >= levelcount ) return;
+  if ( xGID*2 >= width || yGID*2 >= height) return;
 
   float4 omin1, omax1, dmin1, dmax1;
   float4 omin2, omax2, dmin2, dmax2;
-  int2 child;
+  int4 valid1, valid2;
 
-  omin1 = vload4(0,cones + 13*beginr + 26*iGID);
-  omax1 = vload4(0,cones + 13*beginr + 26*iGID + 3);
-  dmin1 = vload4(0,cones + 13*beginr + 26*iGID + 6);
-  dmax1 = vload4(0,cones + 13*beginr + 26*iGID + 9);
-  child.x = 13*beginr + 26*iGID;
+  int posX, posY, offsetX, offsetY;
 
-  omin1.w = omax1.w = dmin1.w = 0;
-  child.y = -1;
+  valid1 = read_imagei(validity, imageSampler, (int2)(2*xGID + roffsetX,     2*yGID));
+  if ( valid1.x == 1){
+    dmax1 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX,          2*yGID + height));
+    omin1 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + width,  2*yGID + height));
+    dmin1 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX,          2*yGID ));
+    omax1.x = omin1.w;
+    omax1.y = dmax1.w;
+    omax1.z = dmin1.w;
+  }
 
-  if ( !(iGID == (levelcount - 1) && temp % 2 == 1) ) {
-    //posledni vlakno jen prekopiruje
-    omin2 = vload4(0,cones + 13*beginr + 26*iGID + 13);
-    omax2 = vload4(0,cones + 13*beginr + 26*iGID + 16);
-    dmin2 = vload4(0,cones + 13*beginr + 26*iGID + 19);
-    dmax2 = vload4(0,cones + 13*beginr + 26*iGID + 22);
-    child.y = 13*beginr + 26*iGID + 13;
-
-    omin2.w = omax2.w = dmin2.w = dmax2.w = 0;
-
-
+  valid2 = read_imagei(validity, imageSampler, (int2)(2*xGID + roffsetX,     2*yGID + 1));
+  if ( valid2.x == 1) {
+    dmax2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX,          2*yGID + height + 1));
+    omin2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + width,  2*yGID + height + 1));
+    dmin2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX,          2*yGID + 1));
+    omax2.x = omin2.w;
+    omax2.y = dmax2.w;
+    omax2.z = dmin2.w;
+  }
+  if ( valid1.x == 0 && valid2.x == 1){
+    omin1 = omin2;
+    omax1 = omax2;
+    dmin1 = dmin2;
+    dmax1 = dmax2;
+    valid1.x = 1; valid2.x = 0;
+  }
+  if ( valid1.x == 1 && valid2.x == 1){
     omin1 = min(omin1, omin2);
     omax1 = max(omax1, omax2);
     dmin1 = min(dmin1, dmin2);
     dmax1 = max(dmax1, dmax2);
-
   }
 
-  dmax1.w = 2*beginw + 2*iGID;
-  vstore4(omin1, 0, cones + 13*beginw + 13*iGID);
-  vstore4(omax1, 0, cones + 13*beginw + 13*iGID + 3);
-  vstore4(dmin1, 0, cones + 13*beginw + 13*iGID + 6);
-  //store index into pointers -  dmax1.w
-  vstore4(dmax1, 0, cones + 13*beginw + 13*iGID + 9);
-  //store pointers to children nodes
-  vstore2(child, 0, pointers + 2*beginw + 2*iGID);
+  valid2 = read_imagei(validity, imageSampler, (int2)(2*xGID + roffsetX + 1,     2*yGID ));
+  if ( valid2.x == 1) {
+    dmax2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + 1,         2*yGID + height ));
+    omin2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + width + 1, 2*yGID + height));
+    dmin2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + 1,         2*yGID ));
+    omax2.x = omin2.w;
+    omax2.y = dmax2.w;
+    omax2.z = dmin2.w;
+  }
 
+  if ( valid1.x == 0 && valid2.x == 1){
+    omin1 = omin2;
+    omax1 = omax2;
+    dmin1 = dmin2;
+    dmax1 = dmax2;
+    valid1.x = 1; valid2.x = 0;
+  }
+  if ( valid1.x == 1 && valid2.x == 1){
+    omin1 = min(omin1, omin2);
+    omax1 = max(omax1, omax2);
+    dmin1 = min(dmin1, dmin2);
+    dmax1 = max(dmax1, dmax2);
+  }
+
+  valid2 = read_imagei(validity, imageSampler, (int2)(2*xGID + roffsetX + 1,     2*yGID + 1));
+  if ( valid2.x == 1) {
+    dmax2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + 1,          2*yGID + height + 1));
+    omin2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + width + 1,  2*yGID + height + 1));
+    dmin2 = read_imagef(nodes, imageSampler, (int2)(2*xGID + roffsetX + 1,          2*yGID + 1));
+    omax2.x = omin2.w;
+    omax2.y = dmax2.w;
+    omax2.z = dmin2.w;
+  }
+  if ( valid1.x == 0 && valid2.x == 1){
+    omin1 = omin2;
+    omax1 = omax2;
+    dmin1 = dmin2;
+    dmax1 = dmax2;
+    valid1.x = 1; valid2.x = 0;
+  }
+  if ( valid1.x == 1 && valid2.x == 1){
+    omin1 = min(omin1, omin2);
+    omax1 = max(omax1, omax2);
+    dmin1 = min(dmin1, dmin2);
+    dmax1 = max(dmax1, dmax2);
+  }
+
+  write_imagei ( wvalidity, (int2)(woffsetX + xGID, yGID),valid1);
+  if ( valid1.x == 1){
+    omin1.w = omax1.x;
+    dmax1.w = omax1.y;
+    dmin1.w = omax1.z;
+
+    write_imagef(wnodes, (int2)(woffsetX + xGID,            yGID + height/2 ),dmax1);
+    write_imagef(wnodes, (int2)(woffsetX + xGID + width/2,  yGID + height/2 ),omin1);
+    write_imagef(wnodes, (int2)(woffsetX + xGID,            yGID),dmin1);
+  }
 }

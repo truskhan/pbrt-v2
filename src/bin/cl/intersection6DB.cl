@@ -162,8 +162,6 @@ __kernel void IntersectionR (
         omax.z = dmin.w;
         dmax.w = omin.w = dmin.w = omax.w = 0;
 
-       // write_imagef(kontrola, (int2)(roffsetX + k, j),omin);
-
         // check if triangle intersects node
         if ( intersectsNode(omin, omax, dmin, dmax, bmin, bmax) )
         {

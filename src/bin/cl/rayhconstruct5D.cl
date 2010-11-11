@@ -22,7 +22,7 @@ __kernel void rayhconstruct(__read_only image2d_t dir, __read_only image2d_t o,
   uvtemp = read_imagef(dir, imageSampler, (int2)(lwidth*xGID, lheight*yGID));
   center = read_imagef(o, imageSampler, (int2)(lwidth*xGID, lheight*yGID));
   //radius
-  center.w = 0;
+  radius = center.w = 0;
   uv.x = uv.y = (uvtemp.x == 0)? 0 : atan(uvtemp.y/uvtemp.x);
   uv.z = uv.w = acos(uvtemp.z);
 

@@ -1,6 +1,5 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define EPS 0.000002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
@@ -127,8 +126,8 @@ __kernel void IntersectionR (
         center1.w = 0;
 
         u.x = uv.x;
-        u.y = uv.y;
-        v.x = uv.z;
+        u.y = uv.z;
+        v.x = uv.y;
         v.y = uv.w;
 
         // check if triangle intersects node
@@ -178,8 +177,8 @@ __kernel void IntersectionR (
             center1.w = 0;
 
             u.x = uv.x;
-            u.y = uv.y;
-            v.x = uv.z;
+            u.y = uv.z;
+            v.x = uv.y;
             v.y = uv.w;
 
             if ( intersectsNode(center1, u, v, center, radius1) )

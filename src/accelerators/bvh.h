@@ -61,7 +61,7 @@ private:
     SplitMethod splitMethod;
     vector<Reference<Primitive> > primitives;
     LinearBVHNode *nodes;
-    friend class RayBVHHieararchy;
+    friend class RayBVH;
 };
 
 

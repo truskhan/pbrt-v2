@@ -7,7 +7,7 @@ sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-const __global float* bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
+  __read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y,
 const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
@@ -45,7 +45,8 @@ const unsigned int offsetGID
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
 
-      if (t < bounds[2*(totalWidth*(y + i) + x + j)]) continue;
+      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (t < s1.x  ) continue;
 
       if (t > tHit[totalWidth*(y + i) + x + j]) continue;
         tHit[totalWidth*(y + i) + x + j] = t;
@@ -120,7 +121,7 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 
 __kernel void IntersectionR (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t nodes, const __global float* bounds, __global float* tHit,
+  __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
   __global int* index,  __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,

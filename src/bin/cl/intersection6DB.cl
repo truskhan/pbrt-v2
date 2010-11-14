@@ -1,20 +1,20 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 //#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-const __global float* bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
+__read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y,
 const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
  ){
-  float4 s1, s2, d, rayd, rayo;
+  float4 s1, s2, rayd, rayo;
   float divisor, invDivisor, t, b1, b2;
   // process all rays in the cone
 
@@ -33,19 +33,20 @@ const unsigned int offsetGID
       invDivisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
-      d = rayo - v1;
-      b1 = dot(d, s1) * invDivisor;
+      s2 = rayo - v1;
+      b1 = dot(s2, s1) * invDivisor;
       if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
 
       // compute second barycentric coordinate
-      s2 = cross(d, e1);
+      s2 = cross(s2, e1);
       b2 = dot(rayd, s2) * invDivisor;
       if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
 
-      if (t < bounds[2*(totalWidth*(y + i) + x + j)]) continue;
+      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (t < s1.x ) continue;
 
       if (t > tHit[totalWidth*(y + i) + x + j]) continue;
         tHit[totalWidth*(y + i) + x + j] = t;
@@ -103,16 +104,13 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = max(tmin, uvmin);
  tmax = min(tmax, uvmax);
 
- if ( tmin.x < tmax.x && tmin.y < tmax.y && tmin.z < tmax.z )
-   return true;
-
-  return false;
+ return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && tmin.z < (tmax.z + EPS) );
 }
 
 __kernel void IntersectionR (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t nodes, const __global float* bounds, __global float* tHit,
-  __global int* index,  __local int* stack,
+  __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
+  __global int* index,  __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size, unsigned int offsetGID, int stackSize //, __write_only image2d_t kontrola
@@ -122,7 +120,6 @@ __kernel void IntersectionR (
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
-    int iLID = get_local_id(0);
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= size) return;
@@ -148,7 +145,7 @@ __kernel void IntersectionR (
     float4 omin, omax, dmin, dmax;
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iLID;
+    int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;

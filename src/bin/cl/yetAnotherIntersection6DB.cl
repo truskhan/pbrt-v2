@@ -1,12 +1,12 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-const __global float* bounds, __global int* index, __global float* tHit, __global int* changed,
+__read_only image2d_t bounds, __global int* index, __global float* tHit, __global int* changed,
 float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, const int totalWidth, const int lheight,
 const int lwidth, const int x, const int y, const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
@@ -44,7 +44,8 @@ const int lwidth, const int x, const int y, const unsigned int offsetGID
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
 
-      if (t < bounds[2*(totalWidth*(y + i) + x + j)]) continue;
+      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (t < s1.x ) continue;
 
       if ( t > tHit[totalWidth*(y + i) + x + j]
         || index[totalWidth*(y + i) + x + j] == (get_global_id(0)+ offsetGID)) continue;
@@ -105,16 +106,13 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = max(tmin, uvmin);
  tmax = min(tmax, uvmax);
 
- if ( tmin.x < tmax.x && tmin.y < tmax.y && tmin.z < tmax.z )
-   return true;
-
-  return false;
+ return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y+EPS) && tmin.z < (tmax.z+EPS) );
 }
 
 __kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t nodes, const __global float* bounds, __global float* tHit,
-  __global int* index, __global int* changed, __local int* stack,
+  __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
+  __global int* index, __global int* changed, __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size, unsigned int offsetGID, int stackSize //, __write_only image2d_t kontrola
@@ -150,7 +148,7 @@ __kernel void YetAnotherIntersection (
     float4 omin, omax, dmin, dmax;
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iLID;
+    int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;

@@ -75,7 +75,7 @@ __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t validity,
   const __global float* bounds, __global char* tHit,
-  __local int* stack,
+  __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size,  int stackSize //, __write_only image2d_t kontrola
@@ -111,7 +111,7 @@ __kernel void IntersectionP (
     radius = length(v1-center);
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iLID;
+    int wbeginStack = stackSize*iGID;
 
     float4 center1, uv;
     float radius1;

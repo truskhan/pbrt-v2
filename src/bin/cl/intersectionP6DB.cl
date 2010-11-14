@@ -1,12 +1,12 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-const __global float* bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
+__read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y
 #ifdef STAT_PRAY_TRIANGLE
 , __global int* stat_rayTriangle
@@ -45,8 +45,8 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
-
-      if (t < bounds[2*(totalWidth*(y + i) + x + j)] || t > bounds[2*(totalWidth*(y + i) + x + j)+1]) continue;
+      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (t < s1.x || t > s1.y) continue;
 
       tHit[totalWidth*(y + i) + x + j] = '1';
     }
@@ -104,17 +104,14 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = max(tmin, uvmin);
  tmax = min(tmax, uvmax);
 
- if ( tmin.x < tmax.x + EPS && tmin.y < tmax.y + EPS && tmin.z < tmax.z + EPS)
-   return true;
-
-  return false;
+ return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && (tmin.z < tmax.z + EPS));
 }
 
 __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t validity,
-  const __global float* bounds, __global char* tHit,
-  __local int* stack,
+  __read_only image2d_t bounds, __global char* tHit,
+  __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size,  int stackSize //, __write_only image2d_t kontrola
@@ -124,7 +121,6 @@ __kernel void IntersectionP (
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
-    int iLID = get_local_id(0);
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= size) return;
@@ -151,7 +147,7 @@ __kernel void IntersectionP (
     int4 valid;
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iLID;
+    int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;
@@ -166,8 +162,6 @@ __kernel void IntersectionP (
         omax.y = dmax.w;
         omax.z = dmin.w;
         dmax.w = omin.w = dmin.w = omax.w = 0;
-
-       // write_imagef(kontrola, (int2)(roffsetX + k, j),omin);
 
         // check if triangle intersects node
         if ( intersectsNode(omin, omax, dmin, dmax, bmin, bmax) )

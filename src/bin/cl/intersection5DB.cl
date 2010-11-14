@@ -121,7 +121,7 @@ bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4
 __kernel void IntersectionR (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, const __global float* bounds, __global float* tHit,
-  __global int* index,  __local int* stack,
+  __global int* index,  __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size, unsigned int offsetGID, int stackSize //, __write_only image2d_t kontrola
@@ -159,7 +159,7 @@ __kernel void IntersectionR (
     bmax = max(bmax, v3);
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iLID;
+    int wbeginStack = stackSize*iGID;
 
     //3D bounding box of the origin
     float4 omin, omax, uv;

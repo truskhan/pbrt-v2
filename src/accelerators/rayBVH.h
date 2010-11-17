@@ -13,7 +13,8 @@ class RayBVH : public Aggregate {
 public:
     // RayBVH Public Methods
     BBox WorldBound() const;
-    RayBVH(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node
+    RayBVH(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, int BVHheight, string node,
+        int MaxBVHPrim
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
@@ -56,6 +57,8 @@ private:
     cl_float* vertices; cl_float* uvs;
     bool onGPU;
     cl_uint height;
+    cl_uint BVHheight;
+    cl_uint maxBVHPrim;
     cl_uint chunk;
     OpenCL* ocl; //pointer to OpenCL auxiliary functions
     size_t cmd; //index to command queue

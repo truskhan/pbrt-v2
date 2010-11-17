@@ -1,4 +1,5 @@
 #include "accelerators/rayBVH.h"
+#include "accelerators/bvh.h"
 #include "core/probes.h"
 #include "core/camera.h"
 #include "core/film.h"
@@ -25,14 +26,16 @@ using namespace std;
 
 
 // RayBVH Method Definitions
-RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height,
-  string node
+RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height, int BVHheight,
+  string node, int maxBVHPrim
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
   ) {
     this->chunk = chunk;
     this->height = height;
+    this->BVHheight = BVHheight;
+    this->maxBVHPrim = maxBVHPrim;
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     this->scale = scale;
     #endif
@@ -47,18 +50,9 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     char** file = new char*[KERNEL_COUNT];
 
   nodeSize = 0;
-  if ( node == "cone"){
-    names[0] = "cl/intersectionR.cl";
-    names[1] = "cl/intersectionP.cl";
-    names[2] = "cl/rayhconstruct.cl";
-    names[3] = "cl/levelConstruct.cl";
-    names[4] = "cl/yetAnotherIntersection.cl";
-    cout << "accel nodes : cones" << endl;
-    nodeSize = 8;
-  }
   if ( node == "ia"){
     names[0] = "cl/intersectionIA.cl";
-    names[1] = "cl/intersectionPIA.cl";
+    names[1] = "cl/intersectionPIA_BVH.cl";
     names[2] = "cl/rayhconstructIA.cl";
     names[3] = "cl/levelConstructIA.cl";
     names[4] = "cl/yetAnotherIntersectionIA.cl";
@@ -132,7 +126,7 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     delete [] names;
     delete [] file;
 
-    bvh = new BVHAccel(p, 32, "sah");
+    bvh = new BVHAccel(p, maxBVHPrim, "equal", true, BVHheight);
 
     //store vertices and uvs in linear order
     vertices = new cl_float[3*3*bvh->primitives.size()];
@@ -206,6 +200,7 @@ RayBVH::~RayBVH() {
   delete ocl;
   delete [] vertices;
   delete [] uvs;
+  delete bvh;
   delete workerSemaphore;
 }
 
@@ -291,7 +286,7 @@ unsigned int RayBVH::MaxRaysPerCall(){
     //pointers to children
     int total = threadsCount*0.5f*(1.0f - 1/pow(2,height));
     //vertices
-    #define MAX_VERTICES 40000
+    #define MAX_VERTICES 90000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -312,16 +307,16 @@ unsigned int RayBVH::MaxRaysPerCall(){
              );
 
     //local mem - stack:
-    cl_ulong lms = ocl->getLocalMemSize();
-    cl_ulong localSize = sizeof(cl_int)*(2 + (height+1)*(height+2)/2)*worgGroupSize;
-    if ( lms < localSize){
-      Severe("Need local memory size at least %i Bytes, present %i B. Try to decrease hierarchy's height.", localSize, lms);
-    }
+   // cl_ulong lms = ocl->getLocalMemSize();
+   // cl_ulong localSize = sizeof(cl_int)*(2 + (height+1)*(height+2)/2)*worgGroupSize;
+    //if ( lms < localSize){
+    //  Severe("Need local memory size at least %i Bytes, present %i B. Try to decrease hierarchy's height.", localSize, lms);
+    //}
 
 
     cout << "Global memory size on OpenCL device (in B): " << gms << endl;
     cout << "Maximum memory allocation size at once: " << ocl->getMaxMemAllocSize() << endl;
-    cout << "Local memory size on OpenCL device: " << ocl->getLocalMemSize() << " needed: " << localSize << endl;
+    cout << "Local memory size on OpenCL device: " << ocl->getLocalMemSize() << endl;
     cout << "Constant memory size: " << ocl->getMaxConstantBufferSize() << endl;
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
 
@@ -769,7 +764,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
 
     size_t tn4 = ocl->CreateTask(KERNEL_YETANOTHERINTERSECTION, 1, &gws, &lws, cmd);
     OpenCLTask* anotherIntersect = ocl->getTask(tn4, cmd);
-    anotherIntersect->InitBuffers(10);
+    anotherIntersect->InitBuffers(9);
     anotherIntersect->CopyBuffers(0,7,0,gput);
     ocl->delTask(tn2,cmd);
     Assert(anotherIntersect->CreateBuffer(7,sizeof(cl_uint)*trianglePartCount, CL_MEM_WRITE_ONLY)); //recording changes
@@ -810,7 +805,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gpuRayO->InitBuffers(7);
     gpuRayO->CopyBuffers(0,3,0,anotherIntersect); // 0 vertex, 1 dir, 2 origin
     gpuRayO->CopyBuffer(6,3,anotherIntersect); // 3 index
-    ocl->delTask(tn2,cmd);
+    ocl->delTask(tn4,cmd);
     Assert(gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*trianglePartCount, CL_MEM_READ_ONLY )); //uvs
     Assert(gpuRayO->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY )); // tu,tv
     Assert(gpuRayO->CreateBuffer(6,sizeof(cl_float)*6*count, CL_MEM_WRITE_ONLY )); //dpdu, dpdv
@@ -961,20 +956,20 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   size_t tn1 = ConstructRayHierarchyP(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
   OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
 
-  size_t gws = trianglePartCount;
+  size_t gws = bvh->topLevelNodes;
   size_t lws = 64;
   size_t tn2 = ocl->CreateTask (KERNEL_INTERSECTIONP, 1, &gws, &lws, cmd);
   OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
-  unsigned int c = 8;
+  unsigned int c = 10;
   #ifdef STAT_PRAY_TRIANGLE
-   c = 9;
+   c = 11;
   #endif
   gput->InitBuffers(c);
 
   gput->CopyBuffer(0,1,gpuray); //ray dir
   gput->CopyBuffer(1,2,gpuray); //ray o
-  gput->CopyBuffer(2,3,gpuray); //nodes
+  gput->CopyBuffer(2,3,gpuray); //ray-hierarchy nodes
   gput->CopyBuffer(3,4,gpuray); //ray validity
   ocl->delTask(tn1,cmd);
 
@@ -982,41 +977,46 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   imageFormatBounds.image_channel_data_type = CL_FLOAT;
   imageFormatBounds.image_channel_order = CL_RG;
 
+  cout << "BVH top level nodes " << bvh->topLevelNodes << " height " << BVHheight <<  endl;
   Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY )); //vertices
-  //Assert(gput->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_READ_ONLY)); //ray bounds
-  gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0);
+  gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //bounds
   Assert(gput->CreateBuffer(6,sizeof(cl_char)*count, CL_MEM_WRITE_ONLY)); //tHit
   #ifdef STAT_PRAY_TRIANGLE
-   Assert(gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 15));
+   Assert(gput->CreateBuffer(11,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 21));
   #endif
-  Assert(gput->CreateBuffer(7,sizeof(cl_int)*trianglePartCount*5*(4+5*height), CL_MEM_READ_WRITE));
-  //Assert(gput->SetLocalArgument(7,sizeof(cl_int)*(64*5*(4 + 3*(height-1)))));
-  gput->SetIntArgument(8, roffsetX);
-  gput->SetIntArgument(9, xWidth);
-  gput->SetIntArgument(10, yWidth);
-  gput->SetIntArgument(11,a);
-  gput->SetIntArgument(12,b);
-  gput->SetIntArgument(13, trianglePartCount);
-  gput->SetIntArgument(14, 5*(4+5*height)); //stack size
+  Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE)); //stack for ray-hiearchy
+  Assert(gput->CreateBuffer(8,sizeof(cl_uint)*gws*(2+3*(BVHheight+1)), CL_MEM_READ_WRITE)); //stack for bvh
+  Assert(gput->CreateBuffer(9,sizeof(GPUNode)*(bvh->nodeNum), CL_MEM_READ_ONLY)); //BVH nodes
+  gput->SetIntArgument(10, roffsetX);
+  gput->SetIntArgument(11, xWidth);
+  gput->SetIntArgument(12, yWidth);
+  gput->SetIntArgument(13,a);
+  gput->SetIntArgument(14,b);
+  gput->SetIntArgument(17, 5*(4+5*height)); //ray-hierarchy's stack size
+  gput->SetIntArgument(18, (2+3*(BVHheight+1))); //bvh's stack size
+  gput->SetIntArgument(19, bvh->topLevelNodes);
 
-  //if (!gput->EnqueueWriteBuffer( 5, rayBoundsArray ))exit(EXIT_FAILURE);
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   if (!gput->EnqueueWriteBuffer( 6, occluded ))exit(EXIT_FAILURE);
+  Assert(gput->EnqueueWriteBuffer(9, bvh->gpuNodes));
   #ifdef STAT_PRAY_TRIANGLE
-    Assert(gput->EnqueueWriteBuffer( 8, picture));
+    Assert(gput->EnqueueWriteBuffer( 11, picture));
   #endif
   for ( int i = 0; i < parts - 1; i++){
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
+    gput->SetIntArgument(15, i*trianglePartCount); //lower triangle bound
+    gput->SetIntArgument(16, (i+1)*trianglePartCount); //upper triangle bound
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
   }
+  gput->SetIntArgument(15, (parts-1)*trianglePartCount);
+  gput->SetIntArgument(16, triangleCount);
   Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount));
-  gput->SetIntArgument(13,(cl_int)triangleLastPartCount);
   if (!gput->Run())exit(EXIT_FAILURE);
 
   if (!gput->EnqueueReadBuffer( 6, occluded ))exit(EXIT_FAILURE);
   #ifdef STAT_PRAY_TRIANGLE
-    Assert(gput->EnqueueReadBuffer( 8, picture));
+    Assert(gput->EnqueueReadBuffer( 11, picture));
   #endif
 
   gput->WaitForRead();
@@ -1060,11 +1060,13 @@ RayBVH *CreateRayBVH(const vector<Reference<Primitive> > &prims,
     bool onGPU = ps.FindOneBool("onGPU",true);
     int chunk = ps.FindOneInt("chunkSize",20);
     int height = ps.FindOneInt("height",3);
+    int BVHheight = ps.FindOneInt("BVHheight",3);
+    int maxBVHPrim = ps.FindOneInt("maxBVHPrim",1);
     string node = ps.FindOneString("node", "sphere_uv");
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale = ps.FindOneInt("scale",50);
     #endif
-    return new RayBVH(prims,onGPU,chunk,height,node
+    return new RayBVH(prims,onGPU,chunk,height, BVHheight, node, maxBVHPrim
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , scale
     #endif

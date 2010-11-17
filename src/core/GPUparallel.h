@@ -117,13 +117,7 @@ class OpenCLQueue {
    param[in] context needs for all OpenCL API calls
    **/
     OpenCLQueue( cl_context & context);
-    ~OpenCLQueue(){
-      for ( size_t i = 0; i < numtasks; i++){
-        if ( tasks[i] != NULL) delete tasks[i];
-      }
-      if ( tasks != NULL) delete [] tasks;
-      clReleaseCommandQueue(cmd_queue);
-    }
+    ~OpenCLQueue();
     /**Creation of OpenCL Task
     \see OpenCL:CreateTask() for detail description of parameters
     **/
@@ -226,18 +220,7 @@ class OpenCL {
     /**
     Release consumpted sources (clPrograms, queues, context)
     **/
-    ~OpenCL(){
-      for ( size_t i = 0; i < numKernels; i++)
-        if (cpPrograms[i]) clReleaseProgram(cpPrograms[i]);
-      delete [] cpPrograms;
-      delete [] functions;
-      for ( size_t i = 0; i < numqueues; i++)
-        delete queue[i];
-      delete [] queue;
-      clReleaseContext(cxContext);
-      Info("Released OpenCL context");
-      Mutex::Destroy(mutex);
-    }
+    ~OpenCL();
     /** Compiles program from give file and function name, if it is unsuccesfull, it aborts the entire program
     @param[in] file name of the file with OpenCL source code
     @param[in] function name of the desired OpenCL function to compile and run

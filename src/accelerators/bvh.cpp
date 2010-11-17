@@ -27,6 +27,8 @@
 #include "accelerators/bvh.h"
 #include "probes.h"
 #include "paramset.h"
+#include <iostream>
+using namespace std;
 
 // BVHAccel Local Declarations
 struct BVHPrimitiveInfo {
@@ -60,7 +62,6 @@ struct BVHBuildNode {
     BVHBuildNode *children[2];
     uint32_t splitAxis, firstPrimOffset, nPrimitives;
 };
-
 
 struct CompareToMid {
     CompareToMid(int d, float m) { dim = d; mid = m; }
@@ -139,11 +140,70 @@ static inline bool IntersectP(const BBox &bounds, const Ray &ray,
     return (tmin < ray.maxt) && (tmax > ray.mint);
 }
 
+struct TempGPUNode {
+  BVHBuildNode* ptr;
+  unsigned int level;
+  unsigned int childA;
+  unsigned int childB;
+  void init(BVHBuildNode* p, unsigned int l){
+    ptr = p; level = l;
+  }
+};
 
+void BVHAccel::GPUbufferWide(BVHBuildNode *root, uint32_t totalNodes, const uint32_t height){
+    TempGPUNode* array = new TempGPUNode[totalNodes];
+    array[0].init(root,0);
+    uint32_t write = 1;
+    int totalHeight;
+    uint32_t count = 0;
+
+    worldBound = root->bounds;
+
+    for ( int i = 0; i < totalNodes; i++){
+      //if it is leaf node
+      if ( array[i].ptr->nPrimitives > 0 ) continue;
+      //inner node - store it's children
+      array[write].init(array[i].ptr->children[0], array[i].level + 1);
+      array[write + 1].init(array[i].ptr->children[1], array[i].level + 1);
+      array[i].childA = write;
+      totalHeight = array[i].level+1;
+      write += 2;
+    }
+    //how many levels we have to skip
+    totalHeight = max(totalHeight-(int)height, 0);
+    cout << "skipping first " << totalHeight << " BVH levels" << endl;
+    topLevelNodes = nodeNum = 0;
+    uint32_t skippedNodes = 0;
+    for ( int i = 0; i < totalNodes; i++){
+      if ( array[i].level < totalHeight && !(array[i].ptr->nPrimitives)) {
+        ++skippedNodes;
+        continue;
+      }
+      count += array[i].ptr->nPrimitives;
+      if ( array[i].level <= totalHeight)
+        ++topLevelNodes;
+      gpuNodes[nodeNum].ax = array[i].ptr->bounds.pMin.x;
+      gpuNodes[nodeNum].ay = array[i].ptr->bounds.pMin.y;
+      gpuNodes[nodeNum].az = array[i].ptr->bounds.pMin.z;
+      gpuNodes[nodeNum].bx = array[i].ptr->bounds.pMax.x;
+      gpuNodes[nodeNum].by = array[i].ptr->bounds.pMax.y;
+      gpuNodes[nodeNum].bz = array[i].ptr->bounds.pMax.z;
+      gpuNodes[nodeNum].nPrimitives = array[i].ptr->nPrimitives;
+      if ( gpuNodes[nodeNum].nPrimitives)
+        gpuNodes[nodeNum].primOffset = array[i].ptr->firstPrimOffset;
+      else
+        gpuNodes[nodeNum].primOffset = array[i].childA - skippedNodes;
+
+      ++nodeNum;
+    }
+    cout << "total prims " << count << endl;
+    delete [] array;
+
+}
 
 // BVHAccel Method Definitions
 BVHAccel::BVHAccel(const vector<Reference<Primitive> > &p,
-                   uint32_t mp, const string &sm) {
+                   uint32_t mp, const string &sm, bool gpu, uint32_t height) {
     maxPrimsInNode = min(255u, mp);
     for (uint32_t i = 0; i < p.size(); ++i)
         p[i]->FullyRefine(primitives);
@@ -182,20 +242,44 @@ BVHAccel::BVHAccel(const vector<Reference<Primitive> > &p,
     primitives.swap(orderedPrims);
         Info("BVH created with %d nodes for %d primitives (%.2f MB)", totalNodes,
              (int)primitives.size(), float(totalNodes * sizeof(LinearBVHNode))/(1024.f*1024.f));
-
-    // Compute representation of depth-first traversal of BVH tree
-    nodes = AllocAligned<LinearBVHNode>(totalNodes);
-    for (uint32_t i = 0; i < totalNodes; ++i)
-        new (&nodes[i]) LinearBVHNode;
-    uint32_t offset = 0;
-    flattenBVHTree(root, &offset);
-    Assert(offset == totalNodes);
+    nodes = NULL;
+    gpuNodes = NULL;
+    if ( gpu ){
+      gpuNodes = new GPUNode[totalNodes];
+      //start saving from height
+      GPUbufferWide(root, totalNodes, height);
+      //GPUbuffer(root, &offset, height, 6, &count);
+      /*for ( uint32_t i = 0; i < nodeNum; ++i){
+        cout << "[" << gpuNodes[i].ax << ' '
+                    << gpuNodes[i].ay << ' '
+                    << gpuNodes[i].az << ", "
+                    << gpuNodes[i].bx << ' '
+                    << gpuNodes[i].by << ' '
+                    << gpuNodes[i].bz << "]";
+        if ( gpuNodes[i].nPrimitives == 0) { //child node
+          cout << " childA " << gpuNodes[i].primOffset << " nPrimi " << gpuNodes[i].nPrimitives ;
+        } else {
+          cout << " nPrim " << gpuNodes[i].nPrimitives << " offset " << gpuNodes[i].primOffset;
+        }
+        cout << endl;
+      }
+      abort();*/
+    }
+    else {
+      // Compute representation of depth-first traversal of BVH tree
+      nodes = AllocAligned<LinearBVHNode>(totalNodes);
+      for (uint32_t i = 0; i < totalNodes; ++i)
+          new (&nodes[i]) LinearBVHNode;
+      uint32_t offset = 0;
+      flattenBVHTree(root, &offset);
+      Assert(offset == totalNodes);
+    }
     PBRT_BVH_FINISHED_CONSTRUCTION(this);
 }
 
 
 BBox BVHAccel::WorldBound() const {
-    return nodes ? nodes[0].bounds : BBox();
+    return worldBound; //nodes ? nodes[0].bounds : BBox();
 }
 
 
@@ -322,7 +406,7 @@ BVHBuildNode *BVHAccel::recursiveBuild(MemoryArena &buildArena,
                         CompareToBucket(minCostSplit, nBuckets, dim, centroidBounds));
                     mid = pmid - &buildData[0];
                 }
-                
+
                 else {
                     // Create leaf _BVHBuildNode_
                     uint32_t firstPrimOffset = orderedPrims.size();
@@ -368,7 +452,8 @@ uint32_t BVHAccel::flattenBVHTree(BVHBuildNode *node, uint32_t *offset) {
 
 
 BVHAccel::~BVHAccel() {
-    FreeAligned(nodes);
+    if (nodes) FreeAligned(nodes);
+    if (gpuNodes) delete [] gpuNodes;
 }
 
 

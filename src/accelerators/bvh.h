@@ -31,9 +31,11 @@
 // accelerators/bvh.h*
 #include "pbrt.h"
 #include "primitive.h"
+#include <CL/cl.h>
 struct BVHBuildNode;
 
 // BVHAccel Forward Declarations
+struct GPUNode;
 struct BVHPrimitiveInfo;
 struct LinearBVHNode;
 
@@ -42,13 +44,14 @@ class BVHAccel : public Aggregate {
 public:
     // BVHAccel Public Methods
     BVHAccel(const vector<Reference<Primitive> > &p, uint32_t maxPrims = 1,
-             const string &sm = "sah");
+             const string &sm = "sah", bool gpu = false, uint32_t height = 0);
     BBox WorldBound() const;
     bool CanIntersect() const { return true; }
     ~BVHAccel();
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
 private:
+    void GPUbufferWide(BVHBuildNode *root, uint32_t totalNodes, uint32_t height);
     // BVHAccel Private Methods
     BVHBuildNode *recursiveBuild(MemoryArena &buildArena,
         vector<BVHPrimitiveInfo> &buildData, uint32_t start, uint32_t end,
@@ -61,7 +64,17 @@ private:
     SplitMethod splitMethod;
     vector<Reference<Primitive> > primitives;
     LinearBVHNode *nodes;
+    BBox worldBound;
+    GPUNode* gpuNodes;
+    uint32_t topLevelNodes;
+    uint32_t nodeNum;
     friend class RayBVH;
+};
+
+struct GPUNode {
+  cl_float ax, ay, az, bx, by, bz;
+  cl_uint primOffset; //prim offset or child B
+  cl_uint nPrimitives;
 };
 
 

@@ -775,7 +775,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     size_t tn4 = ocl->CreateTask(KERNEL_YETANOTHERINTERSECTION, 1, &gws, &lws, cmd);
     OpenCLTask* anotherIntersect = ocl->getTask(tn4, cmd);
-    anotherIntersect->InitBuffers(10);
+    anotherIntersect->InitBuffers(9);
     anotherIntersect->CopyBuffers(0,7,0,gput);
     ocl->delTask(tn2,cmd);
     Assert(anotherIntersect->CreateBuffer(7,sizeof(cl_uint)*trianglePartCount, CL_MEM_WRITE_ONLY)); //recording changes
@@ -816,7 +816,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gpuRayO->InitBuffers(7);
     gpuRayO->CopyBuffers(0,3,0,anotherIntersect); // 0 vertex, 1 dir, 2 origin
     gpuRayO->CopyBuffer(6,3,anotherIntersect); // 3 index
-    ocl->delTask(tn2,cmd);
+    ocl->delTask(tn4,cmd);
     Assert(gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*trianglePartCount, CL_MEM_READ_ONLY )); //uvs
     Assert(gpuRayO->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY )); // tu,tv
     Assert(gpuRayO->CreateBuffer(6,sizeof(cl_float)*6*count, CL_MEM_WRITE_ONLY )); //dpdu, dpdv

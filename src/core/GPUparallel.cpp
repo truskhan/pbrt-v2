@@ -9,6 +9,19 @@ double wmem_times;
 double rmem_times;
 #endif
 
+OpenCL::~OpenCL(){
+  for ( size_t i = 0; i < numKernels; i++)
+    if (cpPrograms[i]) clReleaseProgram(cpPrograms[i]);
+  delete [] cpPrograms;
+  delete [] functions;
+  for ( size_t i = 0; i < numqueues; i++)
+    delete queue[i];
+  delete [] queue;
+  clReleaseContext(cxContext);
+  Info("Released OpenCL context");
+  Mutex::Destroy(mutex);
+}
+
 OpenCL::OpenCL(bool onGPU, size_t numKernels){
 // create the OpenCL context on a GPU device
     cl_uint numPlatforms;
@@ -97,6 +110,16 @@ OpenCL::OpenCL(bool onGPU, size_t numKernels){
 }
 
 Mutex* buildLog;
+
+OpenCLQueue::~OpenCLQueue(){
+  for ( size_t i = 0; i < numtasks; i++){
+    if ( tasks[i] != NULL) delete tasks[i];
+    tasks[i] = NULL;
+  }
+  if ( tasks != NULL) delete [] tasks;
+  tasks = NULL;
+  clReleaseCommandQueue(cmd_queue);
+}
 
 OpenCLQueue::OpenCLQueue(cl_context & context){
   buildLog = Mutex::Create();
@@ -409,7 +432,7 @@ bool OpenCLTask::SetLocalArgument(const size_t & it, const size_t & size){
 
   ciErrNum = clSetKernelArg(ckKernel, it, size, 0);
   if (ciErrNum != CL_SUCCESS){
-    cout << "Failed setting local parameters " << ciErrNum << " " << stringError(ciErrNum) <<  endl;
+    Severe("Failed setting local parameters %i %s \n", ciErrNum ,stringError(ciErrNum));
     return false;
   }
   return true;

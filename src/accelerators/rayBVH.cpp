@@ -666,9 +666,9 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     size_t tn2 = ocl->CreateTask(KERNEL_INTERSECTIONR, 1, &gws, &lws, cmd);
     OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
-    c = 10;
+    c = 9;
     #ifdef STAT_RAY_TRIANGLE
-    c = 11;
+    c = 10;
     #endif
     gput->InitBuffers(c);
 
@@ -686,46 +686,45 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->CreateBuffer(5,sizeof(cl_float)*count, CL_MEM_READ_WRITE)); // tHit
     Assert(gput->CreateBuffer(6,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY)); //index array
     //allocate stack in global memory
-    Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE));
-    Assert(gput->CreateBuffer(8,sizeof(cl_uint)*gws*(2+3*(BVHheight+1)), CL_MEM_READ_WRITE));
-    Assert(gput->CreateBuffer(9,sizeof(GPUNode)*bvh->nodeNum, CL_MEM_READ_ONLY)); //bvh nodes
-    gput->SetIntArgument(10,roffsetX);
-    gput->SetIntArgument(11,xWidth);
-    gput->SetIntArgument(12,yWidth);
-    gput->SetIntArgument(13,a);
-    gput->SetIntArgument(14,b);
-    gput->SetIntArgument(17,5*(4+5*height)); //stack size
-    gput->SetIntArgument(18,(2+3*(BVHheight+1))); //stack for bvh traversing
-    gput->SetIntArgument(19,bvh->topLevelNodes);
+    int tempHeight = max(height, BVHheight);
+    Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+7*tempHeight), CL_MEM_READ_WRITE));
+    Assert(gput->CreateBuffer(8,sizeof(GPUNode)*bvh->nodeNum, CL_MEM_READ_ONLY)); //bvh nodes
+    gput->SetIntArgument(9,roffsetX);
+    gput->SetIntArgument(10,xWidth);
+    gput->SetIntArgument(11,yWidth);
+    gput->SetIntArgument(12,a);
+    gput->SetIntArgument(13,b);
+    gput->SetIntArgument(16,6*(4+7*tempHeight)); //stack size
+    gput->SetIntArgument(17,bvh->topLevelNodes);
 
     #ifdef STAT_RAY_TRIANGLE
-    Assert(gput->CreateBuffer(10,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,20));
+    Assert(gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,18));
     #endif
 
     gput->EnqueueWrite2DImage(4, rayBoundsArray);
     if (!gput->EnqueueWriteBuffer( 5, tHitArray ))exit(EXIT_FAILURE);
     if (!gput->EnqueueWriteBuffer( 6, indexArray ))exit(EXIT_FAILURE);
-    Assert(gput->EnqueueWriteBuffer(9, bvh->gpuNodes));
+    Assert(gput->EnqueueWriteBuffer(8, bvh->gpuNodes));
     #ifdef STAT_RAY_TRIANGLE
-    Assert(gput->EnqueueWriteBuffer( 10, picture));
+    Assert(gput->EnqueueWriteBuffer( 9, picture));
     #endif
     for ( int i = 0; i < parts - 1; i++){
-      gput->SetIntArgument(15, (i-1)*trianglePartCount);
-      gput->SetIntArgument(16, i*trianglePartCount);
+      gput->SetIntArgument(14, (i-1)*trianglePartCount);
+      gput->SetIntArgument(15, i*trianglePartCount);
       if (!gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount))exit(EXIT_FAILURE);
       if (!gput->Run())exit(EXIT_FAILURE);
       gput->WaitForKernel();
     }
     //last part of vertices
-    gput->SetIntArgument(15,(parts-1)*trianglePartCount);
-    gput->SetIntArgument(16, triangleCount);
+    gput->SetIntArgument(14,(parts-1)*trianglePartCount);
+    gput->SetIntArgument(15, triangleCount);
     if (!gput->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount))exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
 
 
     #ifdef STAT_RAY_TRIANGLE
-    Assert(gput->EnqueueReadBuffer( 10, picture));
+    Assert(gput->EnqueueReadBuffer( 9, picture));
     uint i = 0;
     uint temp = 0;
     gput->WaitForRead();
@@ -944,9 +943,9 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   size_t tn2 = ocl->CreateTask (KERNEL_INTERSECTIONP, 1, &gws, &lws, cmd);
   OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
-  unsigned int c = 10;
+  unsigned int c = 9;
   #ifdef STAT_PRAY_TRIANGLE
-   c = 11;
+   c = 10;
   #endif
   gput->InitBuffers(c);
 
@@ -965,41 +964,40 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //bounds
   Assert(gput->CreateBuffer(6,sizeof(cl_char)*count, CL_MEM_WRITE_ONLY)); //tHit
   #ifdef STAT_PRAY_TRIANGLE
-   Assert(gput->CreateBuffer(11,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 21));
+   Assert(gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 18));
   #endif
-  Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE)); //stack for ray-hiearchy
-  Assert(gput->CreateBuffer(8,sizeof(cl_uint)*gws*(2+3*(BVHheight+1)), CL_MEM_READ_WRITE)); //stack for bvh
-  Assert(gput->CreateBuffer(9,sizeof(GPUNode)*(bvh->nodeNum), CL_MEM_READ_ONLY)); //BVH nodes
-  gput->SetIntArgument(10, roffsetX);
-  gput->SetIntArgument(11, xWidth);
-  gput->SetIntArgument(12, yWidth);
-  gput->SetIntArgument(13,a);
-  gput->SetIntArgument(14,b);
-  gput->SetIntArgument(17, 5*(4+5*height)); //ray-hierarchy's stack size
-  gput->SetIntArgument(18, (2+3*(BVHheight+1))); //bvh's stack size
-  gput->SetIntArgument(19, bvh->topLevelNodes);
+  int tempHeight = max(height, BVHheight);
+  Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+7*tempHeight), CL_MEM_READ_WRITE)); //stack
+  Assert(gput->CreateBuffer(8,sizeof(GPUNode)*(bvh->nodeNum), CL_MEM_READ_ONLY)); //BVH nodes
+  gput->SetIntArgument(9, roffsetX);
+  gput->SetIntArgument(10, xWidth);
+  gput->SetIntArgument(11, yWidth);
+  gput->SetIntArgument(12,a);
+  gput->SetIntArgument(13,b);
+  gput->SetIntArgument(16, 6*(4+7*tempHeight)); //ray-hierarchy's stack size
+  gput->SetIntArgument(17, bvh->topLevelNodes);
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   if (!gput->EnqueueWriteBuffer( 6, occluded ))exit(EXIT_FAILURE);
-  Assert(gput->EnqueueWriteBuffer(9, bvh->gpuNodes));
+  Assert(gput->EnqueueWriteBuffer(8, bvh->gpuNodes));
   #ifdef STAT_PRAY_TRIANGLE
-    Assert(gput->EnqueueWriteBuffer( 11, picture));
+    Assert(gput->EnqueueWriteBuffer( 9, picture));
   #endif
   for ( int i = 0; i < parts - 1; i++){
     Assert(gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
-    gput->SetIntArgument(15, i*trianglePartCount); //lower triangle bound
-    gput->SetIntArgument(16, (i+1)*trianglePartCount); //upper triangle bound
+    gput->SetIntArgument(14, i*trianglePartCount); //lower triangle bound
+    gput->SetIntArgument(15, (i+1)*trianglePartCount); //upper triangle bound
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
   }
-  gput->SetIntArgument(15, (parts-1)*trianglePartCount);
-  gput->SetIntArgument(16, triangleCount);
+  gput->SetIntArgument(14, (parts-1)*trianglePartCount);
+  gput->SetIntArgument(15, triangleCount);
   Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount));
   if (!gput->Run())exit(EXIT_FAILURE);
 
   if (!gput->EnqueueReadBuffer( 6, occluded ))exit(EXIT_FAILURE);
   #ifdef STAT_PRAY_TRIANGLE
-    Assert(gput->EnqueueReadBuffer( 11, picture));
+    Assert(gput->EnqueueReadBuffer( 9, picture));
   #endif
 
   gput->WaitForRead();

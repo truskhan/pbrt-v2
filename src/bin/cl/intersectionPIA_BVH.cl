@@ -140,11 +140,11 @@ __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t validity,
   __read_only image2d_t bounds, __global char* tHit,
-  __global int* stack, __global unsigned int* stackBVH, __global GPUNode* bvh,
+  __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
   const unsigned int lowerBound, const unsigned int upperBound,
-   int stackSize, unsigned int stackSizeBVH, int topLevelNodes
+   int stackSize, int topLevelNodes
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
@@ -156,7 +156,7 @@ __kernel void IntersectionP (
     if (iGID >= topLevelNodes) return;
     GPUNode bvhElem = bvh[iGID];
     //an empty node
-    if ( bvhElem.nPrimitives == 0 && bvhElem.primOffset == 0) return;
+    if ( !bvhElem.nPrimitives && !bvhElem.primOffset) return;
 
     //bounding box
     float4 bmin, bmax, temp_bmin, temp_bmax;
@@ -174,9 +174,7 @@ __kernel void IntersectionP (
 
     float4 omin, omax, dmin, dmax;
 
-    int SPindex = 0;
-    int SPindexBVH = 0;
-    int wbeginStackBVH = stackSizeBVH*iGID;
+    int SPindex;
     int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
@@ -192,6 +190,7 @@ __kernel void IntersectionP (
         omax.y = dmax.w;
         omax.z = dmin.w;
         dmax.w = omin.w = dmin.w = omax.w = 0;
+        SPindex = 0;
 
         // check if triangle intersects node
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -202,36 +201,50 @@ __kernel void IntersectionP (
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j;
-          SPindex += 5;
+          stack[wbeginStack + SPindex + 5] = get_global_id(0);
+          SPindex += 6;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j;
-          SPindex += 5;
+          stack[wbeginStack + SPindex + 5] = get_global_id(0);
+          SPindex += 6;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
-          SPindex += 5;
+          stack[wbeginStack + SPindex + 5] = get_global_id(0);
+          SPindex += 6;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
-          SPindex += 5;
+          stack[wbeginStack + SPindex + 5] = get_global_id(0);
+          SPindex += 6;
 
           while ( SPindex > 0) {
-            SPindex -= 5;
+            SPindex -= 6;
             tempWidth = stack[wbeginStack + SPindex];
             tempHeight = stack[wbeginStack + SPindex + 1];
             tempOffsetX = stack[wbeginStack + SPindex + 2];
             tempX = stack[wbeginStack + SPindex + 3];
             tempY = stack[wbeginStack + SPindex + 4];
+            iGID = stack[wbeginStack + SPindex + 5];
+            bvhElem = bvh[iGID];
+            //en empty BVH node
+            if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
+            temp_bmin.x = bvhElem.ax;
+            temp_bmin.y = bvhElem.ay;
+            temp_bmin.z = bvhElem.az;
+            temp_bmax.x = bvhElem.bx;
+            temp_bmax.y = bvhElem.by;
+            temp_bmax.z = bvhElem.bz;
 
             valid = read_imageui(validity, imageSampler, (int2)(tempOffsetX + tempX, tempY));
             if ( valid.x == 0) continue;
@@ -242,82 +255,145 @@ __kernel void IntersectionP (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
             {
-              if ( tempOffsetX == 0) { // it is ray-hierarchy leaf node
-                  //traverse BVH
-                  stackBVH[wbeginStackBVH] = get_global_id(0);
-                  SPindexBVH = 1;
-                  while ( SPindexBVH > 0){
-                    --SPindexBVH;
-                    iGID = stackBVH[wbeginStackBVH + SPindexBVH];
-                    bvhElem = bvh[iGID];
-                    if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
-                    temp_bmin.x = bvhElem.ax;
-                    temp_bmin.y = bvhElem.ay;
-                    temp_bmin.z = bvhElem.az;
-                    temp_bmax.x = bvhElem.bx;
-                    temp_bmax.y = bvhElem.by;
-                    temp_bmax.z = bvhElem.bz;
+              //if it is a rayhierarchy leaf node and bvh leaf node
+              if ( !tempOffsetX && bvhElem.nPrimitives){
+                  if ( bvhElem.primOffset < lowerBound
+                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
+                  for ( int f = 0; f < bvhElem.nPrimitives; f++){
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
+                    v1.w = 0; v2.w = 0; v3.w = 0;
+                    e1 = v2 - v1;
+                    e2 = v3 - v1;
+                    intersectAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,
+                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight
+                          #ifdef STAT_PRAY_TRIANGLE
+                          , stat_rayTriangle
+                          #endif
+                          );
+                  }
+              }
+              //it is a rayhierarchy leaf node but BVH inner node - traverse BVH
+              if ( !tempOffsetX  && !bvhElem.nPrimitives){
+                stack[wbeginStack + SPindex] = tempWidth;
+                stack[wbeginStack + SPindex + 1] = tempHeight;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX ;
+                stack[wbeginStack + SPindex + 3] = tempX;
+                stack[wbeginStack + SPindex + 4] = tempY;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
+                SPindex += 6;
 
-                    if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
-                    {
-                        if ( bvhElem.nPrimitives == 0 && bvhElem.primOffset != 0){
-                          stackBVH[wbeginStackBVH + SPindexBVH] = (bvhElem.primOffset)+1;
-                          ++SPindexBVH;
-                          stackBVH[wbeginStackBVH + SPindexBVH] = bvhElem.primOffset;
-                          ++SPindexBVH;
-                          continue;
-                        }
-                        if ( bvhElem.nPrimitives > 0 && ( bvhElem.primOffset < lowerBound
-                              || bvhElem.primOffset + bvhElem.nPrimitives >= upperBound)) continue;
-                        for ( unsigned int f = 0; f < bvhElem.nPrimitives; f++){
-                            v1 = vload4(0, vertex + 9*(bvhElem.primOffset - lowerBound +f));
-                            v2 = vload4(0, vertex + 9*(bvhElem.primOffset - lowerBound +f)+ 3);
-                            v3 = vload4(0, vertex + 9*(bvhElem.primOffset - lowerBound +f)+ 6);
-                            v1.w = 0; v2.w = 0; v3.w = 0;
-                            e1 = v2 - v1;
-                            e2 = v3 - v1;
-                            intersectAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,
-                                  tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight
-                                  #ifdef STAT_PRAY_TRIANGLE
-                                  , stat_rayTriangle
-                                  #endif
-                                  );
-                        }
-                    }
-                 }
+                stack[wbeginStack + SPindex] = tempWidth;
+                stack[wbeginStack + SPindex + 1] = tempHeight;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX;
+                stack[wbeginStack + SPindex + 3] = tempX;
+                stack[wbeginStack + SPindex + 4] = tempY;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
+                SPindex += 6;
+              }
+              //interior nodes
+              if ( tempOffsetX && bvhElem.nPrimitives){
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX;
+                stack[wbeginStack + SPindex + 4] = 2*tempY;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
+                SPindex += 6;
 
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX;
+                stack[wbeginStack + SPindex + 4] = 2*tempY;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
+                SPindex += 6;
 
-              } else {
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
+                stack[wbeginStack + SPindex + 4] = 2*tempY;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
+                SPindex += 6;
+
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
+                stack[wbeginStack + SPindex + 4] = 2*tempY;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
+                SPindex += 6;
+
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
+                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
+                SPindex += 6;
+
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
+                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
+                SPindex += 6;
+
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX;
+                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
+                SPindex += 6;
+
+                stack[wbeginStack + SPindex] = tempWidth*2;
+                stack[wbeginStack + SPindex + 1] = tempHeight*2;
+                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
+                stack[wbeginStack + SPindex + 3] = 2*tempX;
+                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
+                stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
+                SPindex += 6;
+              }
+              //rayhierarchy inner node and BVH leaf node
+              if ( tempOffsetX && !bvhElem.nPrimitives){
                 //store the children to the stack
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
-                SPindex += 5;
+                stack[wbeginStack + SPindex + 5] = iGID;
+                SPindex += 6;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
-                SPindex += 5;
+                stack[wbeginStack + SPindex + 5] = iGID;
+                SPindex += 6;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
-                SPindex += 5;
+                stack[wbeginStack + SPindex + 5] = iGID;
+                SPindex += 6;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
-                SPindex += 5;
+                stack[wbeginStack + SPindex + 5] = iGID;
+                SPindex += 6;
               }
             }
 

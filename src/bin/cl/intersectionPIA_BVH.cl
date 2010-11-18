@@ -159,7 +159,7 @@ __kernel void IntersectionP (
     if ( bvhElem.nPrimitives == 0 && bvhElem.primOffset == 0) return;
 
     //bounding box
-    float4 bmin, bmax;
+    float4 bmin, bmax, temp_bmin, temp_bmax;
     bmin.x = bvhElem.ax;
     bmin.y = bvhElem.ay;
     bmin.z = bvhElem.az;
@@ -176,7 +176,7 @@ __kernel void IntersectionP (
 
     int SPindex = 0;
     int SPindexBVH = 0;
-    uint wbeginStackBVH = stackSizeBVH*iGID;
+    int wbeginStackBVH = stackSizeBVH*iGID;
     int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
@@ -246,28 +246,28 @@ __kernel void IntersectionP (
             {
               if ( tempOffsetX == 0) { // it is ray-hierarchy leaf node
                   //traverse BVH
-                  stackBVH[wbeginStackBVH] = iGID;
+                  stackBVH[wbeginStackBVH] = get_global_id(0);
                   SPindexBVH = 1;
                   while ( SPindexBVH > 0){
                     --SPindexBVH;
                     iGID = stackBVH[wbeginStackBVH + SPindexBVH];
                     bvhElem = bvh[iGID];
                     if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
-                    bmin.x = bvhElem.ax;
-                    bmin.y = bvhElem.ay;
-                    bmin.z = bvhElem.az;
-                    bmax.x = bvhElem.bx;
-                    bmax.y = bvhElem.by;
-                    bmax.z = bvhElem.bz;
+                    temp_bmin.x = bvhElem.ax;
+                    temp_bmin.y = bvhElem.ay;
+                    temp_bmin.z = bvhElem.az;
+                    temp_bmax.x = bvhElem.bx;
+                    temp_bmax.y = bvhElem.by;
+                    temp_bmax.z = bvhElem.bz;
 
-                    if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+                    if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
                     {
                         if ( bvhElem.nPrimitives == 0 && bvhElem.primOffset != 0){
                           stackBVH[wbeginStackBVH + SPindexBVH] = (bvhElem.primOffset)+1;
                           ++SPindexBVH;
                           stackBVH[wbeginStackBVH + SPindexBVH] = bvhElem.primOffset;
                           ++SPindexBVH;
-
+                          continue;
                         }
                         if ( bvhElem.nPrimitives > 0 && ( bvhElem.primOffset < lowerBound
                               || bvhElem.primOffset + bvhElem.nPrimitives >= upperBound)) continue;

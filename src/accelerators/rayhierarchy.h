@@ -12,7 +12,8 @@ class RayHieararchy : public Aggregate {
 public:
     // RayHieararchy Public Methods
     BBox WorldBound() const;
-    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node
+    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node, bool sortVert,
+          const string &sm, const int &maxBVHPrim
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
@@ -66,6 +67,7 @@ private:
     unsigned int rest_x, rest_y;
     mutable unsigned int xResolution;
     unsigned int yResolution;
+    bool sortVert;
     Semaphore *workerSemaphore;
 
     size_t topLevelCount;

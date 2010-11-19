@@ -1,5 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define EPS 0.000002f
 
 typedef struct
@@ -63,78 +64,69 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
 }
 
-bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4 dmin, float4 dmax){
-  //compute (Bx-Ox)*(1/Vx)
-  float2 s,t,u;
-  float4 temp;
-  //compute (Bx-0x)
-  temp = omin;
-  omin = bmin - omax;
-  omax = bmax - temp;
-  //compute (1/Vx)
-  if ( dmin.x <= 0 && dmax.x >= 0){
-    return true;
-  } else {
-    temp.x = dmin.x;
-    dmin.x = 1/dmax.x;
-    dmax.x = 1/temp.x;
-  }
-  if ( dmin.y <= 0 && dmax.y >= 0){
-    return true;
-  } else {
-    temp.x = dmin.y;
-    dmin.y = 1/dmax.y;
-    dmax.y = 1/temp.x;
-  }
-  if ( dmin.z <= 0 && dmax.z >= 0){
-    return true;
-  } else {
-    temp.x = dmin.z;
-    dmin.z = 1/dmax.z;
-    dmax.z = 1/temp.x;
-  }
+bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
+ float4 ocenter = (float4)0;
+ float4 ray;
+ float2 uv;
+ float2 tmin, tmax;
 
-  temp.x = omin.x*dmin.x;
-  temp.y = omax.x*dmin.x;
-  temp.z = omax.x*dmax.x;
-  temp.w = omin.x*dmax.x;
-  s.x = min(temp.x, temp.y);
-  s.x = min(s.x, temp.z);
-  s.x = min(s.x, temp.w);
-  s.y = max(temp.x, temp.y);
-  s.y = max(s.y, temp.z);
-  s.y = max(s.y, temp.w);
+//Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
+ ray = omax - omin;
+ ocenter = ray/2 + omin;
+ ocenter.w = 0;
 
-  temp.x = omin.y*dmin.y;
-  temp.y = omax.y*dmin.y;
-  temp.z = omax.y*dmax.y;
-  temp.w = omin.y*dmax.y;
-  t.x = min(temp.x, temp.y);
-  t.x = min(t.x, temp.z);
-  t.x = min(t.x, temp.w);
-  t.y = max(temp.x, temp.y);
-  t.y = max(t.y, temp.z);
-  t.y = max(t.y, temp.w);
+ ray = (float4)0;
+ ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
+ tmin.x = tmax.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ tmin.y = tmax.y = ray.z;
 
-  temp.x = omin.z*dmin.z;
-  temp.y = omax.z*dmin.z;
-  temp.z = omax.z*dmax.z;
-  temp.w = omin.z*dmax.z;
-  u.x = min(temp.x, temp.y);
-  u.x = min(u.x, temp.z);
-  u.x = min(u.x, temp.w);
-  u.y = max(temp.x, temp.y);
-  u.y = max(u.y, temp.z);
-  u.y = max(u.y, temp.w);
+ ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
 
-  s.x = max(s.x, t.x);
-  s.x = max(s.x, u.x);
-  s.y = min(s.y, t.y);
-  s.y = min(s.y, u.y);
+ ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
 
-  return (s.x < s.y);
+ ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmax.x, bmin.y, bmin.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmax.x, bmax.y, bmin.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ if ( ( max(tmin.x, uvmin.x) < min(tmax.x, uvmax.x)) && (max(tmin.y, uvmin.y) < min(tmax.y, uvmax.y)))
+  return true;
+
+  return false;
 }
-
 
 __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
@@ -172,10 +164,13 @@ __kernel void IntersectionP (
     float4 e1, e2;
     float4 v1, v2, v3;
 
-    float4 omin, omax, dmin, dmax;
-
-    int SPindex;
+    int SPindex = 0;
     int wbeginStack = stackSize*iGID;
+
+    //3D bounding box of the origin
+    float4 omin, omax, uv;
+    //2D bounding box for uv
+    float2 uvmin, uvmax;
 
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;
@@ -183,17 +178,17 @@ __kernel void IntersectionP (
       for ( int k = 0; k < xWidth; k++){
         valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
         if ( valid.x == 0) continue;
-        dmax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          yWidth + j));
-        omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
-        dmin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          j));
-        omax.x = omin.w;
-        omax.y = dmax.w;
-        omax.z = dmin.w;
-        dmax.w = omin.w = dmin.w = omax.w = 0;
+        omax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          yWidth + j));
+        uv = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
+        omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          j));
         SPindex = 0;
+        uvmin.x = uv.x;
+        uvmin.y = uv.z;
+        uvmax.x = uv.y;
+        uvmax.y = uv.w;
 
         // check if triangle intersects node
-        if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+        if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
         {
           //store all 4 children to the stack (one is enough, the other 3 are nearby)
           stack[wbeginStack + SPindex] = xWidth*2 ;
@@ -248,14 +243,15 @@ __kernel void IntersectionP (
 
             valid = read_imageui(validity, imageSampler, (int2)(tempOffsetX + tempX, tempY));
             if ( valid.x == 0) continue;
-            dmax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
-            omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
-            dmin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempY));
-            omax.x = omin.w;
-            omax.y = dmax.w;
-            omax.z = dmin.w;
+            omax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
+            uv = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
+            omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempY));
+            uvmin.x = uv.x;
+            uvmin.y = uv.z;
+            uvmax.x = uv.y;
+            uvmax.y = uv.w;
 
-            if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(omin, omax, uvmin, uvmax, temp_bmin, temp_bmax) )
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){

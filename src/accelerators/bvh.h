@@ -69,6 +69,7 @@ private:
     uint32_t topLevelNodes;
     uint32_t nodeNum;
     friend class RayBVH;
+    friend class RayHieararchy;
 };
 
 struct GPUNode {

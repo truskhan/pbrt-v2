@@ -6,6 +6,7 @@
 #include "core/paramset.h"
 #include "core/intersection.h"
 #include "core/GPUparallel.h"
+#include "accelerators/bvh.h"
 #include <iostream>
 #if ( defined STAT_RAY_TRIANGLE || defined STAT_TRIANGLE_CONE)
 #include "imageio.h"
@@ -26,13 +27,14 @@ using namespace std;
 
 // RayHieararchy Method Definitions
 RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height,
-  string node
+  string node, bool sortVert, const string &sm, const int &maxBVHPrim
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
   ) {
     this->chunk = chunk;
     this->height = height;
+    this->sortVert = sortVert;
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     this->scale = scale;
     #endif
@@ -132,9 +134,15 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     delete [] names;
     delete [] file;
 
+    if ( sortVert){
+      BVHAccel* bvh = new BVHAccel(p, maxBVHPrim, sm);
+      primitives.swap(bvh->primitives);
+      delete bvh;
+    }
+    else{
     for (uint32_t i = 0; i < p.size(); ++i)
         p[i]->FullyRefine(primitives);
-
+    }
     //store vertices and uvs in linear order
     vertices = new cl_float[3*3*primitives.size()];
     uvs = new cl_float[6*primitives.size()];
@@ -1064,13 +1072,16 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
 RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
                                    const ParamSet &ps) {
     bool onGPU = ps.FindOneBool("onGPU",true);
+    bool sortVert = ps.FindOneBool("sort",true);
     int chunk = ps.FindOneInt("chunkSize",20);
     int height = ps.FindOneInt("height",3);
     string node = ps.FindOneString("node", "sphere_uv");
+    string splitMethod = ps.FindOneString("splitmethod", "sah");
+    int maxBVHPrim = ps.FindOneInt("maxBVHPrim",1);
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale = ps.FindOneInt("scale",50);
     #endif
-    return new RayHieararchy(prims,onGPU,chunk,height,node
+    return new RayHieararchy(prims,onGPU,chunk,height,node,sortVert, splitMethod, maxBVHPrim
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , scale
     #endif

@@ -1,6 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 typedef struct
 {
@@ -13,7 +13,7 @@ sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
+__read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y
 #ifdef STAT_PRAY_TRIANGLE
 , __global int* stat_rayTriangle
@@ -52,9 +52,8 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
-
       s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x || t > s1.y ) continue;
+      if (t < s1.x || t > s1.y) continue;
 
       tHit[totalWidth*(y + i) + x + j] = '1';
     }
@@ -63,78 +62,57 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
 }
 
-bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4 dmin, float4 dmax){
-  //compute (Bx-Ox)*(1/Vx)
-  float2 s,t,u;
-  float4 temp;
-  //compute (Bx-0x)
-  temp = omin;
-  omin = bmin - omax;
-  omax = bmax - temp;
-  //compute (1/Vx)
-  if ( dmin.x <= 0 && dmax.x >= 0){
-    return true;
-  } else {
-    temp.x = dmin.x;
-    dmin.x = 1/dmax.x;
-    dmax.x = 1/temp.x;
-  }
-  if ( dmin.y <= 0 && dmax.y >= 0){
-    return true;
-  } else {
-    temp.x = dmin.y;
-    dmin.y = 1/dmax.y;
-    dmax.y = 1/temp.x;
-  }
-  if ( dmin.z <= 0 && dmax.z >= 0){
-    return true;
-  } else {
-    temp.x = dmin.z;
-    dmin.z = 1/dmax.z;
-    dmax.z = 1/temp.x;
-  }
 
-  temp.x = omin.x*dmin.x;
-  temp.y = omax.x*dmin.x;
-  temp.z = omax.x*dmax.x;
-  temp.w = omin.x*dmax.x;
-  s.x = min(temp.x, temp.y);
-  s.x = min(s.x, temp.z);
-  s.x = min(s.x, temp.w);
-  s.y = max(temp.x, temp.y);
-  s.y = max(s.y, temp.z);
-  s.y = max(s.y, temp.w);
+bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
+ float4 ocenter = (float4)0;
+ float4 ray;
+ float4 tmin, tmax;
 
-  temp.x = omin.y*dmin.y;
-  temp.y = omax.y*dmin.y;
-  temp.z = omax.y*dmax.y;
-  temp.w = omin.y*dmax.y;
-  t.x = min(temp.x, temp.y);
-  t.x = min(t.x, temp.z);
-  t.x = min(t.x, temp.w);
-  t.y = max(temp.x, temp.y);
-  t.y = max(t.y, temp.z);
-  t.y = max(t.y, temp.w);
+//Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
+ ray = (omax - omin)/2;
+ bmin -= ray;
+ bmax += ray;
 
-  temp.x = omin.z*dmin.z;
-  temp.y = omax.z*dmin.z;
-  temp.z = omax.z*dmax.z;
-  temp.w = omin.z*dmax.z;
-  u.x = min(temp.x, temp.y);
-  u.x = min(u.x, temp.z);
-  u.x = min(u.x, temp.w);
-  u.y = max(temp.x, temp.y);
-  u.y = max(u.y, temp.z);
-  u.y = max(u.y, temp.w);
+ ocenter = ray + omin;
+ ocenter.w = 0;
 
-  s.x = max(s.x, t.x);
-  s.x = max(s.x, u.x);
-  s.y = min(s.y, t.y);
-  s.y = min(s.y, u.y);
+ ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
+ tmin = ray;
+ tmax = ray;
 
-  return (s.x < s.y);
+ ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmax.x, bmin.y, bmin.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmax.x, bmax.y, bmin.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
+ tmin = min(tmin, ray);
+ tmax = max(tmax, ray);
+
+ tmin = max(tmin, uvmin);
+ tmax = min(tmax, uvmax);
+
+ return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && (tmin.z < tmax.z + EPS));
 }
-
 
 __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
@@ -150,7 +128,7 @@ __kernel void IntersectionP (
 #endif
 ) {
     // find position in global and shared arrays
-    uint iGID = get_global_id(0);
+    int iGID = get_global_id(0);
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
@@ -167,14 +145,14 @@ __kernel void IntersectionP (
     bmax.y = bvhElem.by;
     bmax.z = bvhElem.bz;
 
-    uint4 valid;
     // find geometry for the work-item
     float4 e1, e2;
     float4 v1, v2, v3;
 
     float4 omin, omax, dmin, dmax;
+    int4 valid;
 
-    int SPindex;
+    int SPindex = 0;
     int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
@@ -193,7 +171,7 @@ __kernel void IntersectionP (
         SPindex = 0;
 
         // check if triangle intersects node
-        if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+        if ( intersectsNode(omin, omax, dmin, dmax, bmin, bmax) )
         {
           //store all 4 children to the stack (one is enough, the other 3 are nearby)
           stack[wbeginStack + SPindex] = xWidth*2 ;
@@ -255,9 +233,9 @@ __kernel void IntersectionP (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(omin, omax, dmin, dmax, temp_bmin, temp_bmax) )
             {
-              //if it is a rayhierarchy leaf node and bvh leaf node
+               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
                   if ( bvhElem.primOffset < lowerBound
                       || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;

@@ -14,7 +14,7 @@ public:
     // RayBVH Public Methods
     BBox WorldBound() const;
     RayBVH(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, int BVHheight, string node,
-        int MaxBVHPrim
+        int MaxBVHPrim,  const string &sm
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
@@ -47,6 +47,7 @@ private:
 
     // RayBVH Private Methods
     BVHAccel* bvh;
+    string splitMethod;
     size_t triangleCount;
     size_t trianglePartCount;
     size_t triangleLastPartCount;

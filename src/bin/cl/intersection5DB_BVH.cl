@@ -1,5 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+//#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 #define EPS 0.000002f
 
 typedef struct
@@ -13,9 +14,10 @@ sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
-float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y
-#ifdef STAT_PRAY_TRIANGLE
+  __read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
+float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y,
+const unsigned int GID
+#ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
  ){
@@ -26,14 +28,11 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
   //read the tile
   for ( int i = 0; i < lheight; i++){
     for ( int j = 0; j < lwidth; j++) {
-      rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
-      if ( rayd.w < 0 ) continue; //not a valid ray
-      rayd.w = 0;
-      rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
-
-      #ifdef STAT_PRAY_TRIANGLE
+      #ifdef STAT_RAY_TRIANGLE
       atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
       #endif
+      rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
+      rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
       s1 = cross(rayd, e2);
       divisor = dot(s1, e1);
@@ -54,112 +53,105 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
       t = dot(e2, s2) * invDivisor;
 
       s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x || t > s1.y ) continue;
+      if (t < s1.x  ) continue;
 
-      tHit[totalWidth*(y + i) + x + j] = '1';
+      if (t > tHit[totalWidth*(y + i) + x + j]) continue;
+        tHit[totalWidth*(y + i) + x + j] = t;
+        index[totalWidth*(y + i) + x + j] = GID;
     }
   }
-
-
 }
 
-bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4 dmin, float4 dmax){
-  //compute (Bx-Ox)*(1/Vx)
-  float2 s,t,u;
-  float4 temp;
-  //compute (Bx-0x)
-  temp = omin;
-  omin = bmin - omax;
-  omax = bmax - temp;
-  //compute (1/Vx)
-  if ( dmin.x <= 0 && dmax.x >= 0){
-    return true;
-  } else {
-    temp.x = dmin.x;
-    dmin.x = 1/dmax.x;
-    dmax.x = 1/temp.x;
-  }
-  if ( dmin.y <= 0 && dmax.y >= 0){
-    return true;
-  } else {
-    temp.x = dmin.y;
-    dmin.y = 1/dmax.y;
-    dmax.y = 1/temp.x;
-  }
-  if ( dmin.z <= 0 && dmax.z >= 0){
-    return true;
-  } else {
-    temp.x = dmin.z;
-    dmin.z = 1/dmax.z;
-    dmax.z = 1/temp.x;
-  }
+bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
+ float4 ocenter = (float4)0;
+ float4 ray;
+ float2 uv;
+ float2 tmin, tmax;
 
-  temp.x = omin.x*dmin.x;
-  temp.y = omax.x*dmin.x;
-  temp.z = omax.x*dmax.x;
-  temp.w = omin.x*dmax.x;
-  s.x = min(temp.x, temp.y);
-  s.x = min(s.x, temp.z);
-  s.x = min(s.x, temp.w);
-  s.y = max(temp.x, temp.y);
-  s.y = max(s.y, temp.z);
-  s.y = max(s.y, temp.w);
+//Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
+ ray = omax - omin;
+ ocenter = ray/2 + omin;
+ ocenter.w = 0;
 
-  temp.x = omin.y*dmin.y;
-  temp.y = omax.y*dmin.y;
-  temp.z = omax.y*dmax.y;
-  temp.w = omin.y*dmax.y;
-  t.x = min(temp.x, temp.y);
-  t.x = min(t.x, temp.z);
-  t.x = min(t.x, temp.w);
-  t.y = max(temp.x, temp.y);
-  t.y = max(t.y, temp.z);
-  t.y = max(t.y, temp.w);
+ ray = (float4)0;
+ ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
+ tmin.x = tmax.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ tmin.y = tmax.y = ray.z;
 
-  temp.x = omin.z*dmin.z;
-  temp.y = omax.z*dmin.z;
-  temp.z = omax.z*dmax.z;
-  temp.w = omin.z*dmax.z;
-  u.x = min(temp.x, temp.y);
-  u.x = min(u.x, temp.z);
-  u.x = min(u.x, temp.w);
-  u.y = max(temp.x, temp.y);
-  u.y = max(u.y, temp.z);
-  u.y = max(u.y, temp.w);
+ ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
 
-  s.x = max(s.x, t.x);
-  s.x = max(s.x, u.x);
-  s.y = min(s.y, t.y);
-  s.y = min(s.y, u.y);
+ ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
 
-  return (s.x < s.y);
+ ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmax.x, bmin.y, bmin.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmax.x, bmax.y, bmin.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ uv.y = ray.z;
+ tmin = min(tmin, uv);
+ tmax = max(tmax, uv);
+
+ if ( ( max(tmin.x, uvmin.x) < min(tmax.x, uvmax.x)) && (max(tmin.y, uvmin.y) < min(tmax.y, uvmax.y)))
+  return true;
+
+  return false;
 }
 
-
-__kernel void IntersectionP (
+__kernel void IntersectionR (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t nodes, __read_only image2d_t validity,
-  __read_only image2d_t bounds, __global char* tHit,
-  __global int* stack, __global GPUNode* bvh,
+  __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
+  __global int* index,  __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
   const unsigned int lowerBound, const unsigned int upperBound,
-   int stackSize, int topLevelNodes
-#ifdef STAT_PRAY_TRIANGLE
+  int stackSize, int topLevelNodes
+#ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
-    uint iGID = get_global_id(0);
+    int iGID = get_global_id(0);
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
     GPUNode bvhElem = bvh[iGID];
-    //an empty node
     if ( !bvhElem.nPrimitives && !bvhElem.primOffset) return;
 
-    //bounding box
+    // find geometry for the work-item
+    float4 e1, e2;
+    float4 v1, v2, v3;
+    //calculate bounding box
     float4 bmin, bmax, temp_bmin, temp_bmax;
+
     bmin.x = bvhElem.ax;
     bmin.y = bvhElem.ay;
     bmin.z = bvhElem.az;
@@ -167,33 +159,29 @@ __kernel void IntersectionP (
     bmax.y = bvhElem.by;
     bmax.z = bvhElem.bz;
 
-    uint4 valid;
-    // find geometry for the work-item
-    float4 e1, e2;
-    float4 v1, v2, v3;
-
-    float4 omin, omax, dmin, dmax;
-
-    int SPindex;
+    int SPindex = 0;
     int wbeginStack = stackSize*iGID;
+
+    //3D bounding box of the origin
+    float4 omin, omax, uv;
+    //2D bounding box for uv
+    float2 uvmin, uvmax;
 
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;
     for ( int j = 0; j < yWidth; j++){
       for ( int k = 0; k < xWidth; k++){
-        valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
-        if ( valid.x == 0) continue;
-        dmax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          yWidth + j));
-        omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
-        dmin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          j));
-        omax.x = omin.w;
-        omax.y = dmax.w;
-        omax.z = dmin.w;
-        dmax.w = omin.w = dmin.w = omax.w = 0;
+        omax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          yWidth + j));
+        uv = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
+        omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          j));
         SPindex = 0;
+        uvmin.x = uv.x;
+        uvmin.y = uv.z;
+        uvmax.x = uv.y;
+        uvmax.y = uv.w;
 
         // check if triangle intersects node
-        if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+        if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
         {
           //store all 4 children to the stack (one is enough, the other 3 are nearby)
           stack[wbeginStack + SPindex] = xWidth*2 ;
@@ -246,31 +234,30 @@ __kernel void IntersectionP (
             temp_bmax.y = bvhElem.by;
             temp_bmax.z = bvhElem.bz;
 
-            valid = read_imageui(validity, imageSampler, (int2)(tempOffsetX + tempX, tempY));
-            if ( valid.x == 0) continue;
-            dmax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
-            omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
-            dmin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempY));
-            omax.x = omin.w;
-            omax.y = dmax.w;
-            omax.z = dmin.w;
+            omax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
+            uv = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
+            omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempY));
+            uvmin.x = uv.x;
+            uvmin.y = uv.z;
+            uvmax.x = uv.y;
+            uvmax.y = uv.w;
 
-            if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(omin, omax, uvmin, uvmax, temp_bmin, temp_bmax) )
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
                   if ( bvhElem.primOffset < lowerBound
                       || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;
-                    intersectAllLeaves( dir, o, bounds, tHit, v1,v2,v3,e1,e2,
-                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight
-                          #ifdef STAT_PRAY_TRIANGLE
+                    intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,
+                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , bvhElem.primOffset+f
+                          #ifdef STAT_RAY_TRIANGLE
                           , stat_rayTriangle
                           #endif
                           );
@@ -395,6 +382,7 @@ __kernel void IntersectionP (
                 stack[wbeginStack + SPindex + 5] = iGID;
                 SPindex += 6;
               }
+
             }
 
 
@@ -402,5 +390,4 @@ __kernel void IntersectionP (
         }
       }
     }
-
 }

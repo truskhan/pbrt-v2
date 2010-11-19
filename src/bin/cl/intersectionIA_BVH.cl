@@ -255,9 +255,9 @@ __kernel void IntersectionR (
                   if ( bvhElem.primOffset < lowerBound
                       || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;
@@ -288,7 +288,7 @@ __kernel void IntersectionR (
                 SPindex += 6;
               }
               //interior nodes
-              if ( tempOffsetX && bvhElem.nPrimitives){
+              if ( tempOffsetX && !bvhElem.nPrimitives){
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
@@ -354,7 +354,7 @@ __kernel void IntersectionR (
                 SPindex += 6;
               }
               //rayhierarchy inner node and BVH leaf node
-              if ( tempOffsetX && !bvhElem.nPrimitives){
+              if ( tempOffsetX && bvhElem.nPrimitives){
                 //store the children to the stack
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;

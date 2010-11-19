@@ -27,7 +27,7 @@ using namespace std;
 
 // RayBVH Method Definitions
 RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int height, int BVHheight,
-  string node, int maxBVHPrim
+  string node, int maxBVHPrim,  const string &sm
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
@@ -36,6 +36,7 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     this->height = height;
     this->BVHheight = BVHheight;
     this->maxBVHPrim = maxBVHPrim;
+    splitMethod = sm;
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     this->scale = scale;
     #endif
@@ -62,8 +63,8 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     nodeSize = 13;
   }
   if ( node == "sphere_uv"){
-    names[0] = "cl/intersection5D.cl";
-    names[1] = "cl/intersectionP5D.cl";
+    names[0] = "cl/intersection5D_BVH.cl";
+    names[1] = "cl/intersectionP5D_BVH.cl";
     names[2] = "cl/rayhconstruct5D.cl";
     names[3] = "cl/levelConstruct5D.cl";
     names[4] = "cl/yetAnotherIntersection5D.cl";
@@ -73,8 +74,8 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     nodeSize = 9;
   }
   if ( node == "box_uv") {
-    names[0] = "cl/intersection5DB.cl";
-    names[1] = "cl/intersectionP5DB.cl";
+    names[0] = "cl/intersection5DB_BVH.cl";
+    names[1] = "cl/intersectionP5DB_BVH.cl";
     names[2] = "cl/rayhconstruct5DB.cl";
     names[3] = "cl/levelConstruct5DB.cl";
     names[4] = "cl/yetAnotherIntersection5DB.cl";
@@ -84,8 +85,8 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     nodeSize = 11;
   }
   if ( node == "box_dir") {
-    names[0] = "cl/intersection6DB.cl";
-    names[1] = "cl/intersectionP6DB.cl";
+    names[0] = "cl/intersection6DB_BVH.cl";
+    names[1] = "cl/intersectionP6DB_BVH.cl";
     names[2] = "cl/rayhconstruct6DB.cl";
     names[3] = "cl/levelConstruct6DB.cl";
     names[4] = "cl/yetAnotherIntersection6DB.cl";
@@ -126,7 +127,7 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &p, bool onG, int chunk, int 
     delete [] names;
     delete [] file;
 
-    bvh = new BVHAccel(p, maxBVHPrim, "equal", true, BVHheight);
+    bvh = new BVHAccel(p, maxBVHPrim, sm, true, BVHheight);
 
     //store vertices and uvs in linear order
     vertices = new cl_float[3*3*bvh->primitives.size()];
@@ -687,14 +688,14 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->CreateBuffer(6,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY)); //index array
     //allocate stack in global memory
     int tempHeight = max(height, BVHheight);
-    Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+7*tempHeight), CL_MEM_READ_WRITE));
+    Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+8*tempHeight), CL_MEM_READ_WRITE));
     Assert(gput->CreateBuffer(8,sizeof(GPUNode)*bvh->nodeNum, CL_MEM_READ_ONLY)); //bvh nodes
     gput->SetIntArgument(9,roffsetX);
     gput->SetIntArgument(10,xWidth);
     gput->SetIntArgument(11,yWidth);
     gput->SetIntArgument(12,a);
     gput->SetIntArgument(13,b);
-    gput->SetIntArgument(16,6*(4+7*tempHeight)); //stack size
+    gput->SetIntArgument(16,6*(4+8*tempHeight)); //stack size
     gput->SetIntArgument(17,bvh->topLevelNodes);
 
     #ifdef STAT_RAY_TRIANGLE
@@ -967,14 +968,14 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
    Assert(gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 18));
   #endif
   int tempHeight = max(height, BVHheight);
-  Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+7*tempHeight), CL_MEM_READ_WRITE)); //stack
+  Assert(gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+8*tempHeight), CL_MEM_READ_WRITE)); //stack
   Assert(gput->CreateBuffer(8,sizeof(GPUNode)*(bvh->nodeNum), CL_MEM_READ_ONLY)); //BVH nodes
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
   gput->SetIntArgument(11, yWidth);
   gput->SetIntArgument(12,a);
   gput->SetIntArgument(13,b);
-  gput->SetIntArgument(16, 6*(4+7*tempHeight)); //ray-hierarchy's stack size
+  gput->SetIntArgument(16, 6*(4+8*tempHeight)); //ray-hierarchy's stack size
   gput->SetIntArgument(17, bvh->topLevelNodes);
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
@@ -1044,10 +1045,11 @@ RayBVH *CreateRayBVH(const vector<Reference<Primitive> > &prims,
     int BVHheight = ps.FindOneInt("BVHheight",3);
     int maxBVHPrim = ps.FindOneInt("maxBVHPrim",1);
     string node = ps.FindOneString("node", "sphere_uv");
+    string splitMethod = ps.FindOneString("splitmethod", "sah");
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale = ps.FindOneInt("scale",50);
     #endif
-    return new RayBVH(prims,onGPU,chunk,height, BVHheight, node, maxBVHPrim
+    return new RayBVH(prims,onGPU,chunk,height, BVHheight, node, maxBVHPrim, splitMethod
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , scale
     #endif

@@ -40,6 +40,116 @@ void PathIntegrator::RequestSamples(Sampler *sampler, Sample *sample,
     }
 }
 
+void PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
+        const RayDifferential *ray, const Intersection *isect,
+        const Sample *sample, RNG &rng, MemoryArena &arena,
+        float* rayWeight, Spectrum* L, bool *hit, const size_t &count  ) const
+{
+  Spectrum *L_temp = new Spectrum[count];
+  Spectrum *f = new Spectrum[count];
+  Spectrum* pathThroughput = new Spectrum[count];
+  bool* specularBounce = new bool[count];
+  BSDF **bsdf = new BSDF*[count];
+  Point *p = new Point[count];
+  Normal *n = new Normal[count];
+  Vector *wo = new Vector[count];
+  BSDFSample *outgoingBSDFSample = new BSDFSample[count];
+  Vector *wi = new Vector[count];
+  float *pdf = new float[count];
+  BxDFType *flags = new BxDFType[count];
+  RayDifferential *r = new RayDifferential[count];
+
+  for ( int i = 0; i < count; i++){
+    if ( !hit[i]) continue;
+    r[i].Copy(ray[i]);
+    pathThroughput[i] = Spectrum(1.0);
+    L[i] = 0.;
+    specularBounce[i] = false;
+  }
+  for ( int bounces = 0; ; ++bounces){
+    for ( int i  = 0; i < count; i++){
+      if ( !hit[i]) continue;
+      // Possibly add emitted light at path vertex
+      if ( bounces == 0 || specularBounce[i])
+        L[i] += pathThroughput[i]*isect[i].Le(-r[i].d);
+
+      // Sample illumination from lights to find path contribution
+      bsdf[i] = isect[i].GetBSDF(r[i], arena);
+      p[i] = bsdf[i]->dgShading.p;
+      n[i] = bsdf[i]->dgShading.nn;
+      wo[i] = -ray[i].d;
+
+    }
+    //calls to IntersectP
+    if (bounces < SAMPLE_DEPTH)
+         // L += pathThroughput *
+               UniformSampleOneLight(scene, renderer, arena, p, n, wo,
+                   isect, r, bsdf, sample, rng,
+                   lightNumOffset[bounces], &lightSampleOffsets[bounces],
+                   &bsdfSampleOffsets[bounces], rayWeight,L_temp,hit, count);
+      else
+         // L += pathThroughput *
+               UniformSampleOneLight(scene, renderer, arena, p, n, wo,
+                   isect, r, bsdf, sample, rng, -1, NULL, NULL, rayWeight, L_temp, hit, count);
+    for ( int i = 0; i < count; i++){
+        if ( !hit[i]) continue;
+        // Get _outgoingBSDFSample_ for sampling new path direction
+        L[i] += pathThroughput[i]*L_temp[i];
+        if (bounces < SAMPLE_DEPTH)
+            outgoingBSDFSample[i] = BSDFSample(&sample[i], pathSampleOffsets[bounces],
+                                            0);
+        else
+            outgoingBSDFSample[i] = BSDFSample(rng);
+        f[i] = bsdf[i]->Sample_f(wo[i], &wi[i], outgoingBSDFSample[i], &pdf[i],
+                                    BSDF_ALL, &flags[i]);
+        if (f[i].IsBlack() || pdf[i] == 0.)
+            continue;
+        specularBounce[i] = (flags[i] & BSDF_SPECULAR) != 0;
+        pathThroughput[i] *= f[i] * AbsDot(wi[i], n[i]) / pdf[i];
+        r[i] = RayDifferential(p[i], wi[i], r[i], isect[i].rayEpsilon);
+
+        // Possibly terminate the path
+        if (bounces > 3) {
+            float continueProbability = min(.5f, pathThroughput[i].y());
+            if (rng.RandomFloat() > continueProbability){
+              hit[i] = false;
+              continue;
+            }
+            pathThroughput[i] /= continueProbability;
+        }
+        if (bounces == maxDepth){
+          hit[i] = false;
+          return;
+        }
+    }
+
+  /*  scene->Intersect(r, localIsect);
+
+    // Find next vertex of path
+    for ( int i = 0; i < count; i++){
+      if ( !hit[i] && specularBounce[i]){
+        for (uint32_t i = 0; i < scene->lights.size(); ++i)
+          L += pathThroughput * scene->lights[i]->Le(ray);
+        continue;
+      }
+      isectp = &localIsect;
+    }*/
+  }
+
+  delete [] L_temp;
+  delete [] f;
+  delete [] pathThroughput;
+  delete [] specularBounce;
+  delete [] bsdf;
+  delete [] p;
+  delete [] n;
+  delete [] wo;
+  delete [] outgoingBSDFSample;
+  delete [] wi;
+  delete [] pdf;
+  delete [] flags;
+  delete [] r;
+}
 
 Spectrum PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
         const RayDifferential &r, const Intersection &isect,

@@ -39,6 +39,11 @@ public:
     Spectrum Li(const Scene *scene, const Renderer *renderer,
         const RayDifferential &ray, const Intersection &isect,
         const Sample *sample, RNG &rng, MemoryArena &arena) const;
+    void Li(const Scene *scene, const Renderer *renderer,
+        const RayDifferential *ray, const Intersection *isect,
+        const Sample *sample, RNG &rng, MemoryArena &arena,
+        float* rayWeight, Spectrum* L, bool *hit, const size_t &count
+        ) const;
     void RequestSamples(Sampler *sampler, Sample *sample, const Scene *scene);
     PathIntegrator(int md) { maxDepth = md; }
 private:

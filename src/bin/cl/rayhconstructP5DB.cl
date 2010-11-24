@@ -22,7 +22,11 @@ __kernel void rayhconstructP(__read_only image2d_t dir, __read_only image2d_t o,
   omin = omax = read_imagef(o, imageSampler, (int2)(lwidth*xGID, lheight*yGID));
   if ( uvtemp.w > 0 ) {
     valid = 1;
-    uv.x = uv.y = (uvtemp.x == 0)? 0 : uvtemp.y/uvtemp.x;
+    if ( uvtemp.x == 0){
+      uv.x = -1; uv.y = 1;
+    } else {
+    uv.x = uv.y = uvtemp.y/uvtemp.x;
+    }
     uv.z = uv.w = uvtemp.z;
   }else {
     valid = 0;
@@ -36,13 +40,21 @@ __kernel void rayhconstructP(__read_only image2d_t dir, __read_only image2d_t o,
 
       if ( uvtemp.w > 0 && valid == 0){
         omin = omax = otemp;
-        uv.x = uv.y = (uvtemp.x == 0)? 0:uvtemp.y/uvtemp.x;
+        if ( uvtemp.x == 0){
+          uv.x = -1; uv.y = 1;
+        } else {
+        uv.x = uv.y = uvtemp.y/uvtemp.x;
+        }
         uv.z = uv.w = uvtemp.z;
         valid = 1;
       } else {
         if ( uvtemp.w > 0){
-          uv.x = min(uv.x, (uvtemp.x==0)?0:uvtemp.y/uvtemp.x);
-          uv.y = max(uv.y, (uvtemp.x==0)?0:uvtemp.y/uvtemp.x);
+          if ( uvtemp.x == 0){
+            uv.x = -1; uv.y = 1;
+          } else {
+          uv.x = min(uv.x, uvtemp.y/uvtemp.x);
+          uv.y = max(uv.y, uvtemp.y/uvtemp.x);
+          }
           uv.z = min(uv.z, uvtemp.z);
           uv.w = max(uv.w, uvtemp.z);
 

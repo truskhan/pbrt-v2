@@ -121,6 +121,59 @@ void UniformSampleAllLights(const Scene *scene, const Renderer* renderer,
   delete [] bsdfSample;
 }
 
+void UniformSampleOneLight(const Scene *scene, const Renderer* renderer,
+    MemoryArena &arena, Point *p, Normal *n, Vector* wo,
+    const Intersection *isect, const RayDifferential *ray, BSDF **bsdf,
+    const Sample *sample, RNG &rng, int lightNumOffsets,
+    const LightSampleOffsets * lightSampleOffsets,
+    const BSDFSampleOffsets *bsdfSampleOffsets,
+    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    ){
+  int nLights = int(scene->lights.size());
+  float* rayEpsilon = new float[count];
+  float* time = new float[count];
+  int *lightNum = new int[count];
+  LightSample *lightSample = new LightSample[count];
+  BSDFSample *bsdfSample = new BSDFSample[count];
+  Light **light = new Light*[count];
+  for ( int i = 0; i < count; i++){
+      time[i] = ray[i].time;
+      rayEpsilon[i] = isect[i].rayEpsilon;
+      if (nLights == 0) {
+        L[i] = Spectrum(0.);
+        continue;
+      }
+      if ( lightNumOffsets != -1)
+        lightNum[i] = Floor2Int(sample[i].oneD[lightNumOffsets][0]*nLights);
+      else
+        lightNum[i] = Floor2Int(rng.RandomFloat() * nLights);
+      lightNum[i] = min(lightNum[i], nLights-1);
+      light[i] = scene->lights[lightNum[i]];
+
+      // Initialize light and bsdf samples for single light sample
+      if (lightSampleOffsets != NULL && bsdfSampleOffsets != NULL) {
+          lightSample[i] = LightSample(&sample[i], *lightSampleOffsets, 0);
+          bsdfSample[i] = BSDFSample(&sample[i], *bsdfSampleOffsets, 0);
+      }
+      else {
+          lightSample[i] = LightSample(rng);
+          bsdfSample[i] = BSDFSample(rng);
+      }
+  }
+   // return (float)nLights *
+        EstimateDirect(scene, renderer, arena, light, p, n, wo,
+                       rayEpsilon, time, bsdf, rng, lightSample,
+                       bsdfSample, BxDFType(BSDF_ALL & ~BSDF_SPECULAR),hit, nLights,count,L);
+  delete [] rayEpsilon;
+  delete [] time;
+  delete [] lightNum;
+  delete [] lightSample;
+  delete [] bsdfSample;
+  delete [] light;
+}
 
 Spectrum UniformSampleOneLight(const Scene *scene,
         const Renderer *renderer, MemoryArena &arena, const Point &p,
@@ -156,6 +209,92 @@ Spectrum UniformSampleOneLight(const Scene *scene,
                        bsdfSample, BxDFType(BSDF_ALL & ~BSDF_SPECULAR));
 }
 
+void EstimateDirect(const Scene *scene, const Renderer *renderer,
+    MemoryArena &arena, Light **light, const Point *p,
+    const Normal *n, const Vector *wo, float *rayEpsilon, float *time, BSDF **bsdf,
+    RNG &rng, const LightSample *lightSample, const BSDFSample *bsdfSample,
+    BxDFType flags, const bool* hit, const int nLights, const unsigned int count,RGBSpectrum* Ld){
+
+  Vector *wi = new Vector[count];
+  float *lightPdf = new float[count];
+  float *bsdfPdf = new float[count];
+  VisibilityTester *visibility = new VisibilityTester[count];
+  Ray *shadowRay = new Ray[count];
+  Spectrum *Li = new Spectrum[count];
+  Spectrum *f = new Spectrum[count];
+  float *weight = new float[count];
+  BxDFType *sampledType = new BxDFType[count];
+
+  for ( int i = 0; i < count; i++){
+    if ( !hit[i]) continue;
+    Ld[i] = Spectrum(0.);
+    Li[i] = light[i]->Sample_L(p[i], rayEpsilon[i], lightSample[i], time[i],
+                            &wi[i], &lightPdf[i], &visibility[i]);
+    shadowRay[i] = visibility[i].r;
+  }
+
+  char* occluded = new char[count];
+  //TODO: filter out rays that didn't intersect the scene
+  scene->IntersectP(shadowRay, occluded, count, hit
+    #ifdef STAT_PRAY_TRIANGLE
+    , Ls
+    #endif
+  );
+
+  for ( int i = 0; i < count; i++){
+    if ( !hit[i]) continue;
+    if ( lightPdf[i] > 0. && !Li[i].IsBlack()){
+      f[i] = bsdf[i]->f(wo[i],wi[i], flags);
+      if (!f[i].IsBlack() && occluded[i] == '0') {
+        //transmitance only for volume renderers
+        if ( light[i]->IsDeltaLight())
+          Ld[i] += f[i]*Li[i]*(AbsDot(wi[i],n[i])/lightPdf[i]);
+        else {
+          bsdfPdf[i] = bsdf[i]->Pdf(wo[i],wi[i],flags);
+          weight[i] = PowerHeuristic(1, lightPdf[i], 1, bsdfPdf[i]);
+          Ld[i] += f[i]*Li[i]*(AbsDot(wi[i],n[i])*weight[i]/lightPdf[i]);
+        }
+      }
+    }
+
+    if (!light[i]->IsDeltaLight()){
+      f[i] = bsdf[i]->Sample_f(wo[i], &wi[i], bsdfSample[i], &bsdfPdf[i], flags, &sampledType[i]);
+      if ( !f[i].IsBlack() && bsdfPdf[i] > 0.){
+        weight[i] = 1.f;
+        if (!(sampledType[i] & BSDF_SPECULAR)){
+          lightPdf[i] = light[i]->Pdf(p[i],wi[i]);
+          if (lightPdf[i] == 0.)
+            continue;
+          weight[i] = PowerHeuristic(1, bsdfPdf[i], 1, lightPdf[i]);
+        }
+        Intersection lightIsect;
+        Li[i] = Spectrum(0.f);
+        RayDifferential ray(p[i], wi[i], rayEpsilon[i], INFINITY, time[i]);
+        if ( scene->Intersect(ray, &lightIsect)){
+          if ( lightIsect.primitive->GetAreaLight() == light[i])
+            Li[i] = lightIsect.Le(-wi[i]);
+        } else
+          Li[i] = light[i]->Le(ray);
+        }
+        if (!Li[i].IsBlack()) {
+          //Li[i] *= renderer->Transmittance(scene, ray, NULL, rng, arena);
+          Ld[i] += f[i] * Li[i] * AbsDot(wi[i], n[i]) * weight[i] / bsdfPdf[i];
+        }
+      }
+    Ld[i] *= nLights;
+    }
+
+  delete [] wi;
+  delete [] lightPdf;
+  delete [] bsdfPdf;
+  delete [] visibility;
+  delete [] shadowRay;
+  delete [] Li;
+  delete [] f;
+  delete [] weight;
+  delete [] sampledType;
+
+}
 
 Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
         MemoryArena &arena, const Light *light, const Point &p,
@@ -163,7 +302,7 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
         const BSDF *bsdf, RNG &rng, const LightSample &lightSample,
         const BSDFSample &bsdfSample, BxDFType flags) {
     Spectrum Ld(0.);
-    // Sample light source with multiple importance sampling
+     // Sample light source with multiple importance sampling
     Vector wi;
     float lightPdf, bsdfPdf;
     VisibilityTester visibility;
@@ -208,7 +347,6 @@ Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
             else
                 Li = light->Le(ray);
             if (!Li.IsBlack()) {
-                Li *= renderer->Transmittance(scene, ray, NULL, rng, arena);
                 Ld += f * Li * AbsDot(wi, n) * weight / bsdfPdf;
             }
         }

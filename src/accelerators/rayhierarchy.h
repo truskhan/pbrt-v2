@@ -14,6 +14,9 @@ public:
     BBox WorldBound() const;
     RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node, bool sortVert,
           const string &sm, const int &maxBVHPrim
+    #ifdef TRIANGLES_PER_THREAD
+    , const int & trianlgesPerThread
+    #endif
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
@@ -69,7 +72,9 @@ private:
     unsigned int yResolution;
     bool sortVert;
     Semaphore *workerSemaphore;
-
+    #ifdef TRIANGLES_PER_THREAD
+    int trianlgesPerThread;
+    #endif
     size_t topLevelCount;
     string node;
     size_t nodeSize;

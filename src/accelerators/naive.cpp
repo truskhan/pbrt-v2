@@ -115,7 +115,7 @@ BBox NaiveAccel::WorldBound() const {
 }
 
 unsigned int NaiveAccel::MaxRaysPerCall(){
-    #define MAX_VERTICES 40000
+    #define MAX_VERTICES 90000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -276,6 +276,8 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
         index = indexArray[i];
         hit[i] = false;
         if ( !index ) continue;
+        //cout << "i " << i << " index " << index <<endl;
+        Assert( index < triangleCount);
         const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
         const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());
 
@@ -393,11 +395,12 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
     gput->SetIntArgument(6, (cl_int)triangleLastPartCount);
     Assert(gput->Run());
 
-    gput->EnqueueReadBuffer( 4, occluded);
+    gput->EnqueueReadBuffer( 4, temp);
     gput->WaitForRead();
 
     elem_counter = 0;
     for (int k = 0; k < count; ++k) {
+        occluded[k] = '0';
         if ( !hit[k] ) continue; //not a valid ray
         occluded[k] = temp[elem_counter];
         ++elem_counter;

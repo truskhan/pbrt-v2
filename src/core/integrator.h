@@ -94,11 +94,27 @@ Spectrum UniformSampleOneLight(const Scene *scene, const Renderer *renderer,
     const Sample *sample, RNG &rng, int lightNumOffset = -1,
     const LightSampleOffsets *lightSampleOffset = NULL,
     const BSDFSampleOffsets *bsdfSampleOffset = NULL);
+void UniformSampleOneLight(const Scene *scene, const Renderer* renderer,
+    MemoryArena &arena, Point *p, Normal *n, Vector* wo,
+    const Intersection *isect, const RayDifferential *ray, BSDF **bsdf,
+    const Sample *sample, RNG &rng, int lightNumOffsets,
+    const LightSampleOffsets * lightSampleOffsets,
+    const BSDFSampleOffsets *bsdfSampleOffsets,
+    float* rayWeight, RGBSpectrum* L, const bool* hit, const size_t & count
+    #ifdef STAT_PRAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    );
 Spectrum EstimateDirect(const Scene *scene, const Renderer *renderer,
     MemoryArena &arena, const Light *light, const Point &p,
     const Normal &n, const Vector &wo, float rayEpsilon, float time, const BSDF *bsdf,
     RNG &rng, const LightSample &lightSample, const BSDFSample &bsdfSample,
     BxDFType flags);
+void EstimateDirect(const Scene *scene, const Renderer *renderer,
+    MemoryArena &arena, Light **light, const Point *p,
+    const Normal *n, const Vector *wo, float* rayEpsilon, float* time, BSDF **bsdf,
+    RNG &rng, const LightSample *lightSample, const BSDFSample *bsdfSample,
+    BxDFType flags, const bool* hit, const int nLights, const unsigned int count, RGBSpectrum* L);
 void EstimateDirect(const Scene* scene, const Renderer* renderer,
     MemoryArena &arena, const Light* light, const RayDifferential *ray,
     const Intersection *isect,

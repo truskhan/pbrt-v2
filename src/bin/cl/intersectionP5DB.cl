@@ -1,7 +1,7 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 //#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
@@ -57,16 +57,19 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
 }
 
-bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
+bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 t_bmin, float4 t_bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
  float2 uv;
  float2 tmin, tmax;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ray = omax - omin;
- ocenter = ray/2 + omin;
+ ocenter = (omin + omax)/2;
  ocenter.w = 0;
+
+ ray = (omax - omin)/2;
+ float4 bmin = t_bmin - ray;
+ float4 bmax = t_bmax + ray;
 
  ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);

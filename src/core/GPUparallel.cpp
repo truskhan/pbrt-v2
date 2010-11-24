@@ -187,6 +187,9 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
 
 #ifdef HAVE_ATI
   ciErrNum = clBuildProgram(cpPrograms[i], 0, NULL,
+  #ifdef TRIANGLES_PER_THREAD
+   "-DTRIANGLES_PER_THREAD -g",
+  #endif
   #ifdef STAT_RAY_TRIANGLE
    "-DSTAT_RAY_TRIANGLE -g",
   #endif
@@ -212,7 +215,7 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
     "-DSTAT_TRIANGLE_CONE",
   #endif
   #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
-    "-cl-nv-verbose -cl-nv-maxrregcount=70 -Werror",
+    "-cl-nv-verbose -cl-nv-maxrregcount=100 -Werror",
   #endif
   &pfn_notify, (void*) &(queue[0]->device));
 #endif

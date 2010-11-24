@@ -64,60 +64,71 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
 }
 
-bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
+bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 t_bmin, float4 t_bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
  float2 uv;
  float2 tmin, tmax;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ray = omax - omin;
- ocenter = ray/2 + omin;
+ ocenter = (omin + omax)/2;
  ocenter.w = 0;
+
+ ray = (omax - omin)/2;
+ float4 bmin = t_bmin - ray;
+ float4 bmax = t_bmax + ray;
 
  ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
- tmin.x = tmax.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0 ) return true;
+ tmin.x = tmax.x = ray.y/ray.x;
  tmin.y = tmax.y = ray.z;
 
  ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmin.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmax.x, bmax.y, bmin.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
- uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
+ if ( ray.x == 0) return true;
+ uv.x = ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);

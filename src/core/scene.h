@@ -50,10 +50,13 @@ public:
         return hit;
     }
     void Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
-      float* rayWeight, const int & count, const unsigned int & samplesPerPixel
+      const int & count, const unsigned int & samplesPerPixel
       #ifdef STAT_RAY_TRIANGLE
       , Spectrum *Ls
       #endif
+      ) const;
+    void Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
+      const int & count, const unsigned int & samplesPerPixel, const int bounce
       ) const;
     void Preprocess(const Camera* camera, const unsigned samplesPerPixel) const {
       aggregate->Preprocess(camera, samplesPerPixel);

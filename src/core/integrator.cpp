@@ -293,6 +293,7 @@ void EstimateDirect(const Scene *scene, const Renderer *renderer,
   delete [] f;
   delete [] weight;
   delete [] sampledType;
+  delete [] occluded;
 
 }
 

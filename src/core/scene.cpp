@@ -68,14 +68,14 @@ unsigned int Scene::MaxRaysPerCall() const {
 }
 
 void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
-  float* rayWeight, const int & count, const unsigned int & samplesPerPixel
+  const int & count, const unsigned int & samplesPerPixel
   #ifdef STAT_RAY_TRIANGLE
   , Spectrum *Ls
   #endif
   ) const {
     RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
     if ( rh != NULL){
-      rh->Intersect(ray, isect, rayWeight, hit, count
+      rh->Intersect(ray, isect, hit, count
       #ifdef STAT_RAY_TRIANGLE
         ,Ls
       #endif
@@ -84,7 +84,7 @@ void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit
     }
     RayBVH* rbvh = dynamic_cast<RayBVH*>(aggregate);
     if ( rbvh != NULL){
-      rbvh->Intersect(ray, isect, rayWeight, hit, count
+      rbvh->Intersect(ray, isect, hit, count
       #ifdef STAT_RAY_TRIANGLE
         ,Ls
       #endif
@@ -93,10 +93,41 @@ void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit
     }
     NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
     if ( na != NULL)
-      na->Intersect(ray, isect, rayWeight, hit, count, samplesPerPixel);
+      na->Intersect(ray, isect, hit, count, samplesPerPixel);
     else
       Severe("Called Intersect with unsupported aggregate!");
   }
+
+void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
+  const int & count, const unsigned int & samplesPerPixel, const int bounce
+  #ifdef STAT_RAY_TRIANGLE
+  , Spectrum *Ls
+  #endif
+  ) const {
+    RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
+    if ( rh != NULL){
+      rh->Intersect(ray, isect, hit, count, bounce
+      #ifdef STAT_RAY_TRIANGLE
+        ,Ls
+      #endif
+      );
+      return;
+    }
+    RayBVH* rbvh = dynamic_cast<RayBVH*>(aggregate);
+    if ( rbvh != NULL){
+      rbvh->Intersect(ray, isect, hit, count, bounce
+      #ifdef STAT_RAY_TRIANGLE
+        ,Ls
+      #endif
+      );
+      return;
+    }
+    /*NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
+    if ( na != NULL)
+      na->Intersect(ray, isect, hit, count, samplesPerPixel, bounce);
+    else
+      Severe("Called Intersect with unsupported aggregate!");*/
+}
 
 const BBox &Scene::WorldBound() const {
     return bound;

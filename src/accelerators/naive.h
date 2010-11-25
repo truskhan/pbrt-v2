@@ -17,7 +17,9 @@ public:
     bool CanIntersect() const { return true; }
     ~NaiveAccel();
     unsigned int MaxRaysPerCall();
-    void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const int counter, const unsigned int & samplesPerPixel);
+    void Intersect(const RayDifferential *r, Intersection *in, bool* hit, const int counter, const unsigned int & samplesPerPixel);
+    void Intersect(const RayDifferential *r, Intersection *in, bool* hit,
+                   const int counter, const unsigned int & samplesPerPixel, const int bounce);
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
     void IntersectP(const Ray* ray, char* occluded, const size_t count, const bool* hit);

@@ -192,7 +192,7 @@ bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
 }
 
 void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
-                               float* rayWeight, bool* hit, const int count, const unsigned int & samplesPerPixel)  {
+                           bool* hit, const int count, const unsigned int & samplesPerPixel)  {
 
     this->samplesPerPixel = samplesPerPixel;
     workerSem->Wait();

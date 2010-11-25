@@ -21,10 +21,12 @@ public:
     );
     bool CanIntersect() const { return true; }
     ~RayBVH();
-    void Intersect(const RayDifferential *r, Intersection *in, float* rayWeight, bool* hit, const unsigned int count
+    void Intersect(const RayDifferential *r, Intersection *in, bool* hit, const unsigned int count
     #ifdef STAT_RAY_TRIANGLE
     , Spectrum *Ls
     #endif
+    );
+    void Intersect(const RayDifferential *r, Intersection *in, bool* hit, const unsigned int count, const int bounce
     );
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;

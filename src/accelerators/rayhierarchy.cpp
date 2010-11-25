@@ -12,7 +12,7 @@
 #include "imageio.h"
 #endif
 
-#define KERNEL_COUNT 8
+#define KERNEL_COUNT 9
 #define KERNEL_COMPUTEDPTUTV 0
 #define KERNEL_RAYLEVELCONSTRUCT 1
 #define KERNEL_RAYCONSTRUCT 2
@@ -21,6 +21,7 @@
 #define KERNEL_YETANOTHERINTERSECTION 5
 #define KERNEL_RAYLEVELCONSTRUCTP 6
 #define KERNEL_RAYCONSTRUCTP 7
+#define KERNEL_INTERSECTION2 8
 
 using namespace std;
 
@@ -72,6 +73,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[4] = "cl/yetAnotherIntersectionIA.cl";
     names[6] = "cl/levelConstructPIA.cl";
     names[7] = "cl/rayhconstructPIA.cl";
+    names[8] = "cl/intersectionIA2.cl";
     cout << "accel nodes : IA" << endl;
     nodeSize = 13;
   }
@@ -83,6 +85,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[4] = "cl/yetAnotherIntersection5D.cl";
     names[6] = "cl/levelConstructP5D.cl";
     names[7] = "cl/rayhconstructP5D.cl";
+    names[8] = "cl/intersection5D2.cl";
     cout << "accel nodes : 5D nodes with spheres" << endl;
     nodeSize = 9;
   }
@@ -94,6 +97,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[4] = "cl/yetAnotherIntersection5DB.cl";
     names[6] = "cl/levelConstructP5DB.cl";
     names[7] = "cl/rayhconstructP5DB.cl";
+    names[8] = "cl/intersection5DB2.cl";
     cout << "accel nodes : 5D nodes with boxes" << endl;
     nodeSize = 11;
   }
@@ -105,6 +109,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[4] = "cl/yetAnotherIntersection6DB.cl";
     names[6] = "cl/levelConstructP6DB.cl";
     names[7] = "cl/rayhconstructP6DB.cl";
+    names[8] = "cl/intersection6DB2.cl";
     cout << "accel nodes : 6D nodes with boxes" << endl;
     nodeSize = 13;
   }
@@ -131,6 +136,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     ocl->CompileProgram(file[5], "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
     ocl->CompileProgram(file[6], "levelConstructP", "oclLevelConstructP.ptx",KERNEL_RAYLEVELCONSTRUCTP);
     ocl->CompileProgram(file[7], "rayhconstructP", "oclRayhconstructP.ptx",KERNEL_RAYCONSTRUCTP);
+    ocl->CompileProgram(file[8], "IntersectionR2", "oclIntersection2.ptx", KERNEL_INTERSECTION2);
 
     delete [] lenF;
     for (int i = 0; i < KERNEL_COUNT; i++){
@@ -638,9 +644,186 @@ inline RGBSpectrum RainbowColorMapping(const float _value)
 }
 #endif
 
+//intersect computed on gpu with more rays (not primary rays)
+void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
+                    bool* hit, const unsigned int count, const int bounce
+    #ifdef STAT_RAY_TRIANGLE
+    , Spectrum *Ls
+    #endif
+    ){
+  cl_float* rayDirArray = new cl_float[count*4];
+  cl_float* rayOArray = new cl_float[count*4];
+  cl_float* rayBoundsArray = new cl_float[count*2];
+  cl_float* tHitArray = new cl_float[count];
+  cl_uint* indexArray = new cl_uint[count];
+
+  for (unsigned int k = 0; k < count; ++k){
+    rayDirArray[4*k] = r[k].d[0];
+    rayDirArray[4*k + 1] = r[k].d[1];
+    rayDirArray[4*k + 2] = r[k].d[2];
+    rayDirArray[4*k + 3] = 1;
+
+    rayOArray[4*k] = r[k].o[0];
+    rayOArray[4*k + 1] = r[k].o[1];
+    rayOArray[4*k + 2] = r[k].o[2];
+    rayOArray[4*k + 3] = 0;
+
+    rayBoundsArray[2*k] = r[k].mint;
+    rayBoundsArray[2*k + 1] = INFINITY;
+
+    indexArray[k] = 0;
+    tHitArray[k] = INFINITY; //should initialize on scene size
+
+    if ( !hit[k] ) //indicate that the ray is invalid
+      rayDirArray[4*k + 3] = -1;
+  }
+
+  workerSemaphore->Wait();
+  int roffsetX, xWidth, yWidth;
+  size_t tn1 = ConstructRayHierarchyP(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
+  OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
+
+  size_t gws = trianglePartCount;
+  size_t lws = 64;
+  size_t tn2 = ocl->CreateTask (KERNEL_INTERSECTION2, 1, &gws, &lws, cmd);
+  OpenCLTask* gput = ocl->getTask(tn2,cmd);
+
+  unsigned int c = 9;
+  gput->InitBuffers(c);
+
+  gput->CopyBuffer(0,1,gpuray); //ray dir
+  gput->CopyBuffer(1,2,gpuray); //ray o
+  gput->CopyBuffer(2,3,gpuray); //nodes
+  gput->CopyBuffer(3,4,gpuray); //ray validity
+  ocl->delTask(tn1,cmd);
+
+  cl_image_format imageFormatBounds;
+  imageFormatBounds.image_channel_data_type = CL_FLOAT;
+  imageFormatBounds.image_channel_order = CL_RG;
+
+  Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY )); //vertices
+  gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //ray bounds
+  Assert(gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_WRITE_ONLY)); //tHit
+  Assert(gput->CreateBuffer(7,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY)); //index array
+  Assert(gput->CreateBuffer(8,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE)); //stack
+  gput->SetIntArgument(9, roffsetX);
+  gput->SetIntArgument(10, xWidth);
+  gput->SetIntArgument(11, yWidth);
+  gput->SetIntArgument(12,a);
+  gput->SetIntArgument(13,b);
+  gput->SetIntArgument(14, trianglePartCount);
+  gput->SetIntArgument(16, 5*(4+5*height)); //stack size
+
+  gput->EnqueueWrite2DImage(5, rayBoundsArray);
+  gput->EnqueueWriteBuffer(6, tHitArray);
+  gput->EnqueueWriteBuffer(7, indexArray);
+  for ( int i = 0; i < parts - 1; i++){
+    gput->SetIntArgument(15,(cl_uint)i*trianglePartCount); //offset
+    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
+    if (!gput->Run())exit(EXIT_FAILURE);
+    gput->WaitForKernel();
+  }
+  //last part of vertices
+  gput->SetIntArgument(14,(cl_int)triangleLastPartCount);
+  gput->SetIntArgument(15,(cl_uint)(parts-1)*trianglePartCount);
+  Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount));
+  if (!gput->Run())exit(EXIT_FAILURE);
+
+  gput->EnqueueReadBuffer( 6, tHitArray );
+  gput->EnqueueReadBuffer( 7, indexArray);
+
+  gput->SetPersistentBuffers(0,3);
+  gput->SetPersistentBuff(7);
+
+  gput->WaitForRead();
+  gws = count;
+  size_t tn3 = ocl->CreateTask(KERNEL_COMPUTEDPTUTV, 1, &gws, &lws, cmd);
+  OpenCLTask* gpuRayO = ocl->getTask(tn3,cmd);
+  gpuRayO->InitBuffers(7);
+  gpuRayO->CopyBuffers(0,3,0,gput); // 0 vertex, 1 dir, 2 origin
+  gpuRayO->CopyBuffer(7,3,gput); // 3 index
+  ocl->delTask(tn2,cmd);
+  gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*trianglePartCount, CL_MEM_READ_ONLY ); //uvs
+  gpuRayO->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY ); // tu,tv
+  gpuRayO->CreateBuffer(6,sizeof(cl_float)*6*count, CL_MEM_WRITE_ONLY); //dpdu, dpdv
+  gpuRayO->SetIntArgument(10,xResolution*samplesPerPixel);
+
+  gpuRayO->SetIntArgument(7,(cl_uint)count);
+
+  for ( int i = 0; i < parts - 1; i++){
+    Assert(gpuRayO->EnqueueWriteBuffer( 4 , uvs + 6*i*trianglePartCount));
+    gpuRayO->SetIntArgument(8,i*trianglePartCount);
+    gpuRayO->SetIntArgument(9,(i+1)*trianglePartCount);
+    Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount));
+    if (!gpuRayO->Run())exit(EXIT_FAILURE);
+    gpuRayO->WaitForKernel();
+  }
+  gpuRayO->SetIntArgument(8,(cl_int)(parts-1)*trianglePartCount);
+  gpuRayO->SetIntArgument(9,(cl_int)triangleCount);
+  Assert(gpuRayO->EnqueueWriteBuffer(4, uvs + 6*(parts-1)*trianglePartCount, 6*sizeof(cl_float)*triangleLastPartCount));
+  Assert(gpuRayO->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount,9*sizeof(cl_float)*triangleLastPartCount));
+  if (!gpuRayO->Run())exit(EXIT_FAILURE);
+
+  cl_float* tutvArray = new cl_float[2*count]; // for tu, tv
+  cl_float* dpduArray = new cl_float[2*3*count]; // for dpdu, dpdv
+  if (!gpuRayO->EnqueueReadBuffer( 5, tutvArray ))exit(EXIT_FAILURE);
+  if (!gpuRayO->EnqueueReadBuffer( 6, dpduArray ))exit(EXIT_FAILURE);
+
+  gpuRayO->WaitForRead();
+  ocl->delTask(tn3,cmd);
+  workerSemaphore->Post();
+  cl_uint index;
+
+  Vector dpdu, dpdv;
+  //deserialize rectangles
+  unsigned int j;
+  for ( unsigned int i = 0; i < count; i++) {
+      if ( hit[i] == false) continue;
+      index = indexArray[i];
+      hit[i] = false;
+      if ( !index ) continue;
+      Assert( index < triangleCount);
+      const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
+      const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());
+
+      dpdu = Vector(dpduArray[6*i],dpduArray[6*i+1],dpduArray[6*i+2]);
+      dpdv = Vector(dpduArray[6*i+3],dpduArray[6*i+4],dpduArray[6*i+5]);
+
+      // Test intersection against alpha texture, if present
+      if (shape->GetMeshPtr()->alphaTexture) {
+          DifferentialGeometry dgLocal(r[i](tHitArray[j]), dpdu, dpdv,
+                                       Normal(0,0,0), Normal(0,0,0),
+                                       tutvArray[2*i], tutvArray[2*i+1], shape);
+          if (shape->GetMeshPtr()->alphaTexture->Evaluate(dgLocal) == 0.f)
+              continue;
+      }
+      // Fill in _DifferentialGeometry_ from triangle hit
+      in[i].dg =  DifferentialGeometry(r[i](tHitArray[i]), dpdu, dpdv,
+                                       Normal(0,0,0), Normal(0,0,0),
+                                       tutvArray[2*i],tutvArray[2*i+1], shape);
+      in[i].primitive = p;
+      in[i].WorldToObject = *shape->WorldToObject;
+      in[i].ObjectToWorld = *shape->ObjectToWorld;
+      in[i].shapeId = shape->shapeId;
+      in[i].primitiveId = p->primitiveId;
+      in[i].rayEpsilon = 1e-3f * tHitArray[i]; //thit
+      r[i].maxt = tHitArray[i];
+      hit[i] = true;
+      PBRT_RAY_TRIANGLE_INTERSECTION_HIT(&r[i], r[i].maxt);
+  }
+
+  delete [] rayDirArray;
+  delete [] rayOArray;
+  delete [] rayBoundsArray;
+  delete [] tHitArray;
+  delete [] tutvArray;
+  delete [] dpduArray;
+  delete [] indexArray;
+}
+
 //intersect computed on gpu with more rays
 void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
-                               float* rayWeight, bool* hit, unsigned int count
+                               bool* hit, unsigned int count
   #ifdef STAT_RAY_TRIANGLE
   , Spectrum *Ls
   #endif
@@ -712,7 +895,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     imageFormatBounds.image_channel_order = CL_RG;
 
     Assert(gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY )); //vertices
-    //Assert(gput->CreateBuffer(4,sizeof(cl_float)*2*count, CL_MEM_READ_ONLY )); //ray bounds
     gput->CreateImage2D(4, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0);
     Assert(gput->CreateBuffer(5,sizeof(cl_float)*count, CL_MEM_READ_WRITE)); // tHit
     Assert(gput->CreateBuffer(6,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY)); //index array
@@ -919,6 +1101,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     delete [] tHitArray;
     delete [] tutvArray;
     delete [] dpduArray;
+    delete [] indexArray;
+    delete [] changedArray;
 }
 
 bool RayHieararchy::Intersect(const Ray &ray, Intersection *isect) const {

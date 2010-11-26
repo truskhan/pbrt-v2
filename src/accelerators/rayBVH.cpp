@@ -692,8 +692,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   Assert(gput->EnqueueWriteBuffer(9, bvh->gpuNodes));
 
   for ( int i = 0; i < parts - 1; i++){
-    gput->SetIntArgument(15, (i-1)*trianglePartCount);
-    gput->SetIntArgument(16, i*trianglePartCount);
+    gput->SetIntArgument(15, i*trianglePartCount);
+    gput->SetIntArgument(16, (i+1)*trianglePartCount);
     if (!gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount))exit(EXIT_FAILURE);
     if (!gput->Run())exit(EXIT_FAILURE);
     gput->WaitForKernel();
@@ -892,8 +892,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     Assert(gput->EnqueueWriteBuffer( 9, picture));
     #endif
     for ( int i = 0; i < parts - 1; i++){
-      gput->SetIntArgument(14, (i-1)*trianglePartCount);
-      gput->SetIntArgument(15, i*trianglePartCount);
+      gput->SetIntArgument(14, i*trianglePartCount);
+      gput->SetIntArgument(15, (i+1)*trianglePartCount);
       if (!gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount))exit(EXIT_FAILURE);
       if (!gput->Run())exit(EXIT_FAILURE);
       gput->WaitForKernel();

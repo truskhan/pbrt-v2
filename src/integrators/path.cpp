@@ -61,8 +61,8 @@ void PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
   Intersection *localIsect = new Intersection[count];
 
   for ( int i = 0; i < count; i++){
-    localIsect[i] = isect[i];
     if ( !hit[i]) continue;
+    localIsect[i] = isect[i];
     r[i].Copy(ray[i]);
     pathThroughput[i] = Spectrum(1.0);
     L[i] = 0.;
@@ -122,23 +122,9 @@ void PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
             }
             pathThroughput[i] /= continueProbability;
         }
-        if (bounces == maxDepth){
-          delete [] L_temp;
-          delete [] f;
-          delete [] pathThroughput;
-          delete [] specularBounce;
-          delete [] bsdf;
-          delete [] p;
-          delete [] n;
-          delete [] wo;
-          delete [] outgoingBSDFSample;
-          delete [] wi;
-          delete [] pdf;
-          delete [] flags;
-          delete [] r;
-          delete [] localIsect;
-          return;
-        }
+    }
+    if (bounces == maxDepth){
+      break;
     }
 
     scene->Intersect(r, localIsect, hit, count, 4, bounces);

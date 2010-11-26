@@ -311,7 +311,7 @@ void OpenCLTask::CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, Op
   }
 }
 
-bool OpenCLTask::CreateBuffers( size_t* size, cl_mem_flags* flags){
+void OpenCLTask::CreateBuffers( size_t* size, cl_mem_flags* flags){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
   for ( size_t it = 0; it < buffCount; it++){
@@ -334,15 +334,15 @@ bool OpenCLTask::CreateBuffers( size_t* size, cl_mem_flags* flags){
       Severe("failed setting %i parameter, error: %i %s", it, ciErrNum, stringError(ciErrNum));
   }
 
-  return true;
+  return;
 }
 
-bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos){
+void OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
   // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
   sizeBuff[i] = size;
-  if ( !createBuff[i]) return true;
+  if ( !createBuff[i]) return;
   cmBuffers[i] = clCreateBuffer(context, flags, size, NULL, &ciErrNum);
   if ( ciErrNum != CL_SUCCESS){
     for ( size_t j = 0; j < buffCount; j++)
@@ -356,7 +356,7 @@ bool OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int ar
   if (ciErrNum != CL_SUCCESS)
     Severe("failed setting %i parameter, error: %i %s", i, ciErrNum, stringError(ciErrNum));
 
-  return true;
+  return;
 }
 
 void OpenCLTask::CreateImage2D(size_t i, cl_mem_flags flags, const cl_image_format * imageFormat, size_t width,
@@ -389,7 +389,7 @@ void OpenCLTask::CopyImage2D(size_t src, size_t dst, OpenCLTask* oclt){
     Severe("failed copying image, error: %i %s\n", ciErrNum, stringError(ciErrNum));
 }
 
-bool OpenCLTask::CreateConstantBuffer( size_t i, size_t size, void* data){
+void OpenCLTask::CreateConstantBuffer( size_t i, size_t size, void* data){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
   #ifdef DEBUG_OUTPUT
@@ -405,12 +405,10 @@ bool OpenCLTask::CreateConstantBuffer( size_t i, size_t size, void* data){
   cout << "setting argument " << i << endl;
   #endif
   ciErrNum = clSetKernelArg(ckKernel, i , sizeof(cl_mem), (void*)&cmBuffers[i]);
-  if (ciErrNum != CL_SUCCESS){
-    cout << "Failed setting " << i << ". parameter " << ciErrNum << " " << stringError(ciErrNum) <<  endl;
-    return false;
-  }
+  if (ciErrNum != CL_SUCCESS)
+    Severe("Failed setting %d .parameter %d %s", i, ciErrNum, stringError(ciErrNum));
 
-  return true;
+  return;
 }
 
 
@@ -427,21 +425,20 @@ void OpenCLTask::SetIntArgument(const size_t & it, const cl_int & arg){
 }
 
 
-bool OpenCLTask::SetLocalArgument(const size_t & it, const size_t & size){
+void OpenCLTask::SetLocalArgument(const size_t & it, const size_t & size){
   #ifdef DEBUG_OUTPUT
   cout << "set local argument " << endl;
   #endif
   cl_int ciErrNum;
 
   ciErrNum = clSetKernelArg(ckKernel, it, size, 0);
-  if (ciErrNum != CL_SUCCESS){
+  if (ciErrNum != CL_SUCCESS)
     Severe("Failed setting local parameters %i %s \n", ciErrNum ,stringError(ciErrNum));
-    return false;
-  }
-  return true;
+
+  return;
 }
 
-bool OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
+void OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
   size_t it = 0;
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
@@ -463,10 +460,10 @@ bool OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
     #endif
     ++it;
   }
-  return true;
+  return;
 }
 
-bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data, size_t size){
+void OpenCLTask::EnqueueWriteBuffer( size_t it, void* data, size_t size){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
 
@@ -480,7 +477,7 @@ bool OpenCLTask::EnqueueWriteBuffer( size_t it, void* data, size_t size){
     Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
   wmem_times += executionTime(writeEvents[writeENum - 1]);
   #endif
-  return true;
+  return;
 }
 
 void OpenCLTask::EnqueueWrite2DImage( size_t it, void* data){
@@ -503,7 +500,7 @@ void OpenCLTask::EnqueueWrite2DImage( size_t it, void* data){
   #endif
 }
 
-bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
+void OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
   ciErrNum = clEnqueueReadBuffer(queue, cmBuffers[it], CL_TRUE, 0, sizeBuff[it] , odata, 1, &kernelEvent, &readEvents[readENum++]);
@@ -515,7 +512,7 @@ bool OpenCLTask::EnqueueReadBuffer(size_t it ,void* odata){
     Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
   rmem_times += executionTime(readEvents[readENum - 1]);
   #endif
-  return true;
+  return;
 }
 
 void OpenCLTask::EnqueueRead2DImage( size_t it, void* data){
@@ -548,7 +545,7 @@ double executionTime(cl_event &event)
     return (double)1.0e-9 * (end - start); // convert nanoseconds to seconds on return
 }
 
-bool OpenCLTask::Run(){
+void OpenCLTask::Run(){
     #ifdef DEBUG_OUTPUT
     cout << "clEnqueueNDRangeKernel...\n";
     #endif
@@ -577,10 +574,10 @@ bool OpenCLTask::Run(){
     ++kernel_calls[kernel];
     #endif
 
-    return true;
+    return;
 }
 
-bool OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
+void OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
   cl_int ciErrNum;
   size_t it = 0;
   MutexLock lock(*globalmutex);
@@ -601,7 +598,7 @@ bool OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
     rmem_times += executionTime(readEvents[readENum - 1]);
     #endif
   }
-  return true;
+  return ;
 }
 
 OpenCLTask::~OpenCLTask(){

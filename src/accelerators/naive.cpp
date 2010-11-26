@@ -247,17 +247,17 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
     for ( int i = 0; i < parts - 1; i ++){
       gput->SetIntArgument(10,(cl_int)trianglePartCount);
       gput->SetIntArgument(11, i*trianglePartCount);
-      Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
-      Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*i*trianglePartCount));
+      gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount);
+      gput->EnqueueWriteBuffer( 4, uvs + 6*i*trianglePartCount);
       ocl->Finish();
-      if (!gput->Run())exit(EXIT_FAILURE);
+      gput->Run();
       gput->WaitForKernel();
     }
     gput->SetIntArgument(10, (cl_int)triangleLastPartCount);
     gput->SetIntArgument(11, (parts-1)*trianglePartCount);
-    Assert(gput->EnqueueWriteBuffer( 4, uvs + 6*(parts-1)*trianglePartCount, sizeof(cl_float)*6*triangleLastPartCount));
-    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount));
-    if (!gput->Run())exit(EXIT_FAILURE);
+    gput->EnqueueWriteBuffer( 4, uvs + 6*(parts-1)*trianglePartCount, sizeof(cl_float)*6*triangleLastPartCount);
+    gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount);
+    gput->Run();
     gput->WaitForKernel();
 
     float* TuTvArray = new float[2*count];
@@ -386,14 +386,14 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
     gput->EnqueueWriteBuffer( 4, temp);
 
     for ( int i = 0; i < parts - 1; i++){
-      Assert(gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount));
+      gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount);
       gput->SetIntArgument(6,(cl_int)trianglePartCount);
-      Assert(gput->Run());
+      gput->Run();
       gput->WaitForKernel();
     }
-    Assert(gput->EnqueueWriteBuffer(0, vertices + 9*(parts - 1)*trianglePartCount,sizeof(cl_float)*3*3*triangleLastPartCount));
+    gput->EnqueueWriteBuffer(0, vertices + 9*(parts - 1)*trianglePartCount,sizeof(cl_float)*3*3*triangleLastPartCount);
     gput->SetIntArgument(6, (cl_int)triangleLastPartCount);
-    Assert(gput->Run());
+    gput->Run();
 
     gput->EnqueueReadBuffer( 4, temp);
     gput->WaitForRead();

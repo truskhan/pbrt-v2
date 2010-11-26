@@ -63,36 +63,41 @@ class OpenCLTask {
     const char* function, cl_uint dim, size_t* szLWS, size_t* szGWS);
     ~OpenCLTask();
     void InitBuffers(size_t count);
-    bool CreateConstantBuffer( size_t i, size_t size, void* data);
+    void CreateConstantBuffer( size_t i, size_t size, void* data);
     /**
     Same as other CreateBuffer functions
     \sa CreateBuffers"(size_t, cl_mem_flags*)"
     \sa CreateBuffers"("")"
     **/
-    bool CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos = -1);
-    bool CreateBuffers(size_t* size, cl_mem_flags* flags);
+    void CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos = -1);
+    void CreateBuffers(size_t* size, cl_mem_flags* flags);
     void CreateImage2D(size_t i, cl_mem_flags flags, const cl_image_format * imageFormat,
                     size_t width, size_t height, void* host_ptr, int argPos = -1);
     void CopyBuffer(size_t src, size_t dst, OpenCLTask* oclt);
     void CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, OpenCLTask* oclt);
-    int SetPersistentBuff( size_t i ) { return clRetainMemObject(cmBuffers[i]);}
-    int SetPersistentBuffers( size_t start, size_t end){
-      int result = CL_SUCCESS;
+    void SetPersistentBuff( size_t i ) {
+      cl_int err = clRetainMemObject(cmBuffers[i]);
+      if ( err !=  CL_SUCCESS)
+        Severe("Failed at clRetainMemObject at buffer %i, err %i %s", i, err, stringError(err));
+    }
+    void SetPersistentBuffers( size_t start, size_t end){
+      cl_int err = CL_SUCCESS;
       for ( size_t i = start; i < end; i++){
-        result |= clRetainMemObject(cmBuffers[i]);
+        err = clRetainMemObject(cmBuffers[i]);
+        if ( err !=  CL_SUCCESS)
+          Severe("Failed at clRetainMemObject at buffer %i, err %i %s", i, err, stringError(err));
       }
-      return result;
     }
     void SetIntArgument(const size_t & it, const cl_int & arg);
-    bool SetLocalArgument(const size_t & it, const size_t & size);
-    bool EnqueueWriteBuffer(cl_mem_flags* flags,void** data);
-    bool EnqueueWriteBuffer(size_t it, void* data, size_t size = 0);
+    void SetLocalArgument(const size_t & it, const size_t & size);
+    void EnqueueWriteBuffer(cl_mem_flags* flags,void** data);
+    void EnqueueWriteBuffer(size_t it, void* data, size_t size = 0);
     void EnqueueRead2DImage( size_t it, void* data);
     void EnqueueWrite2DImage( size_t it, void* data);
     void CopyImage2D(size_t src, size_t dst, OpenCLTask* oclt);
-    bool EnqueueReadBuffer(cl_mem_flags* flags,void** odata);
-    bool EnqueueReadBuffer( size_t it, void* odata);
-    bool Run();
+    void EnqueueReadBuffer(cl_mem_flags* flags,void** odata);
+    void EnqueueReadBuffer( size_t it, void* odata);
+    void Run();
     void WaitForKernel(){
       clWaitForEvents(1, &kernelEvent);
     }

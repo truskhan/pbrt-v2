@@ -223,8 +223,7 @@ Spectrum PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
                    L += pathThroughput * scene->lights[i]->Le(ray);
             break;
         }
-        if (bounces > 1)
-            pathThroughput *= renderer->Transmittance(scene, ray, NULL, rng, arena);
+        pathThroughput *= renderer->Transmittance(scene, ray, NULL, rng, arena);
         isectp = &localIsect;
     }
     return L;

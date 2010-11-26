@@ -27,7 +27,7 @@ MARCH=-m32 -msse2 -mfpmath=sse
 #OPT=-O2
 OPT=-g3
 # comment out this line to enable assertions at runtime
-#DEFS += -DNDEBUG
+DEFS += -DNDEBUG
 
 #statistics
 #STAT_TRIANGLE_CONE - shows only numbers how many times was a cone tested egainst triangle
@@ -37,7 +37,7 @@ OPT=-g3
 DEFS += -DGPU_TIMES
 
 # common locations for the OpenCL libraries; needed by rayhierarchy accelerator
-HAVE_ATI = 1
+HAVE_ATI = 0
 ATISTREAMSDKROOT=$(HOME)/ati-stream-sdk-v2.2-lnx32
 NVIDIASDKROOT=$(HOME)/NVIDIA_GPU_Computing_SDK
 
@@ -204,8 +204,8 @@ core/pbrtlex.cpp: core/pbrtlex.ll core/pbrtparse.cpp
 core/pbrtparse.cpp: core/pbrtparse.yy
 	@echo "YACC'ing pbrtparse.yy"
 	@$(YACC) -o $@ core/pbrtparse.yy
-	@if [ -e core/pbrtparse.cpp.h ]; then /bin/mv core/pbrtparse.cpp.h core/pbrtparse.hh; fi
-	@if [ -e core/pbrtparse.hpp ]; then /bin/mv core/pbrtparse.hpp core/pbrtparse.hh; fi
+	@if [ -e core/pbrtparse.cpp.h ]; then /bin/mv core/pbrtparse.cpp.h core/pbrtparse.hpp; fi
+	@if [ -e core/pbrtparse.hh ]; then /bin/mv core/pbrtparse.hh core/pbrtparse.hpp; fi
 
 ifeq ($(HAVE_DTRACE),1)
 core/dtrace.h: core/dtrace.d

@@ -264,10 +264,16 @@ Spectrum IrregIsotropicBRDF::f(const Vector &wo,
 }
 
 
-Spectrum RegularHalfangleBRDF::f(const Vector &wo,
-                                 const Vector &wi) const {
+Spectrum RegularHalfangleBRDF::f(const Vector &WO,
+                                 const Vector &WI) const {
     // Compute $\wh$ and transform $\wi$ to halfangle coordinate system
-    Vector wh = wi + wo;
+    Vector wo = WO, wi = WI;
+    Vector wh = wo + wi;
+    if (wh.z < 0.f) {
+        wo = -wo;
+        wi = -wi;
+        wh = -wh;
+    }
     if (wh.x == 0.f && wh.y == 0.f && wh.z == 0.f) return Spectrum (0.f);
     wh = Normalize(wh);
     float whTheta = SphericalTheta(wh);
@@ -311,7 +317,7 @@ float BxDF::Pdf(const Vector &wo, const Vector &wi) const {
 
 float BRDFToBTDF::Pdf(const Vector &wo,
         const Vector &wi) const {
-    return brdf->Pdf(wo, -wi);
+    return brdf->Pdf(wo, otherHemisphere(wi));
 }
 
 

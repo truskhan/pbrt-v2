@@ -49,7 +49,7 @@ public:
         Assert(!v.HasNaNs());
         x = v.x; y = v.y; z = v.z;
     }
-    
+
     Vector &operator=(const Vector &v) {
         Assert(!v.HasNaNs());
         x = v.x; y = v.y; z = v.z;
@@ -60,7 +60,7 @@ public:
         Assert(!v.HasNaNs());
         return Vector(x + v.x, y + v.y, z + v.z);
     }
-    
+
     Vector& operator+=(const Vector &v) {
         Assert(!v.HasNaNs());
         x += v.x; y += v.y; z += v.z;
@@ -70,17 +70,14 @@ public:
         Assert(!v.HasNaNs());
         return Vector(x - v.x, y - v.y, z - v.z);
     }
-    
+
     Vector& operator-=(const Vector &v) {
         Assert(!v.HasNaNs());
         x -= v.x; y -= v.y; z -= v.z;
         return *this;
     }
-    bool operator==(const Vector &v) const {
-        return x == v.x && y == v.y && z == v.z;
-    }
     Vector operator*(float f) const { return Vector(f*x, f*y, f*z); }
-    
+
     Vector &operator*=(float f) {
         Assert(!isnan(f));
         x *= f; y *= f; z *= f;
@@ -91,7 +88,7 @@ public:
         float inv = 1.f / f;
         return Vector(x * inv, y * inv, z * inv);
     }
-    
+
     Vector &operator/=(float f) {
         Assert(f != 0);
         float inv = 1.f / f;
@@ -103,7 +100,7 @@ public:
         Assert(i >= 0 && i <= 2);
         return (&x)[i];
     }
-    
+
     float &operator[](int i) {
         Assert(i >= 0 && i <= 2);
         return (&x)[i];
@@ -111,6 +108,13 @@ public:
     float LengthSquared() const { return x*x + y*y + z*z; }
     float Length() const { return sqrtf(LengthSquared()); }
     explicit Vector(const Normal &n);
+
+    bool operator==(const Vector &v) const {
+        return x == v.x && y == v.y && z == v.z;
+    }
+    bool operator!=(const Vector &v) const {
+        return x != v.x || y != v.y || z != v.z;
+    }
 
     // Vector Public Data
     float x, y, z;
@@ -130,7 +134,7 @@ public:
         Assert(!p.HasNaNs());
         x = p.x; y = p.y; z = p.z;
     }
-    
+
     Point &operator=(const Point &p) {
         Assert(!p.HasNaNs());
         x = p.x; y = p.y; z = p.z;
@@ -141,7 +145,7 @@ public:
         Assert(!v.HasNaNs());
         return Point(x + v.x, y + v.y, z + v.z);
     }
-    
+
     Point &operator+=(const Vector &v) {
         Assert(!v.HasNaNs());
         x += v.x; y += v.y; z += v.z;
@@ -151,12 +155,12 @@ public:
         Assert(!p.HasNaNs());
         return Vector(x - p.x, y - p.y, z - p.z);
     }
-    
+
     Point operator-(const Vector &v) const {
         Assert(!v.HasNaNs());
         return Point(x - v.x, y - v.y, z - v.z);
     }
-    
+
     Point &operator-=(const Vector &v) {
         Assert(!v.HasNaNs());
         x -= v.x; y -= v.y; z -= v.z;
@@ -191,13 +195,20 @@ public:
         Assert(i >= 0 && i <= 2);
         return (&x)[i];
     }
-    
+
     float &operator[](int i) {
         Assert(i >= 0 && i <= 2);
         return (&x)[i];
     }
     bool HasNaNs() const {
         return isnan(x) || isnan(y) || isnan(z);
+    }
+
+    bool operator==(const Point &p) const {
+        return x == p.x && y == p.y && z == p.z;
+    }
+    bool operator!=(const Point &p) const {
+        return x != p.x || y != p.y || z != p.z;
     }
 
     // Point Public Data
@@ -220,7 +231,7 @@ public:
         Assert(!n.HasNaNs());
         return Normal(x + n.x, y + n.y, z + n.z);
     }
-    
+
     Normal& operator+=(const Normal &n) {
         Assert(!n.HasNaNs());
         x += n.x; y += n.y; z += n.z;
@@ -230,7 +241,7 @@ public:
         Assert(!n.HasNaNs());
         return Normal(x - n.x, y - n.y, z - n.z);
     }
-    
+
     Normal& operator-=(const Normal &n) {
         Assert(!n.HasNaNs());
         x -= n.x; y -= n.y; z -= n.z;
@@ -242,7 +253,7 @@ public:
     Normal operator*(float f) const {
         return Normal(f*x, f*y, f*z);
     }
-    
+
     Normal &operator*=(float f) {
         x *= f; y *= f; z *= f;
         return *this;
@@ -252,7 +263,7 @@ public:
         float inv = 1.f/f;
         return Normal(x * inv, y * inv, z * inv);
     }
-    
+
     Normal &operator/=(float f) {
         Assert(f != 0);
         float inv = 1.f/f;
@@ -261,13 +272,13 @@ public:
     }
     float LengthSquared() const { return x*x + y*y + z*z; }
     float Length() const        { return sqrtf(LengthSquared()); }
-    
+
 #ifndef NDEBUG
     Normal(const Normal &n) {
         Assert(!n.HasNaNs());
         x = n.x; y = n.y; z = n.z;
     }
-    
+
     Normal &operator=(const Normal &n) {
         Assert(!n.HasNaNs());
         x = n.x; y = n.y; z = n.z;
@@ -282,10 +293,17 @@ public:
         Assert(i >= 0 && i <= 2);
         return (&x)[i];
     }
-    
+
     float &operator[](int i) {
         Assert(i >= 0 && i <= 2);
         return (&x)[i];
+    }
+
+    bool operator==(const Normal &n) const {
+        return x == n.x && y == n.y && z == n.z;
+    }
+    bool operator!=(const Normal &n) const {
+        return x != n.x || y != n.y || z != n.z;
     }
 
     // Normal Public Data
@@ -332,6 +350,18 @@ public:
         float start, float end = INFINITY)
             : Ray(org, dir, start, end, parent.time, parent.depth+1) {
         hasDifferentials = false;
+    }
+    void Copy (const RayDifferential r){
+      hasDifferentials = r.hasDifferentials;
+      rxOrigin = r.rxOrigin;
+      ryOrigin = r.ryOrigin;
+      rxDirection = r.ryDirection;
+      o = r.o;
+      d = r.d;
+      mint = r.mint;
+      maxt = r.maxt;
+      time = r.time;
+      depth = r.depth;
     }
     explicit RayDifferential(const Ray &ray) : Ray(ray) {
         hasDifferentials = false;
@@ -414,6 +444,13 @@ public:
     }
     void BoundingSphere(Point *c, float *rad) const;
     bool IntersectP(const Ray &ray, float *hitt0 = NULL, float *hitt1 = NULL) const;
+
+    bool operator==(const BBox &b) const {
+        return b.pMin == pMin && b.pMax == pMax;
+    }
+    bool operator!=(const BBox &b) const {
+        return b.pMin != pMin || b.pMax != pMax;
+    }
 
     // BBox Public Data
     Point pMin, pMax;

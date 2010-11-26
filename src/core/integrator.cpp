@@ -450,6 +450,7 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
     delete [] visibility;
     delete [] shadowRay;
     delete [] Li;
+    delete [] occluded;
 }
 
 

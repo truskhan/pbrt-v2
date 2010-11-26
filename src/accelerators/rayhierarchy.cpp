@@ -776,7 +776,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
   Vector dpdu, dpdv;
   //deserialize rectangles
-  unsigned int j;
   for ( unsigned int i = 0; i < count; i++) {
       if ( hit[i] == false) continue;
       index = indexArray[i];
@@ -791,7 +790,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
       // Test intersection against alpha texture, if present
       if (shape->GetMeshPtr()->alphaTexture) {
-          DifferentialGeometry dgLocal(r[i](tHitArray[j]), dpdu, dpdv,
+          DifferentialGeometry dgLocal(r[i](tHitArray[i]), dpdu, dpdv,
                                        Normal(0,0,0), Normal(0,0,0),
                                        tutvArray[2*i], tutvArray[2*i+1], shape);
           if (shape->GetMeshPtr()->alphaTexture->Evaluate(dgLocal) == 0.f)
@@ -1060,7 +1059,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     Vector dpdu, dpdv;
     //deserialize rectangles
-    unsigned int j;
     for ( unsigned int i = 0; i < count; i++) {
         index = indexArray[i];
         hit[i] = false;
@@ -1074,7 +1072,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
         // Test intersection against alpha texture, if present
         if (shape->GetMeshPtr()->alphaTexture) {
-            DifferentialGeometry dgLocal(r[i](tHitArray[j]), dpdu, dpdv,
+            DifferentialGeometry dgLocal(r[i](tHitArray[i]), dpdu, dpdv,
                                          Normal(0,0,0), Normal(0,0,0),
                                          tutvArray[2*i], tutvArray[2*i+1], shape);
             if (shape->GetMeshPtr()->alphaTexture->Evaluate(dgLocal) == 0.f)

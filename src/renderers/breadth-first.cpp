@@ -82,8 +82,8 @@ void breadthFirstTask::Run() {
     camera->film->UpdateDisplay(sampler->xPixelStart,
         sampler->yPixelStart, sampler->xPixelEnd+1, sampler->yPixelEnd+1);
     //use of global sampler, don't delete it, it will be done by ~breadthFirst
-    //delete sampler;
-    //delete[] samples;
+    delete sampler;
+    delete[] samples;
     delete[] rays;
     delete[] Ls;
     delete[] Ts;
@@ -203,6 +203,21 @@ void breadthFirst::Li(const Scene *scene, const RayDifferential* ray,
     Spectrum Lv = volumeIntegrator->Li(scene, this, ray[i], &sample[i], rng,
                                        &T[i], arena);
     Ls[i] = T[i] * Lo[i] + Lv;
+    if (Ls[i].HasNaNs()) {
+        Error("Not-a-number radiance value returned "
+              "for image sample.  Setting to black.");
+        Ls[i] = Spectrum(0.f);
+    }
+    else if (Ls[i].y() < -1e-5) {
+        Error("Negative luminance value, %f, returned"
+              "for image sample.  Setting to black.", Ls[i].y());
+        Ls[i] = Spectrum(0.f);
+    }
+    else if (isinf(Ls[i].y())) {
+        Error("Infinite luminance value returned"
+              "for image sample.  Setting to black.");
+        Ls[i] = Spectrum(0.f);
+    }
    }
    delete [] hit;
    delete [] Lo;

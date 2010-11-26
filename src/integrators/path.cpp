@@ -61,12 +61,12 @@ void PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
   Intersection *localIsect = new Intersection[count];
 
   for ( int i = 0; i < count; i++){
+    specularBounce[i] = false;
     if ( !hit[i]) continue;
     localIsect[i] = isect[i];
     r[i].Copy(ray[i]);
     pathThroughput[i] = Spectrum(1.0);
     L[i] = 0.;
-    specularBounce[i] = false;
   }
   for ( int bounces = 0; ; ++bounces){
     for ( int i  = 0; i < count; i++){

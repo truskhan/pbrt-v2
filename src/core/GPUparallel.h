@@ -279,8 +279,8 @@ class OpenCL {
     @param[in] szGWS global number of work-items, should be multiple of szLWS
     **/
     size_t CreateTask(size_t kernel, size_t dim, size_t* szGWS = 0, size_t* szLWS = 0, size_t i = 0){
-        for ( int i = 0; i < dim; i++){
-          szGWS[i] = shrRoundUp((int)szLWS[i], szGWS[i]);
+        for ( int j = 0; j < dim; j++){
+          szGWS[j] = shrRoundUp((int)szLWS[j], szGWS[j]);
         }
         size_t task = queue[i]->CreateTask(kernel, cxContext, cpPrograms[kernel], functions[kernel], dim, szLWS, szGWS);
         Info("Created Task %d in queue %d.",task, i);

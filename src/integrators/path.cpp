@@ -79,7 +79,7 @@ void PathIntegrator::Li(const Scene *scene, const Renderer *renderer,
       bsdf[i] = localIsect[i].GetBSDF(r[i], arena);
       p[i] = bsdf[i]->dgShading.p;
       n[i] = bsdf[i]->dgShading.nn;
-      wo[i] = -ray[i].d;
+      wo[i] = -r[i].d;
 
     }
     //calls to IntersectP

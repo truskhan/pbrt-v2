@@ -13,9 +13,9 @@ sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-__read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
-float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y,
-const unsigned int GID
+__read_only image2d_t bounds, __global int* index, __global float* tHit, __global int* changed,
+float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, const int totalWidth, const int lheight,
+const int lwidth, const int x, const int y, const unsigned int GID
 #ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
@@ -54,9 +54,13 @@ const unsigned int GID
       s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
       if (t < s1.x ) continue;
 
-      if (t > tHit[totalWidth*(y + i) + x + j]) continue;
+
+      if (t > tHit[totalWidth*(y + i) + x + j]
+      || index[totalWidth*(y + i) + x + j] == GID) continue;
+
         tHit[totalWidth*(y + i) + x + j] = t;
         index[totalWidth*(y + i) + x + j] = GID;
+        changed[get_global_id(0)] = totalWidth*(y + i) + x + j;
     }
   }
 
@@ -125,10 +129,10 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 t_omin, float4 t_omax, fl
 }
 
 
-__kernel void IntersectionR (
+__kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
-  __global int* index,  __global int* stack, __global GPUNode* bvh,
+  __global int* index, __global int* stack, __global GPUNode* bvh, __global int* changed,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
   int stackSize, int topLevelNodes, int offsetGID
@@ -138,7 +142,6 @@ __kernel void IntersectionR (
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
-    // counts with 64 block size
     __local float bbox[6*64];
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
@@ -150,7 +153,7 @@ __kernel void IntersectionR (
     float4 e1, e2;
     float4 v1, v2, v3;
     //calculate bounding box
-    float4 bmin, bmax, temp_bmin, temp_bmax;
+    float4 bmin, bmax;
 
     bmin.x = bvhElem.ax;
     bmin.y = bvhElem.ay;
@@ -158,6 +161,12 @@ __kernel void IntersectionR (
     bmax.x = bvhElem.bx;
     bmax.y = bvhElem.by;
     bmax.z = bvhElem.bz;
+    bbox[get_local_id(0)*6] = bmin.x;
+    bbox[get_local_id(0)*6+1] = bmin.y;
+    bbox[get_local_id(0)*6+2] = bmin.z;
+    bbox[get_local_id(0)*6+3] = bmax.x;
+    bbox[get_local_id(0)*6+4] = bmax.y;
+    bbox[get_local_id(0)*6+5] = bmax.z;
 
     float4 omin, omax, dmin, dmax;
 
@@ -176,6 +185,13 @@ __kernel void IntersectionR (
         omax.z = dmin.w;
         dmax.w = omin.w = dmin.w = omax.w = 0;
         SPindex = 0;
+
+        bmin.x = bbox[get_local_id(0)*6] ;
+        bmin.y = bbox[get_local_id(0)*6+1];
+        bmin.z = bbox[get_local_id(0)*6+2] ;
+        bmax.x = bbox[get_local_id(0)*6+3] ;
+        bmax.y = bbox[get_local_id(0)*6+4] ;
+        bmax.z = bbox[get_local_id(0)*6+5] ;
 
         // check if triangle intersects node
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -224,12 +240,12 @@ __kernel void IntersectionR (
             bvhElem = bvh[iGID];
             //en empty BVH node
             if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
-            temp_bmin.x = bvhElem.ax;
-            temp_bmin.y = bvhElem.ay;
-            temp_bmin.z = bvhElem.az;
-            temp_bmax.x = bvhElem.bx;
-            temp_bmax.y = bvhElem.by;
-            temp_bmax.z = bvhElem.bz;
+            bmin.x = bvhElem.ax;
+            bmin.y = bvhElem.ay;
+            bmin.z = bvhElem.az;
+            bmax.x = bvhElem.bx;
+            bmax.y = bvhElem.by;
+            bmax.z = bvhElem.bz;
 
             dmax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
             omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
@@ -238,18 +254,18 @@ __kernel void IntersectionR (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f ));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;
-                    intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,
+                    intersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,
                           tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID+bvhElem.primOffset+f
                           #ifdef STAT_RAY_TRIANGLE
                           , stat_rayTriangle

@@ -655,7 +655,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   cl_float* rayOArray = new cl_float[count*4];
   cl_float* rayBoundsArray = new cl_float[count*2];
   cl_float* tHitArray = new cl_float[count];
-  cl_uint* indexArray = new cl_uint[count];
+  cl_int* indexArray = new cl_int[count];
 
   for (unsigned int k = 0; k < count; ++k){
     rayDirArray[4*k] = r[k].d[0];
@@ -671,7 +671,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     rayBoundsArray[2*k] = r[k].mint;
     rayBoundsArray[2*k + 1] = INFINITY;
 
-    indexArray[k] = 0;
+    indexArray[k] = -1;
     tHitArray[k] = INFINITY; //should initialize on scene size
 
     if ( !hit[k] ) //indicate that the ray is invalid
@@ -704,7 +704,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY ); //vertices
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //ray bounds
   gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_WRITE_ONLY); //tHit
-  gput->CreateBuffer(7,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY); //index array
+  gput->CreateBuffer(7,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
   gput->CreateBuffer(8,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE); //stack
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
@@ -780,7 +780,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
       if ( hit[i] == false) continue;
       index = indexArray[i];
       hit[i] = false;
-      if ( !index ) continue;
+      if ( index == -1 ) continue;
       Assert( index < triangleCount);
       const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
       const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());
@@ -835,7 +835,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   cl_float* rayOArray = new cl_float[count*4];
   cl_float* rayBoundsArray = new cl_float[count*2];
   cl_float* tHitArray = new cl_float[count];
-  cl_uint* indexArray = new cl_uint[count];
+  cl_int* indexArray = new cl_int[count];
   #ifdef STAT_RAY_TRIANGLE
   cl_uint* picture = new cl_uint[count];
   #endif
@@ -855,7 +855,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     rayBoundsArray[2*k] = r[k].mint;
     rayBoundsArray[2*k + 1] = INFINITY;
 
-    indexArray[k] = 0;
+    indexArray[k] = -1;
     tHitArray[k] = INFINITY; //should initialize on scene size
 
     #ifdef STAT_RAY_TRIANGLE
@@ -896,7 +896,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->CreateBuffer(0,sizeof(cl_float)*3*3*trianglePartCount, CL_MEM_READ_ONLY ); //vertices
     gput->CreateImage2D(4, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0);
     gput->CreateBuffer(5,sizeof(cl_float)*count, CL_MEM_READ_WRITE); // tHit
-    gput->CreateBuffer(6,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY); //index array
+    gput->CreateBuffer(6,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
     //allocate stack in global memory
     gput->CreateBuffer(7,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE);
    // gput->SetLocalArgument(7,sizeof(cl_int)*(64*5*(4+3*(height-1)))); //stack for every thread
@@ -1062,7 +1062,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     for ( unsigned int i = 0; i < count; i++) {
         index = indexArray[i];
         hit[i] = false;
-        if ( !index ) continue;
+        if ( index == -1 ) continue;
         Assert( index < triangleCount);
         const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
         const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());

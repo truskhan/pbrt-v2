@@ -143,7 +143,6 @@ __kernel void IntersectionP (
   __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  const unsigned int lowerBound, const unsigned int upperBound,
    int stackSize, int topLevelNodes
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
@@ -259,12 +258,10 @@ __kernel void IntersectionP (
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
-                  if ( bvhElem.primOffset < lowerBound
-                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f ));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;

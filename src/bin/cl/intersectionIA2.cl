@@ -58,36 +58,25 @@ const unsigned int offsetGID
 
 }
 
-bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4 dmin, float4 dmax){
+bool intersectsNode ( float4 bmin, float4 bmax, float4 t_omin, float4 t_omax, float4 t_dmin, float4 t_dmax){
   //compute (Bx-Ox)*(1/Vx)
   float2 s,t,u;
   float4 temp;
   //compute (Bx-0x)
-  temp = omin;
-  omin = bmin - omax;
-  omax = bmax - temp;
+  float4 omin = bmin - t_omax;
+  float4 omax = bmax - t_omin;
+  float4 dmin;
+  float4 dmax;
   //compute (1/Vx)
-  if ( dmin.x <= 0 && dmax.x >= 0){
-    return true;
-  } else {
-    temp.x = dmin.x;
-    dmin.x = 1/dmax.x;
-    dmax.x = 1/temp.x;
-  }
-  if ( dmin.y <= 0 && dmax.y >= 0){
-    return true;
-  } else {
-    temp.x = dmin.y;
-    dmin.y = 1/dmax.y;
-    dmax.y = 1/temp.x;
-  }
-  if ( dmin.z <= 0 && dmax.z >= 0){
-    return true;
-  } else {
-    temp.x = dmin.z;
-    dmin.z = 1/dmax.z;
-    dmax.z = 1/temp.x;
-  }
+  if ( (dmin.x <= 0 && dmax.x >= 0) || (dmin.y <= 0 && dmax.y >= 0) || (dmin.z <= 0 && dmax.z >= 0) )
+     return true;
+
+  dmin.x = 1/t_dmax.x;
+  dmax.x = 1/t_dmin.x;
+  dmin.y = 1/t_dmax.y;
+  dmax.y = 1/t_dmin.y;
+  dmin.z = 1/t_dmax.z;
+  dmax.z = 1/t_dmin.z;
 
   temp.x = omin.x*dmin.x;
   temp.y = omax.x*dmin.x;

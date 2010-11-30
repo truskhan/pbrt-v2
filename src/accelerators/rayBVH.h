@@ -48,7 +48,11 @@ private:
                   ,float* coord) const;
 
     // RayBVH Private Methods
-    BVHAccel* bvh;
+    BVHAccel** bvhs;
+    cl_uint bvhTopLevelNodesMax;
+    cl_uint bvhNodesMax;
+    cl_uint maxPrims;
+
     string splitMethod;
     size_t triangleCount;
     size_t trianglePartCount;
@@ -57,11 +61,12 @@ private:
     int scale;
     #endif
     unsigned int parts;
-    cl_float* vertices; cl_float* uvs;
+    cl_float** vertices; cl_float** uvs;
     bool onGPU;
     cl_uint height;
     cl_uint BVHheight;
     cl_uint maxBVHPrim;
+    string sm;
     cl_uint chunk;
     OpenCL* ocl; //pointer to OpenCL auxiliary functions
     size_t cmd; //index to command queue
@@ -77,6 +82,8 @@ private:
     size_t topLevelCount;
     string node;
     size_t nodeSize;
+    BBox bbox;
+    vector<Reference<Primitive> > p;
 };
 
 

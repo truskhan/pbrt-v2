@@ -65,36 +65,25 @@ const unsigned int GID
 
 }
 
-bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4 dmin, float4 dmax){
+bool intersectsNode ( float4 bmin, float4 bmax, float4 t_omin, float4 t_omax, float4 t_dmin, float4 t_dmax){
   //compute (Bx-Ox)*(1/Vx)
   float2 s,t,u;
   float4 temp;
   //compute (Bx-0x)
-  temp = omin;
-  omin = bmin - omax;
-  omax = bmax - temp;
+  float4 omin = bmin - t_omax;
+  float4 omax = bmax - t_omin;
+  float4 dmin;
+  float4 dmax;
   //compute (1/Vx)
-  if ( dmin.x <= 0 && dmax.x >= 0){
-    return true;
-  } else {
-    temp.x = dmin.x;
-    dmin.x = 1/dmax.x;
-    dmax.x = 1/temp.x;
-  }
-  if ( dmin.y <= 0 && dmax.y >= 0){
-    return true;
-  } else {
-    temp.x = dmin.y;
-    dmin.y = 1/dmax.y;
-    dmax.y = 1/temp.x;
-  }
-  if ( dmin.z <= 0 && dmax.z >= 0){
-    return true;
-  } else {
-    temp.x = dmin.z;
-    dmin.z = 1/dmax.z;
-    dmax.z = 1/temp.x;
-  }
+  if ( (dmin.x <= 0 && dmax.x >= 0) || (dmin.y <= 0 && dmax.y >= 0) || (dmin.z <= 0 && dmax.z >= 0) )
+     return true;
+
+  dmin.x = 1/t_dmax.x;
+  dmax.x = 1/t_dmin.x;
+  dmin.y = 1/t_dmax.y;
+  dmax.y = 1/t_dmin.y;
+  dmin.z = 1/t_dmax.z;
+  dmax.z = 1/t_dmin.z;
 
   temp.x = omin.x*dmin.x;
   temp.y = omax.x*dmin.x;
@@ -144,14 +133,14 @@ __kernel void IntersectionR2 (
   __global float* tHit, __global int* index,  __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  const unsigned int lowerBound, const unsigned int upperBound,
-  int stackSize, int topLevelNodes
+  int stackSize, int topLevelNodes, int offsetGID
 #ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
+    __local float bbox[6*64];
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
@@ -162,7 +151,7 @@ __kernel void IntersectionR2 (
     float4 e1, e2;
     float4 v1, v2, v3;
     //calculate bounding box
-    float4 bmin, bmax, temp_bmin, temp_bmax;
+    float4 bmin, bmax;
 
     bmin.x = bvhElem.ax;
     bmin.y = bvhElem.ay;
@@ -170,6 +159,12 @@ __kernel void IntersectionR2 (
     bmax.x = bvhElem.bx;
     bmax.y = bvhElem.by;
     bmax.z = bvhElem.bz;
+    bbox[get_local_id(0)*6] = bmin.x;
+    bbox[get_local_id(0)*6+1] = bmin.y;
+    bbox[get_local_id(0)*6+2] = bmin.z;
+    bbox[get_local_id(0)*6+3] = bmax.x;
+    bbox[get_local_id(0)*6+4] = bmax.y;
+    bbox[get_local_id(0)*6+5] = bmax.z;
 
     float4 omin, omax, dmin, dmax;
     int4 valid;
@@ -190,6 +185,13 @@ __kernel void IntersectionR2 (
         omax.z = dmin.w;
         dmax.w = omin.w = dmin.w = omax.w = 0;
         SPindex = 0;
+
+        bmin.x = bbox[get_local_id(0)*6] ;
+        bmin.y = bbox[get_local_id(0)*6+1];
+        bmin.z = bbox[get_local_id(0)*6+2] ;
+        bmax.x = bbox[get_local_id(0)*6+3] ;
+        bmax.y = bbox[get_local_id(0)*6+4] ;
+        bmax.z = bbox[get_local_id(0)*6+5] ;
 
         // check if triangle intersects node
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -241,12 +243,12 @@ __kernel void IntersectionR2 (
             bvhElem = bvh[iGID];
             //en empty BVH node
             if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
-            temp_bmin.x = bvhElem.ax;
-            temp_bmin.y = bvhElem.ay;
-            temp_bmin.z = bvhElem.az;
-            temp_bmax.x = bvhElem.bx;
-            temp_bmax.y = bvhElem.by;
-            temp_bmax.z = bvhElem.bz;
+            bmin.x = bvhElem.ax;
+            bmin.y = bvhElem.ay;
+            bmin.z = bvhElem.az;
+            bmax.x = bvhElem.bx;
+            bmax.y = bvhElem.by;
+            bmax.z = bvhElem.bz;
 
             dmax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
             omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
@@ -255,21 +257,19 @@ __kernel void IntersectionR2 (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsNode(temp_bmin, temp_bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
-                  if ( bvhElem.primOffset < lowerBound
-                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f ));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;
                     intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,
-                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , bvhElem.primOffset+f
+                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID + bvhElem.primOffset+f
                           #ifdef STAT_RAY_TRIANGLE
                           , stat_rayTriangle
                           #endif

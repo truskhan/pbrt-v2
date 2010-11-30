@@ -10,7 +10,7 @@ __kernel void computeDpTuTv (const __global float* vertex,
     int iGID = get_global_id(0);
     if ( iGID >= count ) return;
     int i = index[iGID];
-    if ( i == 0 ) return;
+    if ( i == -1 ) return;
     if ( i < lowerBound || i >= upperBound) return;
       else i -= lowerBound;
 

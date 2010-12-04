@@ -1,6 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 typedef struct
 {
@@ -132,7 +132,7 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 omin, float4 omax, float4
   s.y = min(s.y, t.y);
   s.y = min(s.y, u.y);
 
-  return (s.x < s.y);
+  return (s.x < s.y + EPS);
 }
 
 

@@ -1,7 +1,7 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 //#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 typedef struct
 {
@@ -64,79 +64,88 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
 }
 
-bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 t_bmin, float4 t_bmax) {
+bool intersectsNode(float4 omin, float4 omax, float2 uvmin, float2 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
  float2 uv;
  float2 tmin, tmax;
+ int range = 0;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ocenter = (omin + omax)/2;
+ ray = (omax - omin)/2;
+ ocenter = ray + omin;
  ocenter.w = 0;
 
- ray = (omax - omin)/2;
- float4 bmin = t_bmin - ray;
- float4 bmax = t_bmax + ray;
+ bmin -= ray;
+ bmax += ray;
 
  ray = (float4)0;
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
- if ( ray.x == 0 ) return true;
- tmin.x = tmax.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ tmin.x = tmax.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  tmin.y = tmax.y = ray.z;
 
  ray = normalize((float4)(bmax.x, bmax.y, bmax.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmin.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmin.x, bmax.y, bmax.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmin.x, bmin.y, bmax.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmin.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmax.x, bmax.y, bmin.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
  ray = normalize((float4)(bmax.x, bmin.y, bmax.z,0) - ocenter);
- if ( ray.x == 0) return true;
- uv.x = ray.y/ray.x;
+ range |= (ray.x < 0) ? 0x1000 : 0x0100;
+ range |= (ray.y < 0) ? 0x0010 : 0x0001;
+ uv.x = ( ray.x == 0) ? 0 : ray.y/ray.x;
  uv.y = ray.z;
  tmin = min(tmin, uv);
  tmax = max(tmax, uv);
 
- if ( ( max(tmin.x, uvmin.x) < min(tmax.x, uvmax.x)) && (max(tmin.y, uvmin.y) < min(tmax.y, uvmax.y)))
-  return true;
+ if ( (range & 0x1100 == 0x1100) || (range & 0x0011 == 0x0011)) return true;
 
-  return false;
+ return (( max(tmin.x, uvmin.x) < min(tmax.x, uvmax.x)) + EPS && (max(tmin.y, uvmin.y) < min(tmax.y, uvmax.y) + EPS));
+
 }
 
 __kernel void IntersectionP (
@@ -146,7 +155,6 @@ __kernel void IntersectionP (
   __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  const unsigned int lowerBound, const unsigned int upperBound,
    int stackSize, int topLevelNodes
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
@@ -266,12 +274,10 @@ __kernel void IntersectionP (
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
-                  if ( bvhElem.primOffset < lowerBound
-                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f ));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;

@@ -13,7 +13,7 @@ sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE
 
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
-__read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
+  __read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y
 #ifdef STAT_PRAY_TRIANGLE
 , __global int* stat_rayTriangle
@@ -52,8 +52,9 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
       // Compute _t_ to intersection point
       t = dot(e2, s2) * invDivisor;
+
       s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x || t > s1.y) continue;
+      if (t < s1.x || t > s1.y ) continue;
 
       tHit[totalWidth*(y + i) + x + j] = '1';
     }
@@ -62,19 +63,19 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
 }
 
-
 bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
  float4 tmin, tmax;
+ float4 fmin, fmax;
+ bool ret;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ray = (omax - omin)/2;
- bmin -= ray;
- bmax += ray;
-
- ocenter = ray + omin;
+ ray = omax - omin;
+ ocenter = ray/2 + omin;
  ocenter.w = 0;
+
+ uvmin.w = uvmax.w = 0;
 
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
  tmin = ray;
@@ -108,11 +109,19 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
- tmin = max(tmin, uvmin);
- tmax = min(tmax, uvmax);
+ fmin = max(tmin, uvmin);
+ fmax = min(tmax, uvmax);
 
- return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && (tmin.z < tmax.z + EPS));
+ if ( tmin.x < 0 && tmax.x > 0)
+  ret = (fmin.x < fmax.x + EPS);
+ if ( tmin.y < 0 && tmax.y > 0)
+  ret |= (fmin.y < fmax.y + EPS);
+ if ( tmin.z < 0 && tmax.z > 0)
+  ret |= (fmin.z < fmax.z + EPS);
+
+ return (ret || ( fmin.x < (fmax.x + EPS) && fmin.y < (fmax.y + EPS) && fmin.z < (fmax.z + EPS) ));
 }
+
 
 __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
@@ -121,14 +130,13 @@ __kernel void IntersectionP (
   __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  const unsigned int lowerBound, const unsigned int upperBound,
    int stackSize, int topLevelNodes
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
-    int iGID = get_global_id(0);
+    uint iGID = get_global_id(0);
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
@@ -145,14 +153,14 @@ __kernel void IntersectionP (
     bmax.y = bvhElem.by;
     bmax.z = bvhElem.bz;
 
+    uint4 valid;
     // find geometry for the work-item
     float4 e1, e2;
     float4 v1, v2, v3;
 
     float4 omin, omax, dmin, dmax;
-    int4 valid;
 
-    int SPindex = 0;
+    int SPindex;
     int wbeginStack = stackSize*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
@@ -235,14 +243,12 @@ __kernel void IntersectionP (
 
             if ( intersectsNode(omin, omax, dmin, dmax, temp_bmin, temp_bmax) )
             {
-               //if it is a rayhierarchy leaf node and bvh leaf node
+              //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
-                  if ( bvhElem.primOffset < lowerBound
-                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;

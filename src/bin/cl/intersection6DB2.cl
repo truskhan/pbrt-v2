@@ -1,6 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
@@ -58,20 +58,20 @@ const unsigned int offsetGID
 
 }
 
-bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 t_bmin, float4 t_bmax) {
+bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
  float4 tmin, tmax;
+ float4 fmin, fmax;
+ bool ret;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
  ray = (omax - omin)/2;
  ocenter = ray + omin;
  ocenter.w = 0;
-
- float4 bmin = t_bmin - ray;
- float4 bmax = t_bmax + ray;
-
  uvmin.w = uvmax.w = 0;
+ bmin -= ray;
+ bmax += ray;
 
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
  tmin = ray;
@@ -105,10 +105,17 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
- tmin = max(tmin, uvmin);
- tmax = min(tmax, uvmax);
+ fmin = max(tmin, uvmin);
+ fmax = min(tmax, uvmax);
 
- return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && tmin.z < (tmax.z + EPS) );
+ if ( tmin.x < 0 && tmax.x > 0)
+  ret = (fmin.x < fmax.x + EPS);
+ if ( tmin.y < 0 && tmax.y > 0)
+  ret |= (fmin.y < fmax.y + EPS);
+ if ( tmin.z < 0 && tmax.z > 0)
+  ret |= (fmin.z < fmax.z + EPS);
+
+ return (ret || ( fmin.x < (fmax.x + EPS) && fmin.y < (fmax.y + EPS) && fmin.z < (fmax.z + EPS) ));
 }
 
 

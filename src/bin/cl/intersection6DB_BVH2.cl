@@ -21,7 +21,7 @@ const unsigned int GID
 , __global int* stat_rayTriangle
 #endif
  ){
-  float4 s1, s2, rayd, rayo;
+  float4 s1, s2, d, rayd, rayo;
   float divisor, invDivisor, t, b1, b2;
   // process all rays in the cone
 
@@ -42,12 +42,12 @@ const unsigned int GID
       invDivisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
-      s2 = rayo - v1;
-      b1 = dot(s2, s1) * invDivisor;
+      d = rayo - v1;
+      b1 = dot(d, s1) * invDivisor;
       if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
 
       // compute second barycentric coordinate
-      s2 = cross(s2, e1);
+      s2 = cross(d, e1);
       b2 = dot(rayd, s2) * invDivisor;
       if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
 
@@ -66,18 +66,18 @@ const unsigned int GID
 
 
 
-bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 t_bmin, float4 t_bmax) {
+bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter = (float4)0;
  float4 ray;
  float4 tmin, tmax;
+ float4 fmin, fmax;
+ bool ret;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
- ray = (omax - omin)/2;
- ocenter = ray + omin;
+ ray = omax - omin;
+ ocenter = ray/2 + omin;
  ocenter.w = 0;
 
- float4 bmin = t_bmin - ray;
- float4 bmax = t_bmax + ray;
  uvmin.w = uvmax.w = 0;
 
  ray = normalize((float4)(bmin.x, bmin.y, bmin.z,0) - ocenter);
@@ -112,10 +112,17 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
- tmin = max(tmin, uvmin);
- tmax = min(tmax, uvmax);
+ fmin = max(tmin, uvmin);
+ fmax = min(tmax, uvmax);
 
- return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && tmin.z < (tmax.z + EPS) );
+ if ( tmin.x < 0 && tmax.x > 0)
+  ret = (fmin.x < fmax.x + EPS);
+ if ( tmin.y < 0 && tmax.y > 0)
+  ret |= (fmin.y < fmax.y + EPS);
+ if ( tmin.z < 0 && tmax.z > 0)
+  ret |= (fmin.z < fmax.z + EPS);
+
+ return (ret || ( fmin.x < (fmax.x + EPS) && fmin.y < (fmax.y + EPS) && fmin.z < (fmax.z + EPS) ));
 }
 
 __kernel void IntersectionR2 (
@@ -124,8 +131,7 @@ __kernel void IntersectionR2 (
   __global float* tHit, __global int* index,  __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  const unsigned int lowerBound, const unsigned int upperBound,
-  int stackSize, int topLevelNodes
+  int stackSize, int topLevelNodes, int offsetGID
 #ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
@@ -240,18 +246,16 @@ __kernel void IntersectionR2 (
             if ( intersectsNode(omin, omax, dmin, dmax, temp_bmin, temp_bmax) )
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
-              if ( !tempOffsetX && bvhElem.nPrimitives){
-                  if ( bvhElem.primOffset < lowerBound
-                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
+              if ( tempOffsetX == 0 && bvhElem.nPrimitives > 0){
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset + f ));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset + f ) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset + f ) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;
                     intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,
-                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , bvhElem.primOffset+f
+                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID + bvhElem.primOffset+f
                           #ifdef STAT_RAY_TRIANGLE
                           , stat_rayTriangle
                           #endif
@@ -259,7 +263,7 @@ __kernel void IntersectionR2 (
                   }
               }
               //it is a rayhierarchy leaf node but BVH inner node - traverse BVH
-              if ( !tempOffsetX  && !bvhElem.nPrimitives){
+              if ( tempOffsetX == 0  && bvhElem.nPrimitives == 0){
                 stack[wbeginStack + SPindex] = tempWidth;
                 stack[wbeginStack + SPindex + 1] = tempHeight;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX ;
@@ -277,7 +281,7 @@ __kernel void IntersectionR2 (
                 SPindex += 6;
               }
               //interior nodes
-              if ( tempOffsetX && !bvhElem.nPrimitives){
+              if ( tempOffsetX > 0 && bvhElem.nPrimitives == 0){
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
@@ -343,7 +347,7 @@ __kernel void IntersectionR2 (
                 SPindex += 6;
               }
               //rayhierarchy inner node and BVH leaf node
-              if ( tempOffsetX && bvhElem.nPrimitives){
+              if ( tempOffsetX > 0 && bvhElem.nPrimitives > 0){
                 //store the children to the stack
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;

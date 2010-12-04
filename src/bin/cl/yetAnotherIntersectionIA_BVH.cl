@@ -1,6 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
+#define EPS 0.002f
 
 typedef struct
 {
@@ -125,7 +125,7 @@ bool intersectsNode ( float4 bmin, float4 bmax, float4 t_omin, float4 t_omax, fl
   s.y = min(s.y, t.y);
   s.y = min(s.y, u.y);
 
-  return (s.x < s.y);
+  return (s.x < s.y + EPS);
 }
 
 
@@ -142,7 +142,6 @@ __kernel void YetAnotherIntersection (
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
-    __local float bbox[6*64];
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
@@ -153,7 +152,7 @@ __kernel void YetAnotherIntersection (
     float4 e1, e2;
     float4 v1, v2, v3;
     //calculate bounding box
-    float4 bmin, bmax;
+    float4 bmin, bmax, t_bmax, t_bmin;
 
     bmin.x = bvhElem.ax;
     bmin.y = bvhElem.ay;
@@ -161,12 +160,6 @@ __kernel void YetAnotherIntersection (
     bmax.x = bvhElem.bx;
     bmax.y = bvhElem.by;
     bmax.z = bvhElem.bz;
-    bbox[get_local_id(0)*6] = bmin.x;
-    bbox[get_local_id(0)*6+1] = bmin.y;
-    bbox[get_local_id(0)*6+2] = bmin.z;
-    bbox[get_local_id(0)*6+3] = bmax.x;
-    bbox[get_local_id(0)*6+4] = bmax.y;
-    bbox[get_local_id(0)*6+5] = bmax.z;
 
     float4 omin, omax, dmin, dmax;
 
@@ -185,13 +178,6 @@ __kernel void YetAnotherIntersection (
         omax.z = dmin.w;
         dmax.w = omin.w = dmin.w = omax.w = 0;
         SPindex = 0;
-
-        bmin.x = bbox[get_local_id(0)*6] ;
-        bmin.y = bbox[get_local_id(0)*6+1];
-        bmin.z = bbox[get_local_id(0)*6+2] ;
-        bmax.x = bbox[get_local_id(0)*6+3] ;
-        bmax.y = bbox[get_local_id(0)*6+4] ;
-        bmax.z = bbox[get_local_id(0)*6+5] ;
 
         // check if triangle intersects node
         if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
@@ -240,12 +226,12 @@ __kernel void YetAnotherIntersection (
             bvhElem = bvh[iGID];
             //en empty BVH node
             if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
-            bmin.x = bvhElem.ax;
-            bmin.y = bvhElem.ay;
-            bmin.z = bvhElem.az;
-            bmax.x = bvhElem.bx;
-            bmax.y = bvhElem.by;
-            bmax.z = bvhElem.bz;
+            t_bmin.x = bvhElem.ax;
+            t_bmin.y = bvhElem.ay;
+            t_bmin.z = bvhElem.az;
+            t_bmax.x = bvhElem.bx;
+            t_bmax.y = bvhElem.by;
+            t_bmax.z = bvhElem.bz;
 
             dmax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
             omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
@@ -254,7 +240,7 @@ __kernel void YetAnotherIntersection (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsNode(bmin, bmax, omin, omax, dmin, dmax) )
+            if ( intersectsNode(t_bmin, t_bmax, omin, omax, dmin, dmax) )
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){

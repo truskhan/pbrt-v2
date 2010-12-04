@@ -41,8 +41,6 @@ public:
     #endif
     );
     unsigned int MaxRaysPerCall();
-    void PreprocessP(const int rays);
-    void Preprocess();
     void Preprocess(const Camera* camera, const unsigned samplesPerPixel);
     void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny);
 private:

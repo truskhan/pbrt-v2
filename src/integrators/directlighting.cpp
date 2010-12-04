@@ -132,14 +132,14 @@ void DirectLightingIntegrator::Li(const Scene *scene, const Renderer *renderer,
     //Compute emitted light if ray hit an area light source
     L[i] += isect[i].Le(wo);
 
-    if ( ray[i].depth + 1 < maxDepth) {
+    /*if ( ray[i].depth + 1 < maxDepth) {
       Vector wi;
       //Trace rays for specular reflection and refraction
       L[i] += SpecularReflect(ray[i], bsdf, rng, isect[i], renderer, scene,
                 &sample[i], arena);
       L[i] += SpecularTransmit(ray[i], bsdf, rng, isect[i], renderer, scene,
                 &sample[i], arena);
-    }
+    }*/
   }
 
 }

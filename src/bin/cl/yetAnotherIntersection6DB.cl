@@ -63,6 +63,8 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  float4 ocenter = (float4)0;
  float4 ray;
  float4 tmin, tmax;
+ float4 fmin, fmax;
+ bool ret;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
  ray = omax - omin;
@@ -103,10 +105,17 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
- tmin = max(tmin, uvmin);
- tmax = min(tmax, uvmax);
+ fmin = max(tmin, uvmin);
+ fmax = min(tmax, uvmax);
 
- return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y+EPS) && tmin.z < (tmax.z+EPS) );
+ if ( tmin.x < 0 && tmax.x > 0)
+  ret = (fmin.x < fmax.x + EPS);
+ if ( tmin.y < 0 && tmax.y > 0)
+  ret |= (fmin.y < fmax.y + EPS);
+ if ( tmin.z < 0 && tmax.z > 0)
+  ret |= (fmin.z < fmax.z + EPS);
+
+ return (ret || ( fmin.x < (fmax.x + EPS) && fmin.y < (fmax.y + EPS) && fmin.z < (fmax.z + EPS) ));
 }
 
 __kernel void YetAnotherIntersection (

@@ -68,6 +68,8 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  float4 ocenter = (float4)0;
  float4 ray;
  float4 tmin, tmax;
+ float4 fmin, fmax;
+ bool ret;
 
 //Minkowski sum of the two boxes (sum the widths/heights and position it at boxB_pos - boxA_pos).
  ray = omax - omin;
@@ -108,10 +110,17 @@ bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4
  tmin = min(tmin, ray);
  tmax = max(tmax, ray);
 
- tmin = max(tmin, uvmin);
- tmax = min(tmax, uvmax);
+ fmin = max(tmin, uvmin);
+ fmax = min(tmax, uvmax);
 
- return ( tmin.x < (tmax.x + EPS) && tmin.y < (tmax.y + EPS) && tmin.z < (tmax.z + EPS) );
+ if ( tmin.x < 0 && tmax.x > 0)
+  ret = (fmin.x < fmax.x + EPS);
+ if ( tmin.y < 0 && tmax.y > 0)
+  ret |= (fmin.y < fmax.y + EPS);
+ if ( tmin.z < 0 && tmax.z > 0)
+  ret |= (fmin.z < fmax.z + EPS);
+
+ return (ret || ( fmin.x < (fmax.x + EPS) && fmin.y < (fmax.y + EPS) && fmin.z < (fmax.z + EPS) ));
 }
 
 __kernel void IntersectionR (
@@ -120,8 +129,7 @@ __kernel void IntersectionR (
   __global int* index,  __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  const unsigned int lowerBound, const unsigned int upperBound,
-  int stackSize, int topLevelNodes
+  int stackSize, int topLevelNodes, int offsetGID
 #ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
@@ -232,17 +240,15 @@ __kernel void IntersectionR (
             {
               //if it is a rayhierarchy leaf node and bvh leaf node
               if ( !tempOffsetX && bvhElem.nPrimitives){
-                  if ( bvhElem.primOffset < lowerBound
-                      || (bvhElem.primOffset + bvhElem.nPrimitives) >= upperBound) continue;
                   for ( int f = 0; f < bvhElem.nPrimitives; f++){
-                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound));
-                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 3);
-                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f - lowerBound) + 6);
+                    v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
+                    v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
+                    v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
                     v1.w = 0; v2.w = 0; v3.w = 0;
                     e1 = v2 - v1;
                     e2 = v3 - v1;
                     intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,e1,e2,
-                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , bvhElem.primOffset+f
+                          tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID + bvhElem.primOffset+f
                           #ifdef STAT_RAY_TRIANGLE
                           , stat_rayTriangle
                           #endif

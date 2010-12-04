@@ -80,9 +80,10 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunk, i
     names[1] = "cl/intersectionP5DB_BVH.cl";
     names[2] = "cl/rayhconstruct5DB.cl";
     names[3] = "cl/levelConstruct5DB.cl";
-    names[4] = "cl/yetAnotherIntersection5DB.cl";
+    names[4] = "cl/yetAnotherIntersection5DB_BVH.cl";
     names[6] = "cl/levelConstructP5DB.cl";
     names[7] = "cl/rayhconstructP5DB.cl";
+    names[8] = "cl/intersection5DB_BVH2.cl";
     cout << "accel nodes : 5D nodes with boxes" << endl;
     nodeSize = 11;
   }
@@ -91,7 +92,7 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunk, i
     names[1] = "cl/intersectionP6DB_BVH.cl";
     names[2] = "cl/rayhconstruct6DB.cl";
     names[3] = "cl/levelConstruct6DB.cl";
-    names[4] = "cl/yetAnotherIntersection6DB.cl";
+    names[4] = "cl/yetAnotherIntersection6DB_BVH.cl";
     names[6] = "cl/levelConstructP6DB.cl";
     names[7] = "cl/rayhconstructP6DB.cl";
     names[8] = "cl/intersection6DB_BVH2.cl";

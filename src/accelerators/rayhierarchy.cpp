@@ -56,15 +56,6 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     char** file = new char*[KERNEL_COUNT];
 
   nodeSize = 0;
-  if ( node == "cone"){
-    names[0] = "cl/intersectionR.cl";
-    names[1] = "cl/intersectionP.cl";
-    names[2] = "cl/rayhconstruct.cl";
-    names[3] = "cl/levelConstruct.cl";
-    names[4] = "cl/yetAnotherIntersection.cl";
-    cout << "accel nodes : cones" << endl;
-    nodeSize = 8;
-  }
   if ( node == "ia"){
     names[0] = "cl/intersectionIA.cl";
     names[1] = "cl/intersectionPIA.cl";
@@ -265,43 +256,6 @@ void RayHieararchy::Preprocess(const Camera* camera, const unsigned samplesPerPi
   //x and y sizes of overlapping area
   rest_x = global_a*a - xResolution;
   rest_y = global_b*b - yResolution;
-  threadsCount = global_a * global_b;
-}
-
-void RayHieararchy::Preprocess(){
-  global_a = (xResolution + a - 1) / a; //round up -> +a-1
-  //number of rectangles in y axis
-  global_b = (yResolution + b - 1) / b;
-  threadsCount = global_a * global_b;
-}
-
-void RayHieararchy::PreprocessP(const int rays){
-   //do brute force factorization -> compute ideal small rectangle sides sizes
-   vector<unsigned int> primes;
-   unsigned int number = rays;
-
-   for (unsigned int k = 2; k <= number; k++){
-     while ( number % k == 0 )   {
-       primes.push_back(k);
-       number /= k;
-     }
-   }
-
-  //compute sides of small rectangles
-  unsigned int tempXRes, tempYRes;
-  tempXRes = tempYRes = 1;
-  for (unsigned int k = 0; k < primes.size(); k++){
-    if ( k % 2 == 0 ){
-      tempXRes *= primes[k];
-    } else {
-      tempYRes *= primes[k];
-    }
-  }
-
-  //number of rectangles in x axis
-  global_a = (tempXRes + a - 1) / a; //round up -> +a-1
-  //number of rectangles in y axis
-  global_b = (tempYRes + b - 1) / b;
   threadsCount = global_a * global_b;
 }
 
@@ -530,7 +484,7 @@ size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO,
   gpuray->CreateImage2D(0, CL_MEM_READ_ONLY , &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
   gpuray->CreateImage2D(1, CL_MEM_READ_ONLY , &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
   gpuray->CreateImage2D(2, CL_MEM_WRITE_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0); //for hierarchy nodes
-  gpuray->CreateImage2D(3, CL_MEM_WRITE_ONLY, &hitFormat, 2*globalSize[0], 2*globalSize[1],0); //for storing info about validity
+  gpuray->CreateImage2D(3, CL_MEM_WRITE_ONLY, &hitFormat, 2*globalSize[0], globalSize[1],0); //for storing info about validity
   gpuray->SetIntArgument(4, globalSize[0]);
   gpuray->SetIntArgument(5, globalSize[1]);
   gpuray->SetIntArgument(6, a);
@@ -557,7 +511,7 @@ size_t RayHieararchy::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO,
   gpurayl->CopyBuffer(2,0,gpuray);
   gpurayl->CopyBuffer(3,1,gpuray);
   gpurayl->CreateImage2D(2, CL_MEM_READ_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0);
-  gpurayl->CreateImage2D(3, CL_MEM_READ_ONLY, &hitFormat, 2*globalSize[0], 2*globalSize[1], 0);
+  gpurayl->CreateImage2D(3, CL_MEM_READ_ONLY, &hitFormat, 2*globalSize[0], globalSize[1], 0);
 
   for ( cl_uint i = 1; i < height; i++){
     gpurayl->CopyImage2D(0,2,gpurayl);
@@ -830,7 +784,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
   cout << "# triangles: " << triangleCount << endl;
 
-  Preprocess();
   cl_float* rayDirArray = new cl_float[count*4];
   cl_float* rayOArray = new cl_float[count*4];
   cl_float* rayBoundsArray = new cl_float[count*2];

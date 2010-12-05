@@ -14,13 +14,12 @@ __kernel void rayhconstructP(__read_only image2d_t dir, __read_only image2d_t o,
 
   float4 omin, omax, dmin, dmax;
   float4 dtemp, otemp;
-  int valid;
+  int4 valid = (int4)(0);
 
   //start with the first ray
   dmin = dmax = read_imagef(dir, imageSampler, (int2)(lwidth*xGID, lheight*yGID));
   if ( dmax.w > 0 )
-    valid = 1;
-  else valid = 0;
+    valid.x = 1;
   omin = omax = read_imagef(o, imageSampler, (int2)(lwidth*xGID, lheight*yGID));
 
   //read the tile
@@ -29,25 +28,23 @@ __kernel void rayhconstructP(__read_only image2d_t dir, __read_only image2d_t o,
       dtemp = read_imagef(dir, imageSampler, (int2)(lwidth*xGID + j, lheight*yGID + i));
       otemp = read_imagef(o, imageSampler, (int2)(lwidth*xGID + j, lheight*yGID + i));
 
-      if ( dtemp.w > 0 && valid == 0){
+      if ( dtemp.w > 0 && valid.x == 1){
+        dmin = min(dmin, dtemp);
+        dmax = max(dmax, dtemp);
+        omin = min(omin, otemp);
+        omax = max(omax, otemp);
+      }
+      if ( dtemp.w > 0 && valid.x == 0){
         dmin = dmax = dtemp;
         omin = omax = otemp;
-        valid = 1;
-      } else {
-        if ( dtemp.w > 0){
-          dmin = min(dmin, dtemp);
-          dmax = max(dmax, dtemp);
-          omin = min(omin, otemp);
-          omax = max(omax, otemp);
-       }
+        valid.x = 1;
       }
     }
   }
 
   //store the result
-  int4 wvalid = (int4)(valid,0,0,0);
-  write_imagei (validity, (int2)(xGID, yGID),wvalid);
-  if ( valid){
+  write_imagei (validity, (int2)(xGID, yGID),valid);
+  if ( valid.x){
     omin.w = omax.x;
     dmax.w = omax.y;
     dmin.w = omax.z;

@@ -13,6 +13,7 @@
 #endif
 
 #define KERNEL_COUNT 9
+#define HEADER_COUNT 4
 #define KERNEL_COMPUTEDPTUTV 0
 #define KERNEL_RAYLEVELCONSTRUCT 1
 #define KERNEL_RAYCONSTRUCT 2
@@ -54,17 +55,22 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     size_t *lenF = new size_t[KERNEL_COUNT];
     char** names = new char*[KERNEL_COUNT];
     char** file = new char*[KERNEL_COUNT];
+    char** headerName = new char*[HEADER_COUNT];
+    char** headerFile = new char*[HEADER_COUNT];
+    int headerNum = 0;
 
   nodeSize = 0;
+  headerName[headerNum++] = "cl/intersectAllLeaves.cl";
   if ( node == "ia"){
-    names[0] = "cl/intersectionIA.cl";
-    names[1] = "cl/intersectionPIA.cl";
-    names[2] = "cl/rayhconstructIA.cl";
-    names[3] = "cl/levelConstructIA.cl";
-    names[4] = "cl/yetAnotherIntersectionIA.cl";
-    names[6] = "cl/levelConstructPIA.cl";
-    names[7] = "cl/rayhconstructPIA.cl";
-    names[8] = "cl/intersectionIA2.cl";
+    names[0] = "cl/intersection6DB.cl";
+    names[1] = "cl/intersectionP6DB.cl";
+    names[2] = "cl/rayhconstruct6DB.cl";
+    names[3] = "cl/levelConstruct6DB.cl";
+    names[4] = "cl/yetAnotherIntersection6DB.cl";
+    names[6] = "cl/levelConstructP6DB.cl";
+    names[7] = "cl/rayhconstructP6DB.cl";
+    names[8] = "cl/intersection6DB2.cl";
+    headerName[headerNum++] = "cl/intersectsNodeIA.cl";
     cout << "accel nodes : IA" << endl;
     nodeSize = 13;
   }
@@ -77,6 +83,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[6] = "cl/levelConstructP5D.cl";
     names[7] = "cl/rayhconstructP5D.cl";
     names[8] = "cl/intersection5D2.cl";
+    headerName[headerNum++] = "cl/intersectsNode5DS.cl";
     cout << "accel nodes : 5D nodes with spheres" << endl;
     nodeSize = 9;
   }
@@ -89,6 +96,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[6] = "cl/levelConstructP5DB.cl";
     names[7] = "cl/rayhconstructP5DB.cl";
     names[8] = "cl/intersection5DB2.cl";
+    headerName[headerNum++] = "cl/intersectsNode5DB.cl";
     cout << "accel nodes : 5D nodes with boxes" << endl;
     nodeSize = 11;
   }
@@ -101,6 +109,7 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     names[6] = "cl/levelConstructP6DB.cl";
     names[7] = "cl/rayhconstructP6DB.cl";
     names[8] = "cl/intersection6DB2.cl";
+    headerName[headerNum++] = "cl/intersectsNode6DB.cl";
     cout << "accel nodes : 6D nodes with boxes" << endl;
     nodeSize = 13;
   }
@@ -117,17 +126,23 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
       strncpy(file[i]+lenP, names[i], lenF[i]+1);
     }
 
+    for ( int i = 0; i < headerNum; i++){
+      headerFile[i] = new char[lenP + strlen(headerName[i]) + 1];
+      strncpy(headerFile[i], PbrtOptions.pbrtPath, lenP);
+      strncpy(headerFile[i] + lenP, headerName[i], strlen(headerName[i]) + 1);
+    }
+
     ocl = new OpenCL(onGPU,KERNEL_COUNT);
     cmd = ocl->CreateCmdQueue();
-    ocl->CompileProgram(file[0], "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR);
+    ocl->CompileProgram(file[0], "IntersectionR", "oclIntersection.ptx", KERNEL_INTERSECTIONR, headerFile, headerNum);
     ocl->CompileProgram(file[2], "rayhconstruct", "oclRayhconstruct.ptx",KERNEL_RAYCONSTRUCT);
-    ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
+    ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP, headerFile, headerNum);
     ocl->CompileProgram(file[3], "levelConstruct", "oclLevelConstruct.ptx",KERNEL_RAYLEVELCONSTRUCT);
-    ocl->CompileProgram(file[4], "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION);
+    ocl->CompileProgram(file[4], "YetAnotherIntersection", "oclYetAnotherIntersection.ptx", KERNEL_YETANOTHERINTERSECTION, headerFile, headerNum);
     ocl->CompileProgram(file[5], "computeDpTuTv", "oclcomputeDpTuTv.ptx", KERNEL_COMPUTEDPTUTV);
     ocl->CompileProgram(file[6], "levelConstructP", "oclLevelConstructP.ptx",KERNEL_RAYLEVELCONSTRUCTP);
     ocl->CompileProgram(file[7], "rayhconstructP", "oclRayhconstructP.ptx",KERNEL_RAYCONSTRUCTP);
-    ocl->CompileProgram(file[8], "IntersectionR2", "oclIntersection2.ptx", KERNEL_INTERSECTION2);
+    ocl->CompileProgram(file[8], "IntersectionR2", "oclIntersection2.ptx", KERNEL_INTERSECTION2, headerFile, headerNum);
 
     delete [] lenF;
     for (int i = 0; i < KERNEL_COUNT; i++){
@@ -136,6 +151,10 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     }
     delete [] names;
     delete [] file;
+    for ( int i = 0; i < headerNum; i++)
+      delete [] headerFile[i];
+    delete [] headerFile;
+    delete [] headerName;
 
     if ( sortVert){
       BVHAccel* bvh = new BVHAccel(p, maxBVHPrim, sm);

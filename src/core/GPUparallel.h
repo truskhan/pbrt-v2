@@ -233,7 +233,7 @@ class OpenCL {
     @param[in] i index to the functions and cpPrograms arrays where to store information about compiled program and its name
     **/
     void CompileProgram(const char* cPathAndName, const char* function,
-      const char* program, size_t i);
+      const char* program, size_t i, char** headers = NULL, const int headerNum = 0);
     /**
     Creates new command queue
     @return returns index to queues array, so that user can query for concrete queue

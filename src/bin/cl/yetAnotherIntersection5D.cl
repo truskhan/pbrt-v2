@@ -1,79 +1,3 @@
-#pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
-#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
-#define EPS 0.000002f
-
-sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-
-void intersectAllLeaves (
-  __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t bounds, __global int* index, __global float* tHit, __global int* changed,
-float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, const int totalWidth, const int lheight,
-const int lwidth, const int x, const int y, const unsigned int offsetGID
-#ifdef STAT_RAY_TRIANGLE
-, __global int* stat_rayTriangle
-#endif
- ){
-  float4 s1, s2, d, rayd, rayo;
-  float divisor, invDivisor, t, b1, b2;
-  // process all rays in the cone
-
-  //read the tile
-  for ( int i = 0; i < lheight; i++){
-    for ( int j = 0; j < lwidth; j++) {
-      #ifdef STAT_RAY_TRIANGLE
-      atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
-      #endif
-      rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
-      rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
-
-      s1 = cross(rayd, e2);
-      divisor = dot(s1, e1);
-      if ( divisor == 0.0f) continue; //degenarate triangle
-      invDivisor = 1.0f/ divisor;
-
-      // compute first barycentric coordinate
-      d = rayo - v1;
-      b1 = dot(d, s1) * invDivisor;
-      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
-
-      // compute second barycentric coordinate
-      s2 = cross(d, e1);
-      b2 = dot(rayd, s2) * invDivisor;
-      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
-
-      // Compute _t_ to intersection point
-      t = dot(e2, s2) * invDivisor;
-
-      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x ) continue;
-
-      if ( t > tHit[totalWidth*(y + i) + x + j]
-        || index[totalWidth*(y + i) + x + j] == (get_global_id(0)+ offsetGID)) continue;
-
-        tHit[totalWidth*(y + i) + x + j] = t;
-        index[totalWidth*(y + i) + x + j] = get_global_id(0) + offsetGID;
-        changed[get_global_id(0)] = totalWidth*(y + i) + x + j;
-    }
-  }
-}
-
-bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float radius) {
-  float2 uv;
-  float4 ray = o - center;
-  float len = length(ray);
-  ray = ray/len;
-  uv.x = (ray.x == 0)? 0: atan(ray.y/ray.x);
-  uv.y = acos(ray.z);
-
-  len = atan(radius/len);
-
-  if ( max(uv.x - len, uvmin.x) < min(uv.x + len, uvmax.x) &&
-    max(uv.y - len, uvmin.y) < min(uv.y + len, uvmax.y))
-    return true;
-
-  return false;
-}
-
 __kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
@@ -189,8 +113,8 @@ __kernel void YetAnotherIntersection (
             {
               //if it is a leaf node
               if ( tempOffsetX == 0) {
-                intersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,
-                      tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , offsetGID
+                yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,
+                      tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , get_global_id(0)+offsetGID
                       #ifdef STAT_RAY_TRIANGLE
                       , stat_rayTriangle
                       #endif

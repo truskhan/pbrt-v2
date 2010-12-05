@@ -170,14 +170,101 @@ void pfn_notify(cl_program p, void* user_data){
  return;
 }
 
+char* oclLoadSource(const char* cFilename, char** headers, const int headerNum, size_t* szFinalLength)
+{
+    // locals
+    FILE* pFileStream = NULL;
+    FILE** pHeaderStream = new FILE*[headerNum];
+    for ( int i = 0; i < headerNum; i++)
+      pHeaderStream[i] = NULL;
+    size_t* headerLength = new size_t[headerNum];
+    size_t totalHeaderLen = 0;
+    size_t szSourceLength;
+
+    // open the OpenCL source code file
+    #ifdef _WIN32   // Windows version
+        if(fopen_s(&pFileStream, cFilename, "rb") != 0)
+        {
+            return NULL;
+        }
+        for ( int i = 0; i < headerNum; i++){
+          if(fopen_s(&pHeaderStream[i], headers[i], "rb") != 0)
+          {
+              return NULL;
+          }
+        }
+    #else           // Linux version
+        pFileStream = fopen(cFilename, "rb");
+        if(pFileStream == 0)
+        {
+            return NULL;
+        }
+        for ( int i = 0; i < headerNum; i++){
+          pHeaderStream[i] = fopen(headers[i], "rb");
+          if(pHeaderStream[i] == 0)
+          {
+              return NULL;
+          }
+        }
+    #endif
+
+    for ( int i = 0; i < headerNum; i++){
+      fseek(pHeaderStream[i], 0, SEEK_END);
+      headerLength[i] = ftell(pHeaderStream[i]);
+      totalHeaderLen+= headerLength[i];
+      fseek(pHeaderStream[i], 0, SEEK_SET);
+    }
+
+    // get the length of the source code
+    fseek(pFileStream, 0, SEEK_END);
+    szSourceLength = ftell(pFileStream);
+    fseek(pFileStream, 0, SEEK_SET);
+
+    // allocate a buffer for the source code string and read it in
+    char* cSourceString = (char *)malloc(szSourceLength + totalHeaderLen + 1);
+    totalHeaderLen = 0;
+    for ( int i = 0; i < headerNum; i++){
+      if (fread((cSourceString) + totalHeaderLen, headerLength[i], 1, pHeaderStream[i]) != 1){
+        fclose(pHeaderStream[i]);
+        fclose(pFileStream);
+        free(cSourceString);
+        return 0;
+      }
+      totalHeaderLen += headerLength[i];
+      fclose(pHeaderStream[i]);
+    }
+    if (fread((cSourceString) + totalHeaderLen, szSourceLength, 1, pFileStream) != 1)
+    {
+        fclose(pFileStream);
+        free(cSourceString);
+        return 0;
+    }
+
+    // close the file and return the total length of the combined (preamble + source) string
+    fclose(pFileStream);
+
+    if(szFinalLength != 0)
+    {
+        *szFinalLength = szSourceLength + totalHeaderLen;
+    }
+    cSourceString[szSourceLength + totalHeaderLen] = '\0';
+    delete [] pHeaderStream;
+    delete [] headerLength;
+
+    return cSourceString;
+}
+
 void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
-      const char* program, size_t i){
+      const char* program, size_t i, char** headers, const int headerNum){
     char* cSourceCL ;         // Buffer to hold source for compilation
     size_t szKernelLength;			// Byte size of kernel code
     cl_int ciErrNum;
   MutexLock(*buildLog);
 
-  cSourceCL = oclLoadProgSource(cPathAndName, "", &szKernelLength);
+  if ( !headerNum )
+    cSourceCL = oclLoadProgSource(cPathAndName, "", &szKernelLength);
+  else
+    cSourceCL = oclLoadSource(cPathAndName, headers, headerNum, &szKernelLength);
   if ( cSourceCL == NULL){
     Severe( "File \"%s\" not found ",cPathAndName);
   }

@@ -35,8 +35,8 @@ __kernel void IntersectionR2 (
     float4 omin, omax, dmin, dmax;
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iGID;
-    int4 valid;
+    int wbeginStack = 6*iGID;
+    uint4 valid;
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;
     for ( int j = 0; j < yWidth; j++){
@@ -62,7 +62,7 @@ __kernel void IntersectionR2 (
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j;
           stack[wbeginStack + SPindex + 5] = get_global_id(0);
-          SPindex += 6;
+          SPindex += stackSize;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
@@ -70,7 +70,7 @@ __kernel void IntersectionR2 (
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j;
           stack[wbeginStack + SPindex + 5] = get_global_id(0);
-          SPindex += 6;
+          SPindex += stackSize;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
@@ -78,7 +78,7 @@ __kernel void IntersectionR2 (
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
           stack[wbeginStack + SPindex + 5] = get_global_id(0);
-          SPindex += 6;
+          SPindex += stackSize;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
@@ -86,10 +86,10 @@ __kernel void IntersectionR2 (
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
           stack[wbeginStack + SPindex + 5] = get_global_id(0);
-          SPindex += 6;
+          SPindex += stackSize;
 
           while ( SPindex > 0) {
-            SPindex -= 6;
+            SPindex -= stackSize;
             tempWidth = stack[wbeginStack + SPindex];
             tempHeight = stack[wbeginStack + SPindex + 1];
             tempOffsetX = stack[wbeginStack + SPindex + 2];
@@ -143,7 +143,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = tempX;
                 stack[wbeginStack + SPindex + 4] = tempY;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth;
                 stack[wbeginStack + SPindex + 1] = tempHeight;
@@ -151,7 +151,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = tempX;
                 stack[wbeginStack + SPindex + 4] = tempY;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
-                SPindex += 6;
+                SPindex += stackSize;
               }
               //interior nodes
               if ( tempOffsetX > 0 && bvhElem.nPrimitives == 0){
@@ -161,7 +161,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -169,7 +169,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -177,7 +177,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -185,7 +185,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -193,7 +193,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -201,7 +201,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -209,7 +209,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -217,7 +217,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
                 stack[wbeginStack + SPindex + 5] = bvhElem.primOffset+1;
-                SPindex += 6;
+                SPindex += stackSize;
               }
               //rayhierarchy inner node and BVH leaf node
               if ( tempOffsetX > 0 && bvhElem.nPrimitives > 0){
@@ -228,7 +228,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
                 stack[wbeginStack + SPindex + 5] = iGID;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -236,7 +236,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
                 stack[wbeginStack + SPindex + 5] = iGID;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -244,7 +244,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
                 stack[wbeginStack + SPindex + 5] = iGID;
-                SPindex += 6;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
@@ -252,7 +252,7 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
                 stack[wbeginStack + SPindex + 5] = iGID;
-                SPindex += 6;
+                SPindex += stackSize;
               }
 
             }

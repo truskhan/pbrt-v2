@@ -1,5 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
-#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics: enable
+#define EPS 0.002
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
@@ -12,8 +13,8 @@ const unsigned int offsetGID
 , __global int* stat_rayTriangle
 #endif
  ){
-  float4 s1, s2, rayd, rayo;
-  float divisor, invDivisor, t, b1, b2;
+  float4 s, rayd, rayo;
+  float divisor, b1, b2;
   // process all rays in the cone
 
   //read the tile
@@ -25,29 +26,28 @@ const unsigned int offsetGID
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
-      s1 = cross(rayd, e2);
-      divisor = dot(s1, e1);
+      s = cross(rayd, e2);
+      divisor = dot(s, e1);
       if ( divisor == 0.0f) continue; //degenarate triangle
-      invDivisor = 1.0f/ divisor;
+      divisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
-      s2 = rayo - v1;
-      b1 = dot(s2, s1) * invDivisor;
+      b1 = dot(rayo-v1, s) * divisor;
       if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
 
       // compute second barycentric coordinate
-      s2 = cross(s2, e1);
-      b2 = dot(rayd, s2) * invDivisor;
+      s = cross(rayo - v1, e1);
+      b2 = dot(rayd, s) * divisor;
       if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
 
       // Compute _t_ to intersection point
-      t = dot(e2, s2) * invDivisor;
+      b1 = dot(e2, s) * divisor;
 
-      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x ) continue;
+      s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (b1 < s.x ) continue;
 
-      if (t > tHit[totalWidth*(y + i) + x + j]) continue;
-        tHit[totalWidth*(y + i) + x + j] = t;
+      if (b1 > tHit[totalWidth*(y + i) + x + j]) continue;
+        tHit[totalWidth*(y + i) + x + j] = b1;
         index[totalWidth*(y + i) + x + j] = offsetGID;
     }
   }
@@ -62,8 +62,8 @@ const unsigned int offsetGID
 , __global int* stat_rayTriangle
 #endif
  ){
-  float4 s1, s2, rayd, rayo;
-  float divisor, invDivisor, t, b1, b2;
+  float4 s, rayd, rayo;
+  float divisor, b1, b2;
   // process all rays in the cone
 
   //read the tile
@@ -77,29 +77,28 @@ const unsigned int offsetGID
       rayd.w = 0;
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
-      s1 = cross(rayd, e2);
-      divisor = dot(s1, e1);
+      s = cross(rayd, e2);
+      divisor = dot(s, e1);
       if ( divisor == 0.0f) continue; //degenarate triangle
-      invDivisor = 1.0f/ divisor;
+      divisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
-      s2 = rayo - v1;
-      b1 = dot(s2, s1) * invDivisor;
+      b1 = dot(rayo-v1, s) * divisor;
       if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
 
       // compute second barycentric coordinate
-      s2 = cross(s2, e1);
-      b2 = dot(rayd, s2) * invDivisor;
+      s = cross(rayo-v1, e1);
+      b2 = dot(rayd, s) * divisor;
       if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
 
       // Compute _t_ to intersection point
-      t = dot(e2, s2) * invDivisor;
+      b1 = dot(e2, s) * divisor;
 
-      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x ) continue;
+      s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (b1 < s.x ) continue;
 
-      if (t > tHit[totalWidth*(y + i) + x + j]) continue;
-        tHit[totalWidth*(y + i) + x + j] = t;
+      if (b1 > tHit[totalWidth*(y + i) + x + j]) continue;
+        tHit[totalWidth*(y + i) + x + j] = b1;
         index[totalWidth*(y + i) + x + j] = offsetGID;
     }
   }
@@ -113,8 +112,8 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 , __global int* stat_rayTriangle
 #endif
  ){
-  float4 s1, s2, d, rayd, rayo;
-  float divisor, invDivisor, t, b1, b2;
+  float4 s, rayd, rayo;
+  float divisor, b1, b2;
   // process all rays in the cone
 
   //read the tile
@@ -129,25 +128,24 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
       atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
       #endif
 
-      s1 = cross(rayd, e2);
-      divisor = dot(s1, e1);
+      s = cross(rayd, e2);
+      divisor = dot(s, e1);
       if ( divisor == 0.0f) continue; //degenarate triangle
-      invDivisor = 1.0f/ divisor;
+      divisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
-      d = rayo - v1;
-      b1 = dot(d, s1) * invDivisor;
+      b1 = dot(rayo-v1, s) * divisor;
       if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
 
       // compute second barycentric coordinate
-      s2 = cross(d, e1);
-      b2 = dot(rayd, s2) * invDivisor;
+      s = cross(rayo-v1, e1);
+      b2 = dot(rayd, s) * divisor;
       if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
 
       // Compute _t_ to intersection point
-      t = dot(e2, s2) * invDivisor;
-      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x || t > s1.y) continue;
+      b1 = dot(e2, s) * divisor;
+      s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (b1 < s.x || b1 > s.y) continue;
 
       tHit[totalWidth*(y + i) + x + j] = '1';
     }
@@ -159,13 +157,13 @@ void yetAnotherIntersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global int* index, __global float* tHit, __global int* changed,
 float4 v1, float4 v2, float4 v3, float4 e1, float4 e2, const int totalWidth, const int lheight,
-const int lwidth, const int x, const int y, const unsigned int offsetGID
+const int lwidth, const int x, const int y, const unsigned int GID, const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
  ){
-  float4 s1, s2, d, rayd, rayo;
-  float divisor, invDivisor, t, b1, b2;
+  float4 s, rayd, rayo;
+  float divisor, b1, b2;
   // process all rays in the cone
 
   //read the tile
@@ -177,33 +175,32 @@ const int lwidth, const int x, const int y, const unsigned int offsetGID
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
-      s1 = cross(rayd, e2);
-      divisor = dot(s1, e1);
+      s = cross(rayd, e2);
+      divisor = dot(s, e1);
       if ( divisor == 0.0f) continue; //degenarate triangle
-      invDivisor = 1.0f/ divisor;
+      divisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
-      d = rayo - v1;
-      b1 = dot(d, s1) * invDivisor;
-      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+      b1 = dot(rayo-v1, s) * divisor;
+      if ( b1 < EPS  || b1 > 1+EPS) continue;
 
       // compute second barycentric coordinate
-      s2 = cross(d, e1);
-      b2 = dot(rayd, s2) * invDivisor;
-      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+      s = cross(rayo-v1, e1);
+      b2 = dot(rayd, s) * divisor;
+      if ( b2 < EPS || (b1 + b2) > 1 - EPS) continue;
 
       // Compute _t_ to intersection point
-      t = dot(e2, s2) * invDivisor;
+      b1 = dot(e2, s) * divisor;
 
-      s1 = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (t < s1.x ) continue;
+      s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
+      if (b1 < s.x ) continue;
 
-      if ( t > tHit[totalWidth*(y + i) + x + j]
-        || index[totalWidth*(y + i) + x + j] == offsetGID) continue;
+      if ( b1 > tHit[totalWidth*(y + i) + x + j] - EPS
+        || index[totalWidth*(y + i) + x + j] == GID) continue;
 
-        tHit[totalWidth*(y + i) + x + j] = t;
-        index[totalWidth*(y + i) + x + j] = offsetGID;
-        changed[get_global_id(0)] = totalWidth*(y + i) + x + j;
+        tHit[totalWidth*(y + i) + x + j] = b1;
+        index[totalWidth*(y + i) + x + j] = GID;
+        changed[offsetGID] = totalWidth*(y + i) + x + j;
     }
   }
 }

@@ -34,9 +34,9 @@ __kernel void IntersectionR2 (
     bmax = max(bmax, v3);
 
     float4 omin, omax, dmin, dmax;
-    int4 valid;
+    uint4 valid;
     int SPindex = 0;
-    int wbeginStack = stackSize*iGID;
+    int wbeginStack = 5*iGID;
 
     int tempOffsetX, tempWidth, tempHeight;
     int tempX, tempY;
@@ -61,31 +61,31 @@ __kernel void IntersectionR2 (
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j;
-          SPindex += 5;
+          SPindex += stackSize;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j;
-          SPindex += 5;
+          SPindex += stackSize;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
-          SPindex += 5;
+          SPindex += stackSize;
 
           stack[wbeginStack + SPindex] = xWidth*2 ;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
-          SPindex += 5;
+          SPindex += stackSize;
 
           while ( SPindex > 0) {
-            SPindex -= 5;
+            SPindex -= stackSize;
             tempWidth = stack[wbeginStack + SPindex];
             tempHeight = stack[wbeginStack + SPindex + 1];
             tempOffsetX = stack[wbeginStack + SPindex + 2];
@@ -118,28 +118,28 @@ __kernel void IntersectionR2 (
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
-                SPindex += 5;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY;
-                SPindex += 5;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
-                SPindex += 5;
+                SPindex += stackSize;
 
                 stack[wbeginStack + SPindex] = tempWidth*2;
                 stack[wbeginStack + SPindex + 1] = tempHeight*2;
                 stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
                 stack[wbeginStack + SPindex + 3] = 2*tempX;
                 stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
-                SPindex += 5;
+                SPindex += stackSize;
               }
             }
 

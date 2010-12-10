@@ -28,14 +28,15 @@ using namespace std;
 
 
 // RayBVH Method Definitions
-RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunk, int height, int BVHheight,
-  string node, int maxBVHPrim,  const string &sm
+RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunkX, int chunkY,
+ int height, int BVHheight, string node, int maxBVHPrim,  const string &sm
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , int scale
     #endif
   ) {
     this->sm = sm;
-    this->chunk = chunk;
+    this->chunkX = chunkX;
+    this->chunkY = chunkY;
     this->height = height;
     this->BVHheight = BVHheight;
     this->maxBVHPrim = maxBVHPrim;
@@ -155,33 +156,14 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunk, i
     BVHAccel* bvhTemp = new BVHAccel(prim, maxBVHPrim, sm, true, BVHheight);
     this->p.swap(bvhTemp->primitives);
     delete bvhTemp;
-    //this->p = p;
 
     triangleCount = this->p.size();
 
     //TODO: check how many threads can be proccessed at once (depends on MaxRaysPerCall)
     workerSemaphore = new Semaphore(1);
 
-   //do brute force factorization -> compute ideal small rectangle sides sizes
-   vector<unsigned int> primes;
-   unsigned int number = chunk;
-
-   for (unsigned int k = 2; k <= number; k++){
-     while ( number % k == 0 )   {
-       primes.push_back(k);
-       number /= k;
-     }
-   }
-
-  //compute sides of small rectangles
-  a = b = 1;
-  for (unsigned int k = 0; k < primes.size(); k++){
-    if ( k % 2 == 0 ){
-      a *= primes[k];
-    } else {
-      b *= primes[k];
-    }
-  }
+   a = chunkX;
+   b = chunkY;
 }
 
 RayBVH::~RayBVH() {
@@ -744,7 +726,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->SetIntArgument(12,yWidth);
   gput->SetIntArgument(13,a);
   gput->SetIntArgument(14,b);
-  gput->SetIntArgument(15,6*(4+8*tempHeight)); //stack size
+  gput->SetIntArgument(15,6*gws); //stack level size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer( 6, tHitArray );
@@ -789,18 +771,18 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   cl_int low = 0;
   cl_int up = bvhs[0]->primitives.size();
   for ( int i = 0; i < parts - 1; i++){
-    gpuRayO->EnqueueWriteBuffer( 4 , uvs[i], 6*sizeof(float)*bvhs[i]->primitives.size());
     gpuRayO->SetIntArgument(8,low);
     gpuRayO->SetIntArgument(9,up);
-    gpuRayO->EnqueueWriteBuffer(0, vertices[i],9*sizeof(float)*bvhs[i]->primitives.size());
+    gpuRayO->EnqueueWriteBuffer( 4 , uvs[i], sizeof(cl_float)*6*bvhs[i]->primitives.size());
+    gpuRayO->EnqueueWriteBuffer(0, vertices[i], sizeof(cl_float)*9*bvhs[i]->primitives.size());
     gpuRayO->Run();
+    gpuRayO->WaitForKernel();
     low = up;
     up += bvhs[i+1]->primitives.size();
-    gpuRayO->WaitForKernel();
   }
   gpuRayO->SetIntArgument(8,low);
   gpuRayO->SetIntArgument(9,up);
-  gpuRayO->EnqueueWriteBuffer(4, uvs[parts-1], 6*sizeof(float)*bvhs[parts-1]->primitives.size());
+  gpuRayO->EnqueueWriteBuffer(4, uvs[parts-1], 6*sizeof(cl_float)*bvhs[parts-1]->primitives.size());
   gpuRayO->EnqueueWriteBuffer(0, vertices[parts-1],9*sizeof(cl_float)*bvhs[parts-1]->primitives.size());
   gpuRayO->Run();
 
@@ -940,14 +922,14 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->CreateBuffer(6,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
     //allocate stack in global memory
     int tempHeight = max(height, BVHheight);
-    gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+8*tempHeight), CL_MEM_READ_WRITE);
+    gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+4+8*tempHeight), CL_MEM_READ_WRITE);
     gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
     gput->SetIntArgument(9,roffsetX);
     gput->SetIntArgument(10,xWidth);
     gput->SetIntArgument(11,yWidth);
     gput->SetIntArgument(12,a);
     gput->SetIntArgument(13,b);
-    gput->SetIntArgument(14,6*(4+8*tempHeight)); //stack size
+    gput->SetIntArgument(14,6*gws); //stack level size
 
     #ifdef STAT_RAY_TRIANGLE
     gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,18);
@@ -965,11 +947,13 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       gput->SetIntArgument(16, offsetGID);
       gput->EnqueueWriteBuffer(8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
       gput->EnqueueWriteBuffer(0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
+      cout << "run " << i << endl;
       gput->Run();
       offsetGID += bvhs[i]->primitives.size();
       gput->WaitForKernel();
     }
     //last part of vertices
+    cout << "last run " << endl;
     gput->SetIntArgument(15,bvhs[parts-1]->topLevelNodes);
     gput->SetIntArgument(16,offsetGID);
     gput->EnqueueWriteBuffer(8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
@@ -1010,7 +994,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     anotherIntersect->SetIntArgument(12,yWidth);
     anotherIntersect->SetIntArgument(13,a);
     anotherIntersect->SetIntArgument(14,b);
-    anotherIntersect->SetIntArgument(15,6*(4+8*tempHeight)); //stack size
+    anotherIntersect->SetIntArgument(15,6*gws); //stack level size
 
     offsetGID = 0;
     for ( int i = 0; i < parts - 1; i++){
@@ -1018,10 +1002,12 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       anotherIntersect->SetIntArgument(17, offsetGID);
       anotherIntersect->EnqueueWriteBuffer(8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
       anotherIntersect->EnqueueWriteBuffer(0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
+      cout << "yetAnother run " << i << endl;
       anotherIntersect->Run();
       offsetGID += bvhs[i]->primitives.size();
       anotherIntersect->WaitForKernel();
     }
+    cout << "last yetAnother run " << endl;
     //last part of vertices
     anotherIntersect->SetIntArgument(16,bvhs[parts-1]->topLevelNodes);
     anotherIntersect->SetIntArgument(17,offsetGID);
@@ -1237,14 +1223,14 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
    gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 18);
   #endif
   int tempHeight = max(height, BVHheight);
-  gput->CreateBuffer(7,sizeof(cl_int)*gws*6*(4+8*tempHeight), CL_MEM_READ_WRITE); //stack
+  gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+4+8*tempHeight), CL_MEM_READ_WRITE); //stack
   gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //BVH nodes
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
   gput->SetIntArgument(11, yWidth);
   gput->SetIntArgument(12,a);
   gput->SetIntArgument(13,b);
-  gput->SetIntArgument(14, 6*(4+8*tempHeight)); //ray-hierarchy's stack size
+  gput->SetIntArgument(14, 6*(gws+lws)); //stack level size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer( 6, occluded );
@@ -1255,9 +1241,11 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
     gput->EnqueueWriteBuffer( 8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
     gput->EnqueueWriteBuffer(0, vertices[i], sizeof(float)*9*bvhs[i]->primitives.size());
     gput->SetIntArgument(15, bvhs[i]->topLevelNodes);
+    cout << "intersectP run " << i << endl;
     gput->Run();
     gput->WaitForKernel();
   }
+  cout << "last intersectP run " << endl;
   gput->SetIntArgument(15, bvhs[parts-1]->topLevelNodes);
   gput->EnqueueWriteBuffer( 8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
   gput->EnqueueWriteBuffer(0, vertices[parts-1], sizeof(cl_float)*9*bvhs[parts-1]->primitives.size());
@@ -1307,7 +1295,8 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
 RayBVH *CreateRayBVH(const vector<Reference<Primitive> > &prims,
                                    const ParamSet &ps) {
     bool onGPU = ps.FindOneBool("onGPU",true);
-    int chunk = ps.FindOneInt("chunkSize",20);
+    int chunkX = ps.FindOneInt("chunkXSize", 4);
+    int chunkY = ps.FindOneInt("chunkYSize", 4);
     int height = ps.FindOneInt("height",3);
     int BVHheight = ps.FindOneInt("BVHheight",3);
     int maxBVHPrim = ps.FindOneInt("maxBVHPrim",1);
@@ -1316,7 +1305,7 @@ RayBVH *CreateRayBVH(const vector<Reference<Primitive> > &prims,
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale = ps.FindOneInt("scale",50);
     #endif
-    return new RayBVH(prims,onGPU,chunk,height, BVHheight, node, maxBVHPrim, splitMethod
+    return new RayBVH(prims,onGPU,chunkX, chunkY,height, BVHheight, node, maxBVHPrim, splitMethod
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     , scale
     #endif

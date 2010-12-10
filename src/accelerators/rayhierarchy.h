@@ -12,8 +12,8 @@ class RayHieararchy : public Aggregate {
 public:
     // RayHieararchy Public Methods
     BBox WorldBound() const;
-    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunk, int height, string node, bool sortVert,
-          const string &sm, const int &maxBVHPrim
+    RayHieararchy(const vector<Reference<Primitive> > &p,bool onG, int chunkX, int chunkY,
+      int height, string node, bool sortVert, const string &sm, const int &maxBVHPrim, const unsigned int &repairRun
     #ifdef TRIANGLES_PER_THREAD
     , const int & trianlgesPerThread
     #endif
@@ -29,9 +29,6 @@ public:
     #endif
     );
     void Intersect(const RayDifferential *r, Intersection *in, bool* hit, const unsigned int count, const int bounce
-    #ifdef STAT_RAY_TRIANGLE
-    , Spectrum *Ls
-    #endif
     );
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
@@ -59,11 +56,12 @@ private:
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale;
     #endif
+    unsigned int repairRun;
     unsigned int parts;
     cl_float* vertices; cl_float* uvs;
     bool onGPU;
     cl_uint height;
-    cl_uint chunk;
+    cl_uint chunkX, chunkY;
     OpenCL* ocl; //pointer to OpenCL auxiliary functions
     size_t cmd; //index to command queue
     unsigned a,b, global_a,global_b;

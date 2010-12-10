@@ -100,25 +100,16 @@ void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit
 
 void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
   const int & count, const unsigned int & samplesPerPixel, const int bounce
-  #ifdef STAT_RAY_TRIANGLE
-  , Spectrum *Ls
-  #endif
   ) const {
     RayHieararchy* rh = dynamic_cast<RayHieararchy*>(aggregate);
     if ( rh != NULL){
       rh->Intersect(ray, isect, hit, count, bounce
-      #ifdef STAT_RAY_TRIANGLE
-        ,Ls
-      #endif
       );
       return;
     }
     RayBVH* rbvh = dynamic_cast<RayBVH*>(aggregate);
     if ( rbvh != NULL){
       rbvh->Intersect(ray, isect, hit, count, bounce
-      #ifdef STAT_RAY_TRIANGLE
-        ,Ls
-      #endif
       );
       return;
     }

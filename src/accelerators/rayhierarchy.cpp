@@ -213,14 +213,24 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
         bbox = Union(bbox, p[i]->WorldBound());
     }
     //TODO: check how many threads can be proccessed at once (depends on MaxRaysPerCall)
+    cout << "Scene contains " << triangleCount << " triangles"<< endl;
     workerSemaphore = new Semaphore(1);
     a = chunkX;
     b = chunkY;
+
+    #ifdef GPU_TIMES
+    primaryRays = 0;
+    shadowRays = 0;
+    secondaryRays = 0;
+    #endif
 }
 
 RayHieararchy::~RayHieararchy() {
   #ifdef GPU_TIMES
   ocl->PrintTimes();
+  cout << "primary rays: " << primaryRays << endl;
+  cout << "shadow rays: " << shadowRays << endl;
+  cout << "secondary rays: " << secondaryRays << endl;
   #endif
   delete ocl;
   delete [] vertices;
@@ -632,6 +642,11 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   }
 
   workerSemaphore->Wait();
+  #ifdef GPU_TIMES
+  for ( unsigned int k = 0; k < count; ++k){
+    if ( hit[k]) ++secondaryRays;
+  }
+  #endif
   int roffsetX, xWidth, yWidth;
   size_t tn1 = ConstructRayHierarchyP(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
   OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
@@ -658,7 +673,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //ray bounds
   gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_WRITE_ONLY); //tHit
   gput->CreateBuffer(7,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
-  gput->CreateBuffer(8,sizeof(cl_int)*gws*5*(4+5*height), CL_MEM_READ_WRITE); //stack
+  gput->CreateBuffer(8,sizeof(cl_int)*(gws+lws)*5*(xWidth*yWidth+5*height), CL_MEM_READ_WRITE); //stack
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
   gput->SetIntArgument(11, yWidth);
@@ -781,8 +796,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   #endif
   )  {
 
-  cout << "# triangles: " << triangleCount << endl;
-
   cl_float* rayDirArray = new cl_float[count*4];
   cl_float* rayOArray = new cl_float[count*4];
   cl_float* rayBoundsArray = new cl_float[count*2];
@@ -816,6 +829,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   }
 
     workerSemaphore->Wait();
+    #ifdef GPU_TIMES
+    primaryRays += count;
+    #endif
     int roffsetX, xWidth, yWidth;
     size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
     OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
@@ -1139,16 +1155,21 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   #endif
 
   workerSemaphore->Wait();
+  #ifdef GPU_TIMES
+  for ( unsigned int k = 0; k < count; k++){
+    if ( hit[k] ) ++shadowRays;
+  }
+  #endif
   int roffsetX, xWidth, yWidth;
   size_t tn1 = ConstructRayHierarchyP(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
   OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
 
-  size_t gws = 2880;
-  size_t lws = 32;
+  size_t gws = trianglePartCount; //2880;
+  size_t lws = 64;
   size_t tn2 = ocl->CreateTask (KERNEL_INTERSECTIONP, 1, &gws, &lws, cmd);
   OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
-  unsigned int c = 9;
+  unsigned int c = 8;
   #ifdef STAT_PRAY_TRIANGLE
    c = 9;
   #endif
@@ -1171,7 +1192,7 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   #ifdef STAT_PRAY_TRIANGLE
    gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 15);
   #endif
-  gput->CreateBuffer(7,sizeof(cl_int)*gws*5*(xWidth*yWidth+5*height), CL_MEM_READ_WRITE);
+  gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*5*(xWidth*yWidth+5*height), CL_MEM_READ_WRITE);
   //Assert(gput->SetLocalArgument(7,sizeof(cl_int)*(64*5*(4 + 3*(height-1)))));
   gput->SetIntArgument(8, roffsetX);
   gput->SetIntArgument(9, xWidth);
@@ -1180,8 +1201,8 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   gput->SetIntArgument(12,b);
   gput->SetIntArgument(13, trianglePartCount);
   gput->SetIntArgument(14, 5*gws); //stack level size
-  int globalPoolNextRay = 2*gws;
-  gput->CreateBuffer(8,sizeof(cl_int),CL_MEM_READ_WRITE,15);
+  //int globalPoolNextRay = 2*gws;
+  //gput->CreateBuffer(8,sizeof(cl_int),CL_MEM_READ_WRITE,15);
   #ifdef TRIANGLES_PER_THREAD
     gput->SetIntArgument(15,trianlgesPerThread);
   #endif
@@ -1194,11 +1215,11 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   #endif
   for ( int i = 0; i < parts - 1; i++){
     gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount);
-    gput->EnqueueWriteBuffer(8,&globalPoolNextRay);
+    //gput->EnqueueWriteBuffer(8,&globalPoolNextRay);
     gput->Run();
     gput->WaitForKernel();
   }
-  gput->EnqueueWriteBuffer(8,&globalPoolNextRay);
+  //gput->EnqueueWriteBuffer(8,&globalPoolNextRay);
   gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount);
   gput->SetIntArgument(13,(cl_int)triangleLastPartCount);
   gput->Run();

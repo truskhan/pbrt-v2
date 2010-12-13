@@ -1,63 +1,33 @@
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #pragma OPENCL EXTENSION cl_khr_local_int32_base_atomics : enable
-#define B 2*32
 __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t validity,
   __read_only image2d_t bounds, __global char* tHit,
   __global int* stack,
-  int volatile roffsetX, int volatile xWidth, int volatile yWidth,
+  int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-    int size,  int stackSize ,__global int* globalPoolNextRay
+    int size,  int stackSize
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
-    __local volatile int localPoolNextRay ;
-    __local volatile int localPoolRayCount;
-    __local int temp[3]; //for storing xWidth, yWidth, roffsetX
-    if ( get_local_id(0) == 0){
-      localPoolNextRay = get_global_id(0)*2;
-      localPoolRayCount = B;
-      temp[0] = xWidth;
-      temp[1] = yWidth;
-      temp[2] = roffsetX;
-    }
-    barrier(CLK_LOCAL_MEM_FENCE);
-    int myRayIndex;
+
+    int GID = get_global_id(0);
+    if ( GID >= size) return;
     float4 e1, e2;
     float4 v1, v2, v3;
     float4 bmin, bmax;
     float4 omin, omax, dmin, dmax;
     uint4 valid;
-    int volatile SPindex;
-    int wbeginStack;
-    wbeginStack = 5*get_global_id(0);
+    int SPindex,wbeginStack;
+    wbeginStack = 5*GID;
     int j,k;
 
-    while(true){
-    // get rays from global to local pool
-    if (localPoolRayCount == 0 && get_local_id(0) == 0) {
-     localPoolNextRay = atom_add(globalPoolNextRay, B);
-     localPoolRayCount = B;
-    }
-    // get rays from local pool
-    myRayIndex = localPoolNextRay + get_local_id(0);
-    if (get_local_id(0) == 0) {
-      localPoolNextRay += 32;
-      localPoolRayCount -= 32;
-    }
-    if (myRayIndex >= size)
-       return;
-
-    xWidth = temp[0];
-    yWidth = temp[1];
-    roffsetX = temp[2];
-
     // find geometry for the work-item
-    v1 = vload4(0, vertex + 9*myRayIndex);
-    v2 = vload4(0, vertex + 9*myRayIndex + 3);
-    v3 = vload4(0, vertex + 9*myRayIndex + 6);
+    v1 = vload4(0, vertex + 9*GID);
+    v2 = vload4(0, vertex + 9*GID + 3);
+    v3 = vload4(0, vertex + 9*GID + 6);
     v1.w = 0; v2.w = 0; v3.w = 0;
     e1 = v2 - v1;
     e2 = v3 - v1;
@@ -143,5 +113,5 @@ __kernel void IntersectionP (
       }
 
     }
-    }
+
 }

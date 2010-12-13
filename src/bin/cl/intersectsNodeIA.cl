@@ -1,4 +1,3 @@
-#define EPS 0.002f
 bool intersectsNode ( float4 t_omin, float4 t_omax, float4 t_dmin, float4 t_dmax, float4 bmin, float4 bmax){
   //compute (Bx-Ox)*(1/Vx)
   float2 s,t,u;

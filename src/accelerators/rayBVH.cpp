@@ -158,6 +158,7 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunkX, 
     delete bvhTemp;
 
     triangleCount = this->p.size();
+    cout << "Scene contains " << triangleCount << " triangles"<< endl;
 
     //TODO: check how many threads can be proccessed at once (depends on MaxRaysPerCall)
     workerSemaphore = new Semaphore(1);
@@ -230,7 +231,6 @@ void RayBVH::Preprocess(){
       bvhTopLevelNodesMax = max(bvhTopLevelNodesMax, bvhs[j]->topLevelNodes);
       bvhNodesMax = max(bvhNodesMax, bvhs[j]->nodeNum);
       maxPrims = max(maxPrims, bvhs[j]->primitives.size());
-      cout << bvhs[j]->primitives.size() << endl;
       delete vec;
     }
     k = 0;
@@ -239,7 +239,6 @@ void RayBVH::Preprocess(){
       vec->push_back(p[k]);
     p.clear();
     bvhs[parts - 1] = new BVHAccel(*vec, maxBVHPrim, sm, true, BVHheight);
-    cout << bvhs[parts-1]->primitives.size() << endl;
     bvhTopLevelNodesMax = max(bvhTopLevelNodesMax, bvhs[parts-1]->topLevelNodes);
     bvhNodesMax = max(bvhNodesMax, bvhs[parts - 1]->nodeNum);
     maxPrims = max(maxPrims, bvhs[parts-1]->primitives.size());
@@ -663,7 +662,6 @@ inline RGBSpectrum RainbowColorMapping(const float _value)
 
 void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
     const unsigned int count, const int bounce){
-  cout << "intersect ray generation " << bounce << endl;
   cl_float* rayDirArray = new cl_float[count*4];
   cl_float* rayOArray = new cl_float[count*4];
   cl_float* rayBoundsArray = new cl_float[count*2];
@@ -719,7 +717,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //ray bounds
   gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_WRITE_ONLY); //tHit
   gput->CreateBuffer(7,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
-  gput->CreateBuffer(8,sizeof(cl_int)*gws*6*(4+8*tempHeight), CL_MEM_READ_WRITE); //stack
+  gput->CreateBuffer(8,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE); //stack
   gput->CreateBuffer(9,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
   gput->SetIntArgument(10,roffsetX);
   gput->SetIntArgument(11,xWidth);
@@ -762,7 +760,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gpuRayO->CopyBuffers(0,3,0,gput); // 0 vertex, 1 dir, 2 origin
   gpuRayO->CopyBuffer(7,3,gput); // 3 index
   ocl->delTask(tn2,cmd);
-  gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*trianglePartCount, CL_MEM_READ_ONLY ); //uvs
+  gpuRayO->CreateBuffer(4,sizeof(cl_float)*6*maxPrims, CL_MEM_READ_ONLY ); //uvs
   gpuRayO->CreateBuffer(5,sizeof(cl_float)*2*count, CL_MEM_WRITE_ONLY ); // tu,tv
   gpuRayO->CreateBuffer(6,sizeof(cl_float)*6*count, CL_MEM_WRITE_ONLY); //dpdu, dpdv
   gpuRayO->SetIntArgument(10,xResolution*samplesPerPixel);
@@ -857,8 +855,6 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
   #endif
   )  {
 
-  cout << "# triangles: " << triangleCount << endl;
-
   cl_float* rayDirArray = new cl_float[count*4];
   cl_float* rayOArray = new cl_float[count*4];
   cl_float* rayBoundsArray = new cl_float[count*2];
@@ -922,7 +918,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->CreateBuffer(6,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
     //allocate stack in global memory
     int tempHeight = max(height, BVHheight);
-    gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+4+8*tempHeight), CL_MEM_READ_WRITE);
+    gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE);
     gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
     gput->SetIntArgument(9,roffsetX);
     gput->SetIntArgument(10,xWidth);
@@ -947,13 +943,11 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       gput->SetIntArgument(16, offsetGID);
       gput->EnqueueWriteBuffer(8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
       gput->EnqueueWriteBuffer(0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
-      cout << "run " << i << endl;
       gput->Run();
       offsetGID += bvhs[i]->primitives.size();
       gput->WaitForKernel();
     }
     //last part of vertices
-    cout << "last run " << endl;
     gput->SetIntArgument(15,bvhs[parts-1]->topLevelNodes);
     gput->SetIntArgument(16,offsetGID);
     gput->EnqueueWriteBuffer(8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
@@ -971,7 +965,6 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       temp = max(picture[i],temp);
       Ls[i] = RainbowColorMapping((float)(picture[i])/(float)scale);
     }
-    cout << "Maximum intersection count: " << temp << endl;
     delete [] ((uint*)picture);
     workerSemaphore->Post();
     return;
@@ -1002,12 +995,10 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       anotherIntersect->SetIntArgument(17, offsetGID);
       anotherIntersect->EnqueueWriteBuffer(8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
       anotherIntersect->EnqueueWriteBuffer(0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
-      cout << "yetAnother run " << i << endl;
       anotherIntersect->Run();
       offsetGID += bvhs[i]->primitives.size();
       anotherIntersect->WaitForKernel();
     }
-    cout << "last yetAnother run " << endl;
     //last part of vertices
     anotherIntersect->SetIntArgument(16,bvhs[parts-1]->topLevelNodes);
     anotherIntersect->SetIntArgument(17,offsetGID);
@@ -1215,7 +1206,6 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   imageFormatBounds.image_channel_data_type = CL_FLOAT;
   imageFormatBounds.image_channel_order = CL_RG;
 
-  cout << "BVH top level nodes " << bvhs[0]->topLevelNodes << " height " << BVHheight <<  endl;
   gput->CreateBuffer(0,sizeof(cl_float)*3*3*maxPrims, CL_MEM_READ_ONLY ); //vertices
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //bounds
   gput->CreateBuffer(6,sizeof(cl_char)*count, CL_MEM_WRITE_ONLY); //tHit
@@ -1241,11 +1231,9 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
     gput->EnqueueWriteBuffer( 8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
     gput->EnqueueWriteBuffer(0, vertices[i], sizeof(float)*9*bvhs[i]->primitives.size());
     gput->SetIntArgument(15, bvhs[i]->topLevelNodes);
-    cout << "intersectP run " << i << endl;
     gput->Run();
     gput->WaitForKernel();
   }
-  cout << "last intersectP run " << endl;
   gput->SetIntArgument(15, bvhs[parts-1]->topLevelNodes);
   gput->EnqueueWriteBuffer( 8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
   gput->EnqueueWriteBuffer(0, vertices[parts-1], sizeof(cl_float)*9*bvhs[parts-1]->primitives.size());
@@ -1269,8 +1257,6 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
       temp = ((cl_uint*)picture)[i];
       t = max(temp,t);
       Ls[i] = RainbowColorMapping((float)(temp)/scale);
-     // cout << ' ' << temp  ;
-     // Ls[i] = Ls[i].Clamp(0,255);
     }
     cout << "Maximum intersectionP count: " << t << endl;
     delete [] ((uint*)picture);

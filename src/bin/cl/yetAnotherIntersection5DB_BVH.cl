@@ -1,31 +1,34 @@
-__kernel void IntersectionP (
+__kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
-  __read_only image2d_t nodes, __read_only image2d_t validity,
-  __read_only image2d_t bounds, __global char* tHit,
-  __global int* stack, __global GPUNode* bvh,
+  __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
+  __global int* index,  __global int* stack, __global GPUNode* bvh, __global int* changed,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-   int stackSize, int topLevelNodes
-#ifdef STAT_PRAY_TRIANGLE
+  int stackSize, int topLevelNodes, const int offsetGID
+#ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
-    uint iGID = get_global_id(0);
+    int iGID = get_global_id(0);
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
     GPUNode bvhElem = bvh[iGID];
-    //an empty node
     if ( !bvhElem.nPrimitives && !bvhElem.primOffset) return;
 
-    //bounding box
-    float4 bmin, bmax;
-
-    uint4 valid;
     // find geometry for the work-item
     float4 e1, e2;
     float4 v1, v2, v3;
+    //calculate bounding box
+    float4 bmin, bmax;
+
+    bmin.x = bvhElem.ax;
+    bmin.y = bvhElem.ay;
+    bmin.z = bvhElem.az;
+    bmax.x = bvhElem.bx;
+    bmax.y = bvhElem.by;
+    bmax.z = bvhElem.bz;
 
     int SPindex = 0;
     int wbeginStack = 6*iGID;
@@ -38,8 +41,6 @@ __kernel void IntersectionP (
     int k, j;
     for ( j = 0; j < yWidth; j++){
       for ( k = 0; k < xWidth; k++){
-        valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
-        if ( valid.x == 0) continue;
         stack[wbeginStack + SPindex] = xWidth ;
         stack[wbeginStack + SPindex + 1] = yWidth;
         stack[wbeginStack + SPindex + 2] = roffsetX;
@@ -68,8 +69,6 @@ __kernel void IntersectionP (
       bmax.y = bvhElem.by;
       bmax.z = bvhElem.bz;
 
-      valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
-      if ( valid.x == 0) continue;
       omax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,             yWidth + j));
       uv = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
       omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,             j));
@@ -82,16 +81,16 @@ __kernel void IntersectionP (
       {
         //if it is a rayhierarchy leaf node and bvh leaf node
         if ( !roffsetX && bvhElem.nPrimitives){
-            for ( int f = 0; f < bvhElem.nPrimitives; f++){
-              v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f ));
-              v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 3);
-              v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f ) + 6);
+             for ( int f = 0; f < bvhElem.nPrimitives; f++){
+              v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
+              v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
+              v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
               v1.w = 0; v2.w = 0; v3.w = 0;
               e1 = v2 - v1;
               e2 = v3 - v1;
-              intersectAllLeavesP( dir, o, bounds, tHit, v1,v2,v3,e1,e2,
-                    xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight
-                    #ifdef STAT_PRAY_TRIANGLE
+              yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,
+                    xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , offsetGID+bvhElem.primOffset+f, offsetGID
+                    #ifdef STAT_RAY_TRIANGLE
                     , stat_rayTriangle
                     #endif
                     );
@@ -216,9 +215,9 @@ __kernel void IntersectionP (
           stack[wbeginStack + SPindex + 5] = iGID;
           SPindex += stackSize;
         }
+
       }
 
 
     }
-
 }

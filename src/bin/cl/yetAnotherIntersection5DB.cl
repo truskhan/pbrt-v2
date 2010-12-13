@@ -1,7 +1,7 @@
 __kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
-  __global int* index, __global int* changed, __global int* stack,
+  __global int* index, __global int* stack, __global int* changed,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size, unsigned int offsetGID, int stackSize //, __write_only image2d_t kontrola
@@ -39,120 +39,85 @@ __kernel void YetAnotherIntersection (
     bmax = max(bmax, v3);
 
     int SPindex = 0;
-    int wbeginStack = stackSize*iGID;
+    int wbeginStack = 5*iGID;
 
     //3D bounding box of the origin
     float4 omin, omax, uv;
     //2D bounding box for uv
     float2 uvmin, uvmax;
 
-    int tempOffsetX, tempWidth, tempHeight;
-    int tempX, tempY;
-    for ( int j = 0; j < yWidth; j++){
-      for ( int k = 0; k < xWidth; k++){
-        omax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          yWidth + j));
-        uv = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
-        omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,          j));
+    int j,k;
+    for ( j = 0; j < yWidth; j++){
+      for ( k = 0; k < xWidth; k++){
+          stack[wbeginStack + SPindex] = xWidth ;
+          stack[wbeginStack + SPindex + 1] = yWidth;
+          stack[wbeginStack + SPindex + 2] = roffsetX;
+          stack[wbeginStack + SPindex + 3] = k;
+          stack[wbeginStack + SPindex + 4] = j;
+          SPindex += stackSize;
 
-        uvmin.x = uv.x;
-        uvmin.y = uv.z;
-        uvmax.x = uv.y;
-        uvmax.y = uv.w;
+      }
+    }
 
-        // check if triangle intersects node
-        if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
-        {
-          //store all 4 children to the stack (one is enough, the other 3 are nearby)
-          stack[wbeginStack + SPindex] = xWidth*2 ;
+    while ( SPindex > 0) {
+      SPindex -= stackSize;
+      xWidth = stack[wbeginStack + SPindex];
+      yWidth = stack[wbeginStack + SPindex + 1];
+      roffsetX = stack[wbeginStack + SPindex + 2];
+      k = stack[wbeginStack + SPindex + 3];
+      j = stack[wbeginStack + SPindex + 4];
+
+      omax = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,             yWidth + j));
+      uv = read_imagef(nodes, imageSampler, (int2)(roffsetX + xWidth + k, yWidth + j));
+      omin = read_imagef(nodes, imageSampler, (int2)(roffsetX + k,             j));
+      uvmin.x = uv.x;
+      uvmin.y = uv.z;
+      uvmax.x = uv.y;
+      uvmax.y = uv.w;
+
+      if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
+      {
+        //if it is a leaf node
+        if ( roffsetX == 0) {
+          yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,
+                xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , get_global_id(0)+offsetGID,offsetGID
+                #ifdef STAT_RAY_TRIANGLE
+                , stat_rayTriangle
+                #endif
+                );
+        } else {
+          //store the children to the stack
+          stack[wbeginStack + SPindex] = xWidth*2;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j;
-          SPindex += 5;
+          SPindex += stackSize;
 
-          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex] = xWidth*2;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j;
-          SPindex += 5;
+          SPindex += stackSize;
 
-          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex] = xWidth*2;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k + 1;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
-          SPindex += 5;
+          SPindex += stackSize;
 
-          stack[wbeginStack + SPindex] = xWidth*2 ;
+          stack[wbeginStack + SPindex] = xWidth*2;
           stack[wbeginStack + SPindex + 1] = yWidth*2;
           stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
           stack[wbeginStack + SPindex + 3] = 2*k;
           stack[wbeginStack + SPindex + 4] = 2*j + 1;
-          SPindex += 5;
-
-          while ( SPindex > 0) {
-            SPindex -= 5;
-            tempWidth = stack[wbeginStack + SPindex];
-            tempHeight = stack[wbeginStack + SPindex + 1];
-            tempOffsetX = stack[wbeginStack + SPindex + 2];
-            tempX = stack[wbeginStack + SPindex + 3];
-            tempY = stack[wbeginStack + SPindex + 4];
-
-            omax = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempHeight + tempY));
-            uv = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempWidth + tempX, tempHeight + tempY));
-            omin = read_imagef(nodes, imageSampler, (int2)(tempOffsetX + tempX,             tempY));
-            uvmin.x = uv.x;
-            uvmin.y = uv.z;
-            uvmax.x = uv.y;
-            uvmax.y = uv.w;
-
-            if ( intersectsNode(omin, omax, uvmin, uvmax, bmin, bmax) )
-            {
-              //if it is a leaf node
-              if ( tempOffsetX == 0) {
-                yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1,v2,v3,e1,e2,
-                      tempWidth*lwidth, lheight, lwidth, tempX*lwidth, tempY*lheight , get_global_id(0)+offsetGID
-                      #ifdef STAT_RAY_TRIANGLE
-                      , stat_rayTriangle
-                      #endif
-                      );
-              } else {
-                //store the children to the stack
-                stack[wbeginStack + SPindex] = tempWidth*2;
-                stack[wbeginStack + SPindex + 1] = tempHeight*2;
-                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
-                stack[wbeginStack + SPindex + 3] = 2*tempX;
-                stack[wbeginStack + SPindex + 4] = 2*tempY;
-                SPindex += 5;
-
-                stack[wbeginStack + SPindex] = tempWidth*2;
-                stack[wbeginStack + SPindex + 1] = tempHeight*2;
-                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
-                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
-                stack[wbeginStack + SPindex + 4] = 2*tempY;
-                SPindex += 5;
-
-                stack[wbeginStack + SPindex] = tempWidth*2;
-                stack[wbeginStack + SPindex + 1] = tempHeight*2;
-                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
-                stack[wbeginStack + SPindex + 3] = 2*tempX + 1;
-                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
-                SPindex += 5;
-
-                stack[wbeginStack + SPindex] = tempWidth*2;
-                stack[wbeginStack + SPindex + 1] = tempHeight*2;
-                stack[wbeginStack + SPindex + 2] = tempOffsetX - tempWidth*2;
-                stack[wbeginStack + SPindex + 3] = 2*tempX;
-                stack[wbeginStack + SPindex + 4] = 2*tempY + 1;
-                SPindex += 5;
-              }
-            }
-
-
-          }
+          SPindex += stackSize;
         }
       }
+
+
     }
 
 }

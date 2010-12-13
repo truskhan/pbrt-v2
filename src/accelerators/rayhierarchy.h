@@ -79,6 +79,11 @@ private:
     size_t topLevelCount;
     string node;
     size_t nodeSize;
+    #ifdef GPU_TIMES
+    size_t primaryRays;
+    size_t shadowRays;
+    size_t secondaryRays;
+    #endif
 };
 
 

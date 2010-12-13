@@ -197,6 +197,7 @@ void BVHAccel::GPUbufferWide(BVHBuildNode *root, uint32_t totalNodes, const uint
       ++nodeNum;
     }
     cout << "total prims " << count << endl;
+    cout << "BVH top level nodes " << topLevelNodes << " height " << height <<  endl;
     delete [] array;
 
 }

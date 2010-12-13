@@ -1,4 +1,3 @@
-#define EPS 0.002f
 bool intersectsNode(float4 center, float2 uvmin, float2 uvmax, float4 o, float radius) {
   float2 uv;
   float4 ray = o - center;

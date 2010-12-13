@@ -1,4 +1,5 @@
 #include "GPUparallel.h"
+#include <float.h>
 using namespace std;
 
 cl_context OpenCL::cxContext; //OpenCL context
@@ -302,7 +303,7 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
     "-DSTAT_TRIANGLE_CONE",
   #endif
   #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
-    "-cl-nv-verbose -cl-nv-maxrregcount=100 -Werror",
+    "-cl-nv-verbose -cl-nv-maxrregcount=90 -Werror",
   #endif
   &pfn_notify, (void*) &(queue[0]->device));
 #endif
@@ -625,9 +626,13 @@ void OpenCLTask::EnqueueRead2DImage( size_t it, void* data){
 double executionTime(cl_event &event)
 {
     cl_ulong start, end;
-
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
-    clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL);
+    cl_int err;
+    err = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &end, NULL);
+    if ( err != CL_SUCCESS)
+      Severe("fialed getting profiling end time, error: %i %s\n", err, stringError(err));
+    err = clGetEventProfilingInfo(event, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &start, NULL);
+    if ( err != CL_SUCCESS)
+      Severe("fialed getting profiling end time, error: %i %s\n", err, stringError(err));
 
     return (double)1.0e-9 * (end - start); // convert nanoseconds to seconds on return
 }
@@ -640,6 +645,7 @@ void OpenCLTask::Run(){
     MutexLock lock(*globalmutex);
     cl_int ciErrNum;
 
+    //cout << "Running kernel " << kernel << endl;
     if ( szLocalWorkSize == 0) //let OpenCL implementation to choose local work size
     ciErrNum = clEnqueueNDRangeKernel(queue, ckKernel, dim, NULL, szGlobalWorkSize, NULL, writeENum, (writeENum == 0)?0:writeEvents,  &kernelEvent);
     else
@@ -657,7 +663,11 @@ void OpenCLTask::Run(){
     ciErrNum = clFinish(queue);
     if ( ciErrNum != CL_SUCCESS)
       Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
-    kernel_times[kernel] += executionTime(kernelEvent);
+    double temp = executionTime(kernelEvent);
+    if ( temp < 10000)
+      kernel_times[kernel] += temp;
+    else
+      Warning("Failed to get proper kernel time %f\n", temp);
     ++kernel_calls[kernel];
     #endif
 

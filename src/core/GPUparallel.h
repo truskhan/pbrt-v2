@@ -6,15 +6,12 @@
 @todo enable sharing cl_mem buffer among command queues (for vertices...)
 **/
 // core/GPUparallel.h*
-#include <CL/cl.h>
 #include <iostream>
-#include <stdint.h>
 #include <fstream>
 #include <string.h>
+#include <CL/cl.h>
 #include "core/parallel.h"
 #include "core/error.h"
-#include "cl/oclUtils.h"
-#include "cl/shrUtils.h"
 
 #ifdef GPU_TIMES
 extern double* kernel_times;
@@ -25,6 +22,9 @@ extern double rmem_times;
 
 const char* stringError(cl_int errNum);
 double executionTime(cl_event &event);
+
+// Round Up Division function
+size_t RoundUp(int group_size, int global_size);
 
 /**Class for holding OpenCL kernel and auxiliary variables**/
 class OpenCLTask {
@@ -280,7 +280,7 @@ class OpenCL {
     **/
     size_t CreateTask(size_t kernel, size_t dim, size_t* szGWS = 0, size_t* szLWS = 0, size_t i = 0){
         for ( int j = 0; j < dim; j++){
-          szGWS[j] = shrRoundUp((int)szLWS[j], szGWS[j]);
+          szGWS[j] = RoundUp((int)szLWS[j], szGWS[j]);
         }
         size_t task = queue[i]->CreateTask(kernel, cxContext, cpPrograms[kernel], functions[kernel], dim, szLWS, szGWS);
         Info("Created Task %d in queue %d.",task, i);

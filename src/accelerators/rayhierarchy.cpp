@@ -280,8 +280,6 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     //ray dir,o, bounds, tHit
     unsigned int x;
 
-    //pointers to children
-    int total = threadsCount*0.5f*(1.0f - 1/pow(2,height));
     //vertices
     #define MAX_VERTICES 40000
     if ( triangleCount > MAX_VERTICES) {
@@ -295,8 +293,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     }
 
     //(GlobalMemorySize - vertices - pointersToChildren - counts)
-    x = (gms - sizeof(cl_float)*3*3*trianglePartCount //vertices
-             - sizeof(cl_int)*2*total //pointersToChildren
+	x = (gms - sizeof(cl_float)*(9+6)*trianglePartCount //vertices + uvs
              - sizeof(cl_uint)*threadsCount //counts
              ) / (
              sizeof(cl_uint) //index
@@ -1049,6 +1046,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
         Assert( index < triangleCount);
         const GeometricPrimitive* p = (dynamic_cast<const GeometricPrimitive*> (primitives[index].GetPtr()));
         const Triangle* shape = dynamic_cast<const Triangle*> (p->GetShapePtr());
+		if ( shape == NULL) continue;
 
         dpdu = Vector(dpduArray[6*i],dpduArray[6*i+1],dpduArray[6*i+2]);
         dpdv = Vector(dpduArray[6*i+3],dpduArray[6*i+4],dpduArray[6*i+5]);
@@ -1272,7 +1270,7 @@ RayHieararchy *CreateRayHieararchy(const vector<Reference<Primitive> > &prims,
     int chunkX = ps.FindOneInt("chunkXSize", 4);
     int chunkY = ps.FindOneInt("chunkYSize", 4);
     int height = ps.FindOneInt("height",3);
-    string node = ps.FindOneString("node", "sphere_uv");
+    string node = ps.FindOneString("node", "box_dir");
     string splitMethod = ps.FindOneString("splitmethod", "sah");
     int maxBVHPrim = ps.FindOneInt("maxBVHPrim",1);
     unsigned int repairRun = ps.FindOneInt("repairRun",1);

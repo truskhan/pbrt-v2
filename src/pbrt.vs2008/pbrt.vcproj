@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9.00"
+	Version="9,00"
 	Name="pbrt"
 	ProjectGUID="{A32DC5C9-5353-4EAA-BB13-D08CDB7FA00C}"
 	RootNamespace="pbrt"
@@ -21,7 +21,7 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="../../bin/"
+			OutputDirectory="../bin/"
 			IntermediateDirectory="../../tmp/$(ProjectName)/"
 			ConfigurationType="1"
 			CharacterSet="1"
@@ -44,13 +44,15 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../;../core/;../3rdparty/;&quot;../3rdparty/ilmbase-1.0.2&quot;;&quot;../3rdparty/openexr-1.7.0&quot;;&quot;../3rdparty/zlib-1.2.5&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../;../core/;../3rdparty/;&quot;../3rdparty/ilmbase-1.0.2&quot;;&quot;../3rdparty/openexr-1.7.0&quot;;&quot;../3rdparty/zlib-1.2.5&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
 				PreprocessorDefinitions="WIN32;_WIN32;_DEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
 				WarningLevel="3"
 				DebugInformationFormat="4"
+				ShowIncludes="false"
+				UseFullPaths="true"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -63,11 +65,88 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="libpbrt.lib"
+				AdditionalDependencies="libpbrt.lib OpenCL.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="../../lib"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH);../../lib"
 				GenerateDebugInformation="true"
 				SubSystem="1"
+				TargetMachine="1"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release|Win32"
+			OutputDirectory="../bin/"
+			IntermediateDirectory="../tmp/$(ProjectName)/"
+			ConfigurationType="1"
+			CharacterSet="1"
+			WholeProgramOptimization="1"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="2"
+				InlineFunctionExpansion="1"
+				EnableIntrinsicFunctions="true"
+				FavorSizeOrSpeed="1"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../;../core/;../3rdparty/;&quot;../3rdparty/ilmbase-1.0.2&quot;;&quot;../3rdparty/openexr-1.7.0&quot;;&quot;../3rdparty/zlib-1.2.5&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
+				PreprocessorDefinitions="WIN32;_WIN32;NDEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
+				RuntimeLibrary="2"
+				EnableFunctionLevelLinking="true"
+				WarningLevel="3"
+				DebugInformationFormat="3"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="libpbrt.lib OpenCL.lib"
+				LinkIncremental="1"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH);../../lib"
+				SubSystem="1"
+				OptimizeReferences="2"
+				EnableCOMDATFolding="2"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -143,83 +222,6 @@
 				GenerateDebugInformation="true"
 				SubSystem="1"
 				TargetMachine="17"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
-			Name="Release|Win32"
-			OutputDirectory="../../bin/"
-			IntermediateDirectory="../../tmp/$(ProjectName)/"
-			ConfigurationType="1"
-			CharacterSet="1"
-			WholeProgramOptimization="1"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="2"
-				InlineFunctionExpansion="1"
-				EnableIntrinsicFunctions="true"
-				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories="../;../core/;../3rdparty/;&quot;../3rdparty/ilmbase-1.0.2&quot;;&quot;../3rdparty/openexr-1.7.0&quot;;&quot;../3rdparty/zlib-1.2.5&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
-				PreprocessorDefinitions="WIN32;_WIN32;NDEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
-				RuntimeLibrary="2"
-				EnableFunctionLevelLinking="true"
-				WarningLevel="3"
-				DebugInformationFormat="3"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="libpbrt.lib"
-				LinkIncremental="1"
-				AdditionalLibraryDirectories="../../lib"
-				SubSystem="1"
-				OptimizeReferences="2"
-				EnableCOMDATFolding="2"
-				TargetMachine="1"
 			/>
 			<Tool
 				Name="VCALinkTool"

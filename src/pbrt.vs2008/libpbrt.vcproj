@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="Windows-1252"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="9.00"
+	Version="9,00"
 	Name="libpbrt"
 	ProjectGUID="{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}"
 	RootNamespace="libpbrt"
@@ -45,8 +45,8 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="../;../core/;../3rdparty/;&quot;../3rdparty/ilmbase-1.0.2/&quot;;&quot;../3rdparty/openexr-1.7.0/&quot;;&quot;../3rdparty/zlib-1.2.5/&quot;;&quot;../3rdparty/tiff-3.9.4/&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
-				PreprocessorDefinitions="WIN32;_WIN32;_DEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../;../core/;../3rdparty/;&quot;../3rdparty/ilmbase-1.0.2/&quot;;&quot;../3rdparty/openexr-1.7.0/&quot;;&quot;../3rdparty/zlib-1.2.5/&quot;;&quot;../3rdparty/tiff-3.9.4/&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
+				PreprocessorDefinitions="GPU_TIMES;WIN32;_WIN32;_DEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -64,6 +64,8 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies="OpenCL.lib"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -111,8 +113,8 @@
 				InlineFunctionExpansion="1"
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories="../;../core/;&quot;../3rdparty/&quot;;&quot;../3rdparty/ilmbase-1.0.2/&quot;;&quot;../3rdparty/openexr-1.7.0/&quot;;&quot;../3rdparty/zlib-1.2.5/&quot;;&quot;../3rdparty/tiff-3.9.4/&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
-				PreprocessorDefinitions="WIN32;_WIN32;NDEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
+				AdditionalIncludeDirectories="$(CUDA_INC_PATH);../;../core/;&quot;../3rdparty/&quot;;&quot;../3rdparty/ilmbase-1.0.2/&quot;;&quot;../3rdparty/openexr-1.7.0/&quot;;&quot;../3rdparty/zlib-1.2.5/&quot;;&quot;../3rdparty/tiff-3.9.4/&quot;;&quot;$(VCInstallDir)include&quot;;&quot;$(VCInstallDir)atlmfc\include&quot;;&quot;$(WindowsSdkDir)include&quot;;&quot;$(FrameworkSDKDir)\include&quot;"
+				PreprocessorDefinitions="GPU_TIMES;WIN32;_WIN32;NDEBUG;_CONSOLE;PBRT_PROBES_NONE;PBRT_HAS_OPENEXR;ZLIB_WINAPI;_CRT_SECURE_NO_WARNINGS"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
 				WarningLevel="3"
@@ -129,6 +131,8 @@
 			/>
 			<Tool
 				Name="VCLibrarianTool"
+				AdditionalDependencies="OpenCL.lib"
+				AdditionalLibraryDirectories="$(CUDA_LIB_PATH)"
 			/>
 			<Tool
 				Name="VCALinkTool"
@@ -284,6 +288,22 @@
 			Filter="cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
+			<File
+				RelativePath="..\renderers\breadth-first.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\accelerators\naive.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\accelerators\rayBVH.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\accelerators\rayhierarchy.cpp"
+				>
+			</File>
 			<Filter
 				Name="3rdparty"
 				>
@@ -916,6 +936,10 @@
 					>
 				</File>
 				<File
+					RelativePath="..\core\GPUparallel.cpp"
+					>
+				</File>
+				<File
 					RelativePath="..\core\imageio.cpp"
 					>
 				</File>
@@ -1378,6 +1402,22 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
+			<File
+				RelativePath="..\renderers\breadth-first.h"
+				>
+			</File>
+			<File
+				RelativePath="..\accelerators\naive.h"
+				>
+			</File>
+			<File
+				RelativePath="..\accelerators\rayBVH.h"
+				>
+			</File>
+			<File
+				RelativePath="..\accelerators\rayhierarchy.h"
+				>
+			</File>
 			<Filter
 				Name="3rdparty"
 				>
@@ -1981,22 +2021,22 @@
 					RelativePath="..\accelerators\kdtreeaccel.h"
 					>
 				</File>
-			</Filter>
-			<Filter
-				Name="cameras"
-				>
-				<File
-					RelativePath="..\cameras\environment.h"
+				<Filter
+					Name="cameras"
 					>
-				</File>
-				<File
-					RelativePath="..\cameras\orthographic.h"
-					>
-				</File>
-				<File
-					RelativePath="..\cameras\perspective.h"
-					>
-				</File>
+					<File
+						RelativePath="..\cameras\environment.h"
+						>
+					</File>
+					<File
+						RelativePath="..\cameras\orthographic.h"
+						>
+					</File>
+					<File
+						RelativePath="..\cameras\perspective.h"
+						>
+					</File>
+				</Filter>
 			</Filter>
 			<Filter
 				Name="core"
@@ -2035,6 +2075,10 @@
 				</File>
 				<File
 					RelativePath="..\core\geometry.h"
+					>
+				</File>
+				<File
+					RelativePath="..\core\GPUparallel.h"
 					>
 				</File>
 				<File

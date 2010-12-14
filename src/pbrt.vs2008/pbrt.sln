@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
+# Visual C++ Express 2008
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pbrt", "pbrt.vcproj", "{A32DC5C9-5353-4EAA-BB13-D08CDB7FA00C}"
 	ProjectSection(ProjectDependencies) = postProject
 		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC} = {A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}
@@ -54,12 +54,10 @@ Global
 		{A32DC5C9-5353-4EAA-BB13-D08CDB7FA00C}.Release|x64.Build.0 = Release|x64
 		{A32DC5C9-5353-4EAA-BB13-D08CDB7FA00C}.Release|x86.ActiveCfg = Release|Win32
 		{A32DC5C9-5353-4EAA-BB13-D08CDB7FA00C}.Release|x86.Build.0 = Release|Win32
-		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Debug|x64.ActiveCfg = Debug|x64
-		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Debug|x64.Build.0 = Debug|x64
+		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Debug|x64.ActiveCfg = Debug|Win32
 		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Debug|x86.ActiveCfg = Debug|Win32
 		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Debug|x86.Build.0 = Debug|Win32
-		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Release|x64.ActiveCfg = Release|x64
-		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Release|x64.Build.0 = Release|x64
+		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Release|x64.ActiveCfg = Release|Win32
 		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Release|x86.ActiveCfg = Release|Win32
 		{A4BCEF80-A864-40DF-94B1-0E0E61CEC7CC}.Release|x86.Build.0 = Release|Win32
 		{4A0F328F-2382-4E49-9701-385D72717D2E}.Debug|x64.ActiveCfg = Debug|x64

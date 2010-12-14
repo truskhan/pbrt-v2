@@ -10,6 +10,19 @@ double wmem_times;
 double rmem_times;
 #endif
 
+size_t RoundUp(int group_size, int global_size)
+{
+    if (group_size == 0) return 0;
+    int r = global_size % group_size;
+    if(r == 0)
+    {
+        return global_size;
+    } else
+    {
+        return global_size + group_size - r;
+    }
+}
+
 OpenCL::~OpenCL(){
   for ( size_t i = 0; i < numKernels; i++)
     if (cpPrograms[i]) clReleaseProgram(cpPrograms[i]);
@@ -157,7 +170,11 @@ OpenCLQueue::OpenCLQueue(cl_context & context){
   globalmutex = Mutex::Create();
 }
 
+#ifdef WIN32
+void __stdcall CALLBACK pfn_notify(cl_program p, void* user_data){
+#else
 void pfn_notify(cl_program p, void* user_data){
+#endif
   MutexLock(*buildLog);
  char* log = new char[1000];
  size_t len;
@@ -169,6 +186,62 @@ void pfn_notify(cl_program p, void* user_data){
  delete [] log;
 
  return;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//! Loads a Program file and prepends the cPreamble to the code.
+//!
+//! @return the source string if succeeded, 0 otherwise
+//! @param cFilename        program filename
+//! @param cPreamble        code that is prepended to the loaded file, typically a set of #defines or a header
+//! @param szFinalLength    returned length of the code string
+//////////////////////////////////////////////////////////////////////////////
+char* oclLoadProgSource(const char* cFilename, const char* cPreamble, size_t* szFinalLength)
+{
+    // locals
+    FILE* pFileStream = NULL;
+    size_t szSourceLength;
+
+    // open the OpenCL source code file
+    #ifdef _WIN32   // Windows version
+        if(fopen_s(&pFileStream, cFilename, "rb") != 0)
+        {
+            return NULL;
+        }
+    #else           // Linux version
+        pFileStream = fopen(cFilename, "rb");
+        if(pFileStream == 0)
+        {
+            return NULL;
+        }
+    #endif
+
+    size_t szPreambleLength = strlen(cPreamble);
+
+    // get the length of the source code
+    fseek(pFileStream, 0, SEEK_END);
+    szSourceLength = ftell(pFileStream);
+    fseek(pFileStream, 0, SEEK_SET);
+
+    // allocate a buffer for the source code string and read it in
+    char* cSourceString = (char *)malloc(szSourceLength + szPreambleLength + 1);
+    memcpy(cSourceString, cPreamble, szPreambleLength);
+    if (fread((cSourceString) + szPreambleLength, szSourceLength, 1, pFileStream) != 1)
+    {
+        fclose(pFileStream);
+        free(cSourceString);
+        return 0;
+    }
+
+    // close the file and return the total length of the combined (preamble + source) string
+    fclose(pFileStream);
+    if(szFinalLength != 0)
+    {
+        *szFinalLength = szSourceLength + szPreambleLength;
+    }
+    cSourceString[szSourceLength + szPreambleLength] = '\0';
+
+    return cSourceString;
 }
 
 char* oclLoadSource(const char* cFilename, char** headers, const int headerNum, size_t* szFinalLength)
@@ -305,25 +378,25 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
   #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
     "-cl-nv-verbose -cl-nv-maxrregcount=90 -Werror",
   #endif
-  &pfn_notify, (void*) &(queue[0]->device));
+	#ifdef WIN32
+		NULL, NULL);
+	#else
+		&pfn_notify, (void*) &(queue[0]->device));
+	#endif
 #endif
 
   if (ciErrNum != CL_SUCCESS){
-    // write out standard error, Build Log and PTX, then cleanup and exit
-    shrLog(LOGBOTH | ERRORMSG, ciErrNum, STDERROR);
-    oclLogBuildInfo(cpPrograms[i], oclGetFirstDev(cxContext));
-    oclLogPtx(cpPrograms[i], oclGetFirstDev(cxContext), program);
     Severe( "Failed building program \"%s\" !", function);
   }
 
-  size_t size;
+  /*size_t size;
   clGetProgramInfo(cpPrograms[i], CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &size,0);
   unsigned char* binary = new unsigned char [size];
   clGetProgramInfo(cpPrograms[i], CL_PROGRAM_BINARIES, sizeof(unsigned char)*size, &binary, 0);
   FILE* f = fopen(function, "w");
   fputs((const char*)binary, f);
   fclose(f);
-  delete [] binary;
+  delete [] binary;*/
  //cout << binary << endl;
 
   functions[i] =  function;

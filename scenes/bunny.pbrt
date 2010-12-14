@@ -1,5 +1,8 @@
-Film "image"
-#	"integer xresolution" [128] "integer yresolution" [128] 
+Film "image" "string filename" ["temp.tga"] "integer xresolution" [64] "integer yresolution" [64] 
+SurfaceIntegrator "directlighting"
+Accelerator "rayhierarchy"
+Renderer "breadth-first"
+
 LookAt 0 .2 .2    -.02 .1 0  0 1 0
 Camera "perspective" "float fov" [60]
 

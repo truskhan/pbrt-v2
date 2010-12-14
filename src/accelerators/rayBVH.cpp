@@ -329,8 +329,6 @@ unsigned int RayBVH::MaxRaysPerCall(){
     //ray dir,o, bounds, tHit
     unsigned int x;
 
-    //pointers to children
-    int total = threadsCount*0.5f*(1.0f - 1/pow(2,height));
     //vertices
     #define MAX_VERTICES 40000
     if ( triangleCount > MAX_VERTICES) {
@@ -344,8 +342,7 @@ unsigned int RayBVH::MaxRaysPerCall(){
     }
 
     //(GlobalMemorySize - vertices - pointersToChildren - counts)
-    x = (gms - sizeof(cl_float)*3*3*trianglePartCount //vertices
-             - sizeof(cl_int)*2*total //pointersToChildren
+    x = (gms - sizeof(cl_float)*(9+6)*trianglePartCount //vertices + uvs
              - sizeof(cl_uint)*threadsCount //counts
              ) / (
              sizeof(cl_uint) //index

@@ -223,6 +223,9 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     shadowRays = 0;
     secondaryRays = 0;
     #endif
+    #ifdef STAT_RAY_TRIANGLE
+    intersectionCount = 0;
+    #endif
 }
 
 RayHieararchy::~RayHieararchy() {
@@ -231,6 +234,9 @@ RayHieararchy::~RayHieararchy() {
   cout << "primary rays: " << primaryRays << endl;
   cout << "shadow rays: " << shadowRays << endl;
   cout << "secondary rays: " << secondaryRays << endl;
+  #endif
+  #ifdef STAT_RAY_TRIANGLE
+  cout << "total intersections: " << intersectionCount << endl;
   #endif
   delete ocl;
   delete [] vertices;
@@ -799,7 +805,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   cl_float* tHitArray = new cl_float[count];
   cl_int* indexArray = new cl_int[count];
   #ifdef STAT_RAY_TRIANGLE
-  cl_int* picture = new cl_int[count];
+  cl_uint* picture = new cl_uint[count];
   #endif
   unsigned int c;
 
@@ -881,7 +887,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->CreateImage2D(7, CL_MEM_WRITE_ONLY, &imageFormat, xResolution*samplesPerPixel, yResolution, 0, 16);*/
 
     #if (defined STAT_RAY_TRIANGLE && !defined TRIANGLES_PER_THREAD)
-    gput->CreateBuffer(8,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY,16);
+    gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,16);
     #endif
     #if (defined TRIANGLES_PER_THREAD && defined TRIANGLES_PER_THREAD)
     gput->CreateBuffer(8, sizeof(cl_int)*count, CL_MEM_WRITE_ONLY, 17);
@@ -925,10 +931,13 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueReadBuffer( 8, picture);
     uint i = 0;
-    int temp = 0;
+    unsigned int temp = 0;
     gput->WaitForRead();
     for (i = 0; i < count; i++){
       temp = max(picture[i],temp);
+      #ifdef STAT_RAY_TRIANGLE
+      intersectionCount += temp;
+      #endif
       Ls[i] = RainbowColorMapping((float)(picture[i])/(float)scale);
     }
     cout << "Maximum intersection count: " << temp << endl;

@@ -113,11 +113,11 @@ void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit
       );
       return;
     }
-    /*NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
+    NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
     if ( na != NULL)
-      na->Intersect(ray, isect, hit, count, samplesPerPixel, bounce);
+      na->Intersect(ray, isect, hit, count, bounce);
     else
-      Severe("Called Intersect with unsupported aggregate!");*/
+      Severe("Called Intersect with unsupported aggregate!");
 }
 
 const BBox &Scene::WorldBound() const {

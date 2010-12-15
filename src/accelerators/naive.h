@@ -13,13 +13,11 @@ class NaiveAccel : public Aggregate {
 public:
     // NaiveAccel Public Methods
     BBox WorldBound() const;
-    NaiveAccel(const vector<Reference<Primitive> > &p, bool onG);
+    NaiveAccel(const vector<Reference<Primitive> > &p, bool onG, const string& method);
     bool CanIntersect() const { return true; }
     ~NaiveAccel();
     unsigned int MaxRaysPerCall();
-    void Intersect(const RayDifferential *r, Intersection *in, bool* hit, const int counter, const unsigned int & samplesPerPixel);
-    void Intersect(const RayDifferential *r, Intersection *in, bool* hit,
-                   const int counter, const unsigned int & samplesPerPixel, const int bounce);
+    void Intersect(const RayDifferential *r, Intersection *in, bool* hit, const int count, const int bounce = 0);
     bool Intersect(const Ray &ray, Intersection *isect) const;
     bool IntersectP(const Ray &ray) const;
     void IntersectP(const Ray* ray, char* occluded, const size_t count, const bool* hit);
@@ -37,9 +35,9 @@ private:
     unsigned int parts;
     float* vertices; float* uvs;
     bool onGPU;
+    string method;
     OpenCL* ocl;
     size_t cmd; //index to command queue
-    unsigned int samplesPerPixel;
 };
 
 

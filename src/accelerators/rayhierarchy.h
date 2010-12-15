@@ -84,6 +84,9 @@ private:
     size_t shadowRays;
     size_t secondaryRays;
     #endif
+    #ifdef STAT_RAY_TRIANGLE
+    size_t intersectionCount;
+    #endif
 };
 
 

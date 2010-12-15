@@ -9,26 +9,35 @@
 
 #define KERNEL_INTERSECTION 0
 #define KERNEL_INTERSECTIONP 1
+#define KERNEL_INTERSECTION2 2
 
 using namespace std;
 Semaphore *workerSem;
 
 // NaiveAccel Method Definitions
-NaiveAccel::NaiveAccel(const vector<Reference<Primitive> > &p, bool onG) {
+NaiveAccel::NaiveAccel(const vector<Reference<Primitive> > &p, bool onG, const string& method) {
     triangleCount = 0;
     onGPU = onG;
+    this->method = method;
 
-    ocl = new OpenCL(onGPU,2);
+    ocl = new OpenCL(onGPU,3);
     //precompile OpenCL kernels
     size_t lenP = strlen(PbrtOptions.pbrtPath);
-    size_t *lenF = new size_t[2];
-    char** names = new char*[2];
-    char** file = new char*[2];
+    size_t *lenF = new size_t[3];
+    char** names = new char*[3];
+    char** file = new char*[3];
 
-    names[0] = "cl/naive.cl";
-    names[1] = "cl/naive.cl";
+    if ( method == "TriRay") {
+      names[0] = "cl/naive.cl";
+      names[1] = "cl/naive.cl";
+      names[2] = "cl/naive.cl";
+    } else {
+      names[0] = "cl/naive2.cl";
+      names[1] = "cl/naive2.cl";
+      names[2] = "cl/naive2.cl";
+    }
 
-    for ( int i = 0; i < 2; i++){
+    for ( int i = 0; i < 3; i++){
       lenF[i] = strlen(names[i]);
       file[i] = new char[lenP + lenF[i] + 1];
       strncpy(file[i], PbrtOptions.pbrtPath, lenP);
@@ -38,6 +47,7 @@ NaiveAccel::NaiveAccel(const vector<Reference<Primitive> > &p, bool onG) {
     cmd = ocl->CreateCmdQueue();
     ocl->CompileProgram(file[0], "Intersection", "oclIntersection.ptx", KERNEL_INTERSECTION);
     ocl->CompileProgram(file[1], "IntersectionP", "oclIntersectionP.ptx", KERNEL_INTERSECTIONP);
+    ocl->CompileProgram(file[1], "Intersection2", "oclIntersection2.ptx", KERNEL_INTERSECTION2);
 
     delete [] lenF;
     for (int i = 0; i < 2; i++){
@@ -128,7 +138,7 @@ unsigned int NaiveAccel::MaxRaysPerCall(){
 
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once
-    return 60000;
+    return 90000;
 }
 
 bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
@@ -192,13 +202,20 @@ bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
 }
 
 void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
-                           bool* hit, const int count, const unsigned int & samplesPerPixel)  {
+                           bool* hit, const int count, const int bounce)  {
 
-    this->samplesPerPixel = samplesPerPixel;
     workerSem->Wait();
-    size_t gws = trianglePartCount;
+    size_t gws;
+    if ( method == "TriRay")
+      gws = trianglePartCount;
+    else
+      gws = count;
     size_t lws = 64;
-    size_t tn = ocl->CreateTask(KERNEL_INTERSECTION , 1, &gws , &lws, cmd);
+    size_t tn;
+    if ( !bounce)
+      tn = ocl->CreateTask(KERNEL_INTERSECTION , 1, &gws , &lws, cmd);
+    else
+      tn = ocl->CreateTask(KERNEL_INTERSECTION2 , 1, &gws , &lws, cmd);
     OpenCLTask* gput = ocl->getTask(tn);
     gput->InitBuffers(9);
 
@@ -224,6 +241,9 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
         rayDirArray[3*k] = r[k].d[0];
         rayDirArray[3*k+1] = r[k].d[1];
         rayDirArray[3*k+2] = r[k].d[2];
+
+        if ( !bounce && !hit[k]) //indicate that the ray is not valid
+          rayDirArray[3*k] = -10;
 
         rayOArray[3*k] = r[k].o[0];
         rayOArray[3*k+1] = r[k].o[1];
@@ -335,7 +355,6 @@ bool NaiveAccel::IntersectP(const Ray &ray) const {
 }
 
 void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, const bool* hit) {
-   // size_t count = co * samplesPerPixel;
     cl_float* rayDirArray = new cl_float[count*3];//ray directions
     cl_float* rayOArray = new cl_float[count*3];//ray origins
     cl_float* rayBoundsArray = new cl_float[count*2];//ray bounds
@@ -366,7 +385,11 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
     }
 
     workerSem->Wait();
-    size_t gws = trianglePartCount;
+    size_t gws;
+    if ( method == "TriRay")
+      gws = trianglePartCount;
+    else
+      gws = count;
     size_t lws = 64;
     size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, 1, &gws, &lws, cmd);
     OpenCLTask* gput = ocl->getTask(tn);
@@ -418,7 +441,8 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
 NaiveAccel *CreateNaiveAccelerator(const vector<Reference<Primitive> > &prims,
                                    const ParamSet &ps) {
     bool onGPU = ps.FindOneBool("onGPU",true);
-    return new NaiveAccel(prims,onGPU);
+    string method = ps.FindOneString("method","TriRay");
+    return new NaiveAccel(prims,onGPU,method);
 }
 
 

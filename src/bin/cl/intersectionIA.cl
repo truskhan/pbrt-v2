@@ -11,6 +11,7 @@ __kernel void IntersectionR (
 ) {
     // find position in global and shared arrays
     int SPindex = get_global_id(0);
+
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (SPindex >= size) return;
 
@@ -20,6 +21,11 @@ __kernel void IntersectionR (
     v2 = vload4(0, vertex + 9*SPindex + 3);
     v3 = vload4(0, vertex + 9*SPindex + 6);
     v1.w = 0; v2.w = 0; v3.w = 0;
+    float4 bmin,bmax;
+    bmin = min(v1,v2);
+    bmin = min(bmin,v3);
+    bmax = max(v1,v2);
+    bmax = max(bmax,v3);
 
     float4 omin, omax, dmin, dmax;
 
@@ -53,7 +59,7 @@ __kernel void IntersectionR (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsTri(omin, omax, dmin, dmax, v1,v2,v3) )
+            if ( intersectsNode(omin, omax, dmin, dmax, bmin,bmax) )
             {
               //if it is a leaf node
               if ( roffsetX == 0) {

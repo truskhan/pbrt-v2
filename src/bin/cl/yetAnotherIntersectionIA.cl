@@ -1,30 +1,39 @@
-__kernel void IntersectionR (
+__kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,
-  __global int* index,  __global int* stack,
+  __global int* index, __global int* stack, __global int* changed,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
     int size, unsigned int offsetGID, int stackSize //, __write_only image2d_t kontrola
 #ifdef STAT_RAY_TRIANGLE
- , __global unsigned int* stat_rayTriangle
+ , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
-    int SPindex = get_global_id(0);
+    int iGID = get_global_id(0);
+
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
-    if (SPindex >= size) return;
+    if (iGID >= size) return;
 
     // find geometry for the work-item
-    float4 v1, v2, v3;
-    v1 = vload4(0, vertex + 9*SPindex);
-    v2 = vload4(0, vertex + 9*SPindex + 3);
-    v3 = vload4(0, vertex + 9*SPindex + 6);
+
+    float4 e1,e2, v1, v2, v3;
+    v1 = vload4(0, vertex + 9*iGID);
+    v2 = vload4(0, vertex + 9*iGID + 3);
+    v3 = vload4(0, vertex + 9*iGID + 6);
     v1.w = 0; v2.w = 0; v3.w = 0;
+    e1 = v2 - v1;
+    e2 = v3 - v1;
+    float4 bmin,bmax;
+    bmin = min(v1,v2);
+    bmin = min(bmin,v3);
+    bmax = max(v1,v2);
+    bmax = max(bmax,v3);
 
     float4 omin, omax, dmin, dmax;
 
-    int wbeginStack = 5*SPindex;
-    SPindex = 0;
+    int wbeginStack = 5*iGID;
+    int SPindex = 0;
 
     int j,k;
     for ( j = 0; j < yWidth; j++){
@@ -35,9 +44,9 @@ __kernel void IntersectionR (
           stack[wbeginStack + SPindex + 3] = k;
           stack[wbeginStack + SPindex + 4] = j;
           SPindex += stackSize;
-
       }
     }
+
           while ( SPindex > 0) {
             SPindex -= stackSize;
             xWidth = stack[wbeginStack + SPindex];
@@ -53,12 +62,12 @@ __kernel void IntersectionR (
             omax.y = dmax.w;
             omax.z = dmin.w;
 
-            if ( intersectsTri(omin, omax, dmin, dmax, v1,v2,v3) )
+            if ( intersectsNode(omin, omax, dmin, dmax, bmin, bmax) )
             {
               //if it is a leaf node
               if ( roffsetX == 0) {
-                intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,v2 - v1,v3 - v1,
-                      xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , get_global_id(0)+offsetGID
+               yetAnotherIntersectAllLeaves( dir, o, bounds, index, tHit, changed, v1, v2,v3, e1,e2,
+                      xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , get_global_id(0) + offsetGID, offsetGID
                       #ifdef STAT_RAY_TRIANGLE
                       , stat_rayTriangle
                       #endif

@@ -1,5 +1,6 @@
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics: enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics: enable
 #define EPS 0.002
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
@@ -8,9 +9,9 @@ void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y,
-const unsigned int offsetGID
+const int offsetGID
 #ifdef STAT_RAY_TRIANGLE
-, __global int* stat_rayTriangle
+, __global unsigned int* stat_rayTriangle
 #endif
  ){
   float4 s, rayd, rayo;
@@ -21,7 +22,7 @@ const unsigned int offsetGID
   for ( int i = 0; i < lheight; i++){
     for ( int j = 0; j < lwidth; j++) {
       #ifdef STAT_RAY_TRIANGLE
-      atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
+        atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
       #endif
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));

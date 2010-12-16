@@ -83,6 +83,8 @@ private:
     size_t primaryRays;
     size_t shadowRays;
     size_t secondaryRays;
+    double intersectTimes[10];
+    size_t bounceRays[10];
     #endif
     #ifdef STAT_RAY_TRIANGLE
     size_t intersectionCount;

@@ -710,7 +710,12 @@ double executionTime(cl_event &event)
     return (double)1.0e-9 * (end - start); // convert nanoseconds to seconds on return
 }
 
-void OpenCLTask::Run(){
+#ifdef GPU_TIMES
+double
+#else
+void
+#endif
+ OpenCLTask::Run(){
     #ifdef DEBUG_OUTPUT
     cout << "clEnqueueNDRangeKernel...\n";
     #endif
@@ -737,14 +742,20 @@ void OpenCLTask::Run(){
     if ( ciErrNum != CL_SUCCESS)
       Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
     double temp = executionTime(kernelEvent);
-    if ( temp < 10000)
+    if ( temp < 10000){
       kernel_times[kernel] += temp;
-    else
+      ++kernel_calls[kernel];
+      return temp;
+    } else
       Warning("Failed to get proper kernel time %f\n", temp);
-    ++kernel_calls[kernel];
     #endif
 
-    return;
+
+  #ifdef GPU_TIMES
+  return 0;
+  #else
+  return;
+  #endif
 }
 
 void OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){

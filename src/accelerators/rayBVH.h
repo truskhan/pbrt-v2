@@ -84,6 +84,10 @@ private:
     size_t nodeSize;
     BBox bbox;
     vector<Reference<Primitive> > p;
+    #ifdef GPU_TIMES
+    double intersectTimes[10];
+    size_t bounceRays[10];
+    #endif
 };
 
 

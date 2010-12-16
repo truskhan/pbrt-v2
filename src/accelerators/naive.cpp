@@ -138,7 +138,7 @@ unsigned int NaiveAccel::MaxRaysPerCall(){
 
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once
-    return 90000;
+    return 60000;
 }
 
 bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
@@ -242,7 +242,7 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
         rayDirArray[3*k+1] = r[k].d[1];
         rayDirArray[3*k+2] = r[k].d[2];
 
-        if ( !bounce && !hit[k]) //indicate that the ray is not valid
+        if ( bounce && !hit[k]) //indicate that the ray is not valid
           rayDirArray[3*k] = -10;
 
         rayOArray[3*k] = r[k].o[0];
@@ -294,6 +294,7 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
 
     for ( int i = 0; i < count; i++) {
         index = indexArray[i];
+        if ( bounce && !hit[i] ) continue;
         hit[i] = false;
         if ( !index ) continue;
         //cout << "i " << i << " index " << index <<endl;
@@ -383,13 +384,12 @@ void NaiveAccel::IntersectP(const Ray* r, char* occluded, const size_t count, co
       delete [] temp;
       return;
     }
-
     workerSem->Wait();
     size_t gws;
     if ( method == "TriRay")
       gws = trianglePartCount;
     else
-      gws = count;
+      gws = elem_counter;
     size_t lws = 64;
     size_t tn = ocl->CreateTask (KERNEL_INTERSECTIONP, 1, &gws, &lws, cmd);
     OpenCLTask* gput = ocl->getTask(tn);

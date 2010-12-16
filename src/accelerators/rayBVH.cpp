@@ -165,11 +165,22 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunkX, 
 
    a = chunkX;
    b = chunkY;
+
+   #ifdef GPU_TIMES
+    for ( int i = 0; i < 10; i++){
+      intersectTimes[i] = 0;
+      bounceRays[i] = 0;
+    }
+   #endif
 }
 
 RayBVH::~RayBVH() {
   #ifdef GPU_TIMES
   ocl->PrintTimes();
+  for ( int i = 0; i < 10; i++)
+    cout << "intersection " << i << " .bounce " << intersectTimes[i] << endl;
+  for ( int i = 0; i < 10; i++)
+    cout << "rays at " << i << " .bounce " << bounceRays[i] << endl;
   #endif
   delete ocl;
   for ( size_t i = 0 ; i < parts; i++){
@@ -684,6 +695,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
 
     if ( !hit[k] ) //indicate that the ray is invalid
       rayDirArray[4*k + 3] = -1;
+    else
+      ++bounceRays[bounce+1];
   }
 
   workerSemaphore->Wait();
@@ -727,12 +740,21 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->EnqueueWriteBuffer( 6, tHitArray );
   gput->EnqueueWriteBuffer( 7, indexArray );
   cl_int offsetGID = 0;
+  #ifdef GPU_TIMES
+  double itime;
+  #endif
   for ( int i = 0; i < parts - 1; i++){
     gput->SetIntArgument(16, bvhs[i]->topLevelNodes);
     gput->SetIntArgument(17, offsetGID); //index offset
     gput->EnqueueWriteBuffer(9, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
     gput->EnqueueWriteBuffer( 0, vertices[i], 9*sizeof(float)*bvhs[i]->primitives.size());
+    #ifdef GPU_TIMES
+    itime =
+    #endif
     gput->Run();
+    #ifdef GPU_TIMES
+    intersectTimes[bounce+1] += itime;
+    #endif
     offsetGID += bvhs[i]->primitives.size();
     gput->WaitForKernel();
   }
@@ -741,7 +763,13 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->SetIntArgument(17, offsetGID);
   gput->EnqueueWriteBuffer(9, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
   gput->EnqueueWriteBuffer(0, vertices[parts-1], sizeof(cl_float)*9*bvhs[parts-1]->primitives.size());
+  #ifdef GPU_TIMES
+  itime =
+  #endif
   gput->Run();
+  #ifdef GPU_TIMES
+  intersectTimes[bounce+1] += itime;
+  #endif
 
   gput->EnqueueReadBuffer( 6, tHitArray );
   gput->EnqueueReadBuffer( 7, indexArray);
@@ -885,6 +913,10 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
   }
 
     workerSemaphore->Wait();
+    #ifdef GPU_TIMES
+    double itime;
+    bounceRays[0] += count;
+    #endif
     int roffsetX, xWidth, yWidth;
     size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
     OpenCLTask* gpuray = ocl->getTask(tn1,cmd);
@@ -940,7 +972,13 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       gput->SetIntArgument(16, offsetGID);
       gput->EnqueueWriteBuffer(8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
       gput->EnqueueWriteBuffer(0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
+      #ifdef GPU_TIMES
+      itime =
+      #endif
       gput->Run();
+      #ifdef GPU_TIMES
+      intersectTimes[0] += itime;
+      #endif
       offsetGID += bvhs[i]->primitives.size();
       gput->WaitForKernel();
     }
@@ -949,7 +987,13 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->SetIntArgument(16,offsetGID);
     gput->EnqueueWriteBuffer(8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
     gput->EnqueueWriteBuffer(0, vertices[parts-1], 9*sizeof(cl_float)*bvhs[parts-1]->primitives.size());
+    #ifdef GPU_TIMES
+    itime =
+    #endif
     gput->Run();
+    #ifdef GPU_TIMES
+    intersectTimes[0] += itime;
+    #endif
     gput->WaitForKernel();
 
 

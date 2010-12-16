@@ -28,18 +28,18 @@ __kernel void Intersection (
 
         s1 = cross(rayd, e2);
         divisor = dot(s1, e1);
-        if ( divisor < EPS && divisor > -EPS) continue;
+        if ( divisor == 0) continue;
         invDivisor = 1.0f/ divisor;
 
         // compute first barycentric coordinate
         d = rayo - v1;
         b1 = dot(d, s1) * invDivisor;
-        if ( b1 < -1e-3f - EPS || b1 > 1.+1e-3f + EPS) continue;
+        if ( b1 < 0 || b1 > 1) continue;
 
         // compute second barycentric coordinate
         s2 = cross(d, e1);
         b2 = dot(rayd, s2) * invDivisor;
-        if ( b2 < -1e-3f - EPS || (b1 + b2) > 1.+1e-3f + EPS) continue;
+        if ( b2 < 0 || (b1 + b2) > 1 ) continue;
 
         // Compute _t_ to intersection point
         t = dot(e2, s2) * invDivisor;
@@ -225,7 +225,8 @@ __global unsigned char* tHit, int count, int size)
       t = dot(e2, s2) * invDivisor;
       if (t < bounds[2*iGID] || t > bounds[2*iGID +1]) continue;
       tHit[iGID] = '1';
-      break;
+      //break; //Causing CL_INVALID_COMMAND_QUEUE
+
      }
 }
 

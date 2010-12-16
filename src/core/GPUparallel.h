@@ -97,7 +97,12 @@ class OpenCLTask {
     void CopyImage2D(size_t src, size_t dst, OpenCLTask* oclt);
     void EnqueueReadBuffer(cl_mem_flags* flags,void** odata);
     void EnqueueReadBuffer( size_t it, void* odata);
-    void Run();
+    #ifdef GPU_TIMES
+    double
+    #else
+    void
+    #endif
+    Run();
     void WaitForKernel(){
       clWaitForEvents(1, &kernelEvent);
     }

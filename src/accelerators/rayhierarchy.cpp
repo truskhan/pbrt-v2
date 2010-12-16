@@ -222,6 +222,10 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     primaryRays = 0;
     shadowRays = 0;
     secondaryRays = 0;
+    for ( int i = 0; i < 10; i++){
+      intersectTimes[i] = 0;
+      bounceRays[i] = 0;
+    }
     #endif
     #ifdef STAT_RAY_TRIANGLE
     intersectionCount = 0;
@@ -234,6 +238,10 @@ RayHieararchy::~RayHieararchy() {
   cout << "primary rays: " << primaryRays << endl;
   cout << "shadow rays: " << shadowRays << endl;
   cout << "secondary rays: " << secondaryRays << endl;
+  for ( int i = 0; i < 10; i++)
+    cout << "intersection " << i << " .bounce " << intersectTimes[i] << endl;
+  for ( int i = 0; i < 10; i++)
+    cout << "rays at " << i << " .bounce " << bounceRays[i] << endl;
   #endif
   #ifdef STAT_RAY_TRIANGLE
   cout << "total intersections: " << intersectionCount << endl;
@@ -642,6 +650,8 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     if ( !hit[k] ) //indicate that the ray is invalid
       rayDirArray[4*k + 3] = -1;
+    else
+      ++bounceRays[bounce+1];
   }
 
   workerSemaphore->Wait();
@@ -688,17 +698,32 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer(6, tHitArray);
   gput->EnqueueWriteBuffer(7, indexArray);
+  #ifdef GPU_TIMES
+  double itime;
+  #endif
   for ( int i = 0; i < parts - 1; i++){
     gput->SetIntArgument(15,(cl_uint)i*trianglePartCount); //offset
     gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount);
+    #ifdef GPU_TIMES
+    itime =
+    #endif
     gput->Run();
     gput->WaitForKernel();
+    #ifdef GPU_TIMES
+    intersectTimes[bounce+1] += itime;
+    #endif
   }
   //last part of vertices
   gput->SetIntArgument(14,(cl_int)triangleLastPartCount);
   gput->SetIntArgument(15,(cl_uint)(parts-1)*trianglePartCount);
   gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount);
+  #ifdef GPU_TIMES
+  itime =
+  #endif
   gput->Run();
+  #ifdef GPU_TIMES
+  intersectTimes[bounce+1] += itime;
+  #endif
 
   gput->EnqueueReadBuffer( 6, tHitArray );
   gput->EnqueueReadBuffer( 7, indexArray);
@@ -833,7 +858,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     workerSemaphore->Wait();
     #ifdef GPU_TIMES
+    double itime;
     primaryRays += count;
+    bounceRays[0] += count;
     #endif
     int roffsetX, xWidth, yWidth;
     size_t tn1 = ConstructRayHierarchy(rayDirArray, rayOArray, &roffsetX, &xWidth, &yWidth);
@@ -903,14 +930,26 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     for ( int i = 0; i < parts - 1; i++){
       gput->SetIntArgument(14,(cl_uint)i*trianglePartCount); //offset
       gput->EnqueueWriteBuffer( 0, vertices + 9*i*trianglePartCount);
+      #ifdef GPU_TIMES
+      itime =
+      #endif
       gput->Run();
+      #ifdef GPU_TIMES
+      intersectTimes[0] += itime;
+      #endif
       gput->WaitForKernel();
     }
     //last part of vertices
     gput->SetIntArgument(13,(cl_int)triangleLastPartCount);
     gput->SetIntArgument(14,(cl_uint)(parts-1)*trianglePartCount);
     gput->EnqueueWriteBuffer( 0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*3*3*triangleLastPartCount);
+    #ifdef GPU_TIMES
+    itime =
+    #endif
     gput->Run();
+    #ifdef GPU_TIMES
+    intersectTimes[0] += itime;
+    #endif
     gput->WaitForKernel();
     //if (!gput->EnqueueReadBuffer( 6, indexArray)) exit(EXIT_FAILURE);
   //  if (!gput->EnqueueReadBuffer( 5, tHitArray)) exit(EXIT_FAILURE);

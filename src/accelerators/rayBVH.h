@@ -38,7 +38,6 @@ public:
     unsigned int MaxRaysPerCall();
     void PreprocessP(const int rays);
     void Preprocess();
-    void Preprocess(const Camera* camera, const unsigned samplesPerPixel);
     void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny);
 private:
     size_t ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, int *roffsetX, int *xWidth, int *yWidth);
@@ -70,16 +69,11 @@ private:
     cl_uint chunkX, chunkY;
     OpenCL* ocl; //pointer to OpenCL auxiliary functions
     size_t cmd; //index to command queue
-    unsigned a,b, global_a,global_b;
     unsigned samplesPerPixel;
-    cl_uint threadsCount;
     cl_uint worgGroupSize;
-    unsigned int rest_x, rest_y;
     mutable unsigned int xResolution;
     unsigned int yResolution;
     Semaphore *workerSemaphore;
-
-    size_t topLevelCount;
     string node;
     size_t nodeSize;
     BBox bbox;

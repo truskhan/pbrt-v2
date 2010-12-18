@@ -1,15 +1,19 @@
-SurfaceIntegrator "diffuseprt" "integer lmax" [10] "integer nsamples" [512]
+#SurfaceIntegrator "directlighting" 
+SurfaceIntegrator "path" "integer maxdepth" [4]
+PixelFilter "box" "float xwidth" [.4]  "float ywidth" [.4]
+Sampler "lowdiscrepancy" "integer pixelsamples" [4]
+Renderer "breadth-first" 
+
+#Accelerator "naive" "bool onGPU" ["true"] "string method" ["TriRay"]
+#Accelerator "ray-bvh" "bool onGPU" ["true"] "integer chunkXSize" [4] "integer chunkYSize" [1] "integer height" [3] "integer BVHheight" [2] "integer maxBVHPrim" [20] "string node" ["ia"] "integer scale" [80479] "string splitmethod" ["sah"]
+Accelerator "rayhierarchy" "integer chunkXSize" [16] "integer chunkYSize" [2] "integer height" [3] "string node" ["ia"]  
+
+Film "image" "string filename" ["temp.tga"] "integer xresolution" [128] "integer yresolution" [128]
 
 ConcatTransform [ 0.828849 -0.295370 -0.475149 0.000000 -0.559473 -0.437585 -0.703924 0.000000 -0.000000 0.849280 -0.527943 0.000000 0.000000 0.000000 0.000000 1.000000 ]
 Translate -4.860000 -7.200000 -5.400000
 
 Camera "perspective" "float fov" [45.000000 ] "float shutteropen" [0.000000 ] "float shutterclose" [0.000000 ] "float screenwindow" [-1.000000 1.000000 -1.000000 1.000000 ] "float frameaspectratio" [1.000000 ] 
-Film "image" "integer xresolution" [200 ] "integer yresolution" [200 ]
-
-
-Sampler "lowdiscrepancy" "integer pixelsamples" [1]
-PixelFilter "box"
-Accelerator "kdtree"
 
 WorldBegin
 Material "matte" "color Kd" [ 0 0 0]
@@ -17,11 +21,11 @@ Material "matte" "color Kd" [ 0 0 0]
 AttributeBegin
 LightSource "infinite" "string mapname" ["textures/grace_latlong.exr"]
 "color L" [10 10 10]
-	"integer nsamples" [128]
+	"integer nsamples" [12]
 AttributeEnd
 
 #Material "plastic" "color Kd" [.05 .05 .05] "color Ks" [.9 .9 .9] "float roughness" [.03]
-Material "matte" "color Kd" [ .2 .2 .5 ]
+Material "plastic" "color Kd" [.05 .05 .05]
 
 Shape "trianglemesh"  "integer indices" [0 2 1 ] "point P" [1.332760 -0.370922 2.454690 1.350740 -0.375926 2.400000 1.400000 0.000000 2.400000 ] "normal N" [0.953562 -0.257047 0.156989 0.871509 -0.234929 0.430442 0.902861 0.000000 0.429934 ] 
 Shape "trianglemesh"  "integer indices" [0 2 1 ] "point P" [1.400000 0.000000 2.400000 1.381370 0.000000 2.454690 1.332760 -0.370922 2.454690 ] "normal N" [0.902861 0.000000 0.429934 0.987636 0.000000 0.156768 0.953562 -0.257047 0.156989 ] 
@@ -2280,4 +2284,4 @@ Shape "trianglemesh"  "integer indices" [0 2 1 ] "point P" [1.287260 -0.756047 0
 Shape "trianglemesh"  "integer indices" [0 2 1 ] "point P" [1.500000 -0.000000 0.150000 1.487850 -0.000000 0.112847 1.435500 -0.399515 0.112847 ] "normal N" [-1.000000 0.000000 -0.000000 -0.770022 0.000000 0.638018 -0.743044 0.200299 0.638566 ] 
 Shape "trianglemesh"  "integer indices" [0 2 1 ] "point P" [1.435500 -0.399515 0.112847 1.447220 -0.402778 0.150000 1.500000 -0.000000 0.150000 ] "normal N" [-0.743044 0.200299 0.638566 -0.965535 0.260275 -0.000000 -1.000000 0.000000 -0.000000 ] 
 WorldEnd
-# ignored frame end
+# ignored frame end1

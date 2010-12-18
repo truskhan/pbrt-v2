@@ -115,7 +115,7 @@ void Scene::Intersect(const RayDifferential* ray, Intersection *isect, bool* hit
     }
     NaiveAccel* na = dynamic_cast<NaiveAccel*>(aggregate);
     if ( na != NULL)
-      na->Intersect(ray, isect, hit, count, bounce);
+      na->Intersect(ray, isect, hit, count, bounce+1);
     else
       Severe("Called Intersect with unsupported aggregate!");
 }

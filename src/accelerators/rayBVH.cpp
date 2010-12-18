@@ -72,18 +72,6 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunkX, 
     cout << "accel nodes : IA" << endl;
     nodeSize = 13;
   }
-  if ( node == "sphere_uv"){
-    names[0] = "cl/intersection5D_BVH.cl";
-    names[1] = "cl/intersectionP5D_BVH.cl";
-    names[2] = "cl/rayhconstruct5D.cl";
-    names[3] = "cl/levelConstruct5D.cl";
-    names[4] = "cl/yetAnotherIntersection5D.cl";
-    names[6] = "cl/levelConstructP5D.cl";
-    names[7] = "cl/rayhconstructP5D.cl";
-    headerName[headerNum++] = "cl/intersectsNode5DS.cl";
-    cout << "accel nodes : 5D nodes with spheres" << endl;
-    nodeSize = 9;
-  }
   if ( node == "box_uv") {
     names[0] = "cl/intersection5DB_BVH.cl";
     names[1] = "cl/intersectionP5DB_BVH.cl";
@@ -163,9 +151,6 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunkX, 
     //TODO: check how many threads can be proccessed at once (depends on MaxRaysPerCall)
     workerSemaphore = new Semaphore(1);
 
-   a = chunkX;
-   b = chunkY;
-
    #ifdef GPU_TIMES
     for ( int i = 0; i < 10; i++){
       intersectTimes[i] = 0;
@@ -200,31 +185,11 @@ BBox RayBVH::WorldBound() const {
 
 void RayBVH::Preprocess(const Camera* camera, const unsigned samplesPerPixel,
   const int nx, const int ny){
-  xResolution /= nx;
-  yResolution /= ny;
-
-  //number of rectangles in x axis
-  global_a = (xResolution + a - 1) / a; //round up -> +a-1
-  //number of rectangles in y axis
-  global_b = (yResolution + b - 1) / b;
-  //x and y sizes of overlapping area
-  rest_x = global_a*a - xResolution;
-  rest_y = global_b*b - yResolution;
-  threadsCount = global_a * global_b;
-}
-
-void RayBVH::Preprocess(const Camera* camera, const unsigned samplesPerPixel){
   this->xResolution = camera->film->xResolution;
   this->yResolution = camera->film->yResolution;
   this->samplesPerPixel = samplesPerPixel;
-  //number of rectangles in x axis
-  global_a = (xResolution + a - 1) / a; //round up -> +a-1
-  //number of rectangles in y axis
-  global_b = (yResolution + b - 1) / b;
-  //x and y sizes of overlapping area
-  rest_x = global_a*a - xResolution;
-  rest_y = global_b*b - yResolution;
-  threadsCount = global_a * global_b;
+  xResolution /= nx;
+  yResolution /= ny;
 }
 
 void RayBVH::Preprocess(){
@@ -323,12 +288,6 @@ void RayBVH::PreprocessP(const int rays){
       tempYRes *= primes[k];
     }
   }
-
-  //number of rectangles in x axis
-  global_a = (tempXRes + a - 1) / a; //round up -> +a-1
-  //number of rectangles in y axis
-  global_b = (tempYRes + b - 1) / b;
-  threadsCount = global_a * global_b;
 }
 
 unsigned int RayBVH::MaxRaysPerCall(){
@@ -354,7 +313,7 @@ unsigned int RayBVH::MaxRaysPerCall(){
 
     //(GlobalMemorySize - vertices - pointersToChildren - counts)
     x = (gms - sizeof(cl_float)*(9+6)*trianglePartCount //vertices + uvs
-             - sizeof(cl_uint)*threadsCount //counts
+             - sizeof(cl_uint)*((xResolution + chunkX - 1) / chunkX) *((yResolution + chunkY - 1) / chunkY) //counts
              ) / (
              sizeof(cl_uint) //index
              + 9*sizeof(cl_float) //ray dir, o, bounds, tHit
@@ -444,7 +403,7 @@ bool RayBVH::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
 //constructs ray hieararchy on GPU -> creates array of cones
 size_t RayBVH::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, int *roffsetX, int *xWidth, int *yWidth ){
   Assert(height > 0);
-  size_t globalSize[2] = {(xResolution*samplesPerPixel + a -1)/a, (yResolution+b-1)/b};
+  size_t globalSize[2] = {(xResolution*samplesPerPixel + chunkX -1)/chunkX, (yResolution+chunkY-1)/chunkY};
   size_t localSize[2] = {8,8};
   size_t tn = ocl->CreateTask(KERNEL_RAYCONSTRUCT, 2,  globalSize , localSize, cmd);
   OpenCLTask* gpuray = ocl->getTask(tn,cmd);
@@ -460,8 +419,8 @@ size_t RayBVH::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, int *roff
   gpuray->CreateImage2D(2, CL_MEM_WRITE_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0); //for hierarchy nodes
   gpuray->SetIntArgument(3, globalSize[0]);
   gpuray->SetIntArgument(4, globalSize[1]);
-  gpuray->SetIntArgument(5, a);
-  gpuray->SetIntArgument(6, b);
+  gpuray->SetIntArgument(5, chunkX);
+  gpuray->SetIntArgument(6, chunkY);
 
   gpuray->EnqueueWrite2DImage(0, rayDir);
   gpuray->EnqueueWrite2DImage(1, rayO);
@@ -536,7 +495,7 @@ size_t RayBVH::ConstructRayHierarchy(cl_float* rayDir, cl_float* rayO, int *roff
 size_t RayBVH::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO,
   int *roffsetX, int *xWidth, int *yWidth ){
   Assert(height > 0);
-  size_t globalSize[2] = {(xResolution*samplesPerPixel + a -1)/a, (yResolution+b-1)/b};
+  size_t globalSize[2] = {(xResolution*samplesPerPixel + chunkX -1)/chunkX, (yResolution+chunkY-1)/chunkY};
   size_t localSize[2] = {8,8};
   size_t tn = ocl->CreateTask(KERNEL_RAYCONSTRUCTP, 2,  globalSize , localSize, cmd);
   OpenCLTask* gpuray = ocl->getTask(tn,cmd);
@@ -557,8 +516,8 @@ size_t RayBVH::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO,
   gpuray->CreateImage2D(3, CL_MEM_WRITE_ONLY, &hitFormat, 2*globalSize[0], 2*globalSize[1],0); //for storing info about validity
   gpuray->SetIntArgument(4, globalSize[0]);
   gpuray->SetIntArgument(5, globalSize[1]);
-  gpuray->SetIntArgument(6, a);
-  gpuray->SetIntArgument(7, b);
+  gpuray->SetIntArgument(6, chunkX);
+  gpuray->SetIntArgument(7, chunkY);
 
   gpuray->EnqueueWrite2DImage(0, rayDir);
   gpuray->EnqueueWrite2DImage(1, rayO);
@@ -732,8 +691,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->SetIntArgument(10,roffsetX);
   gput->SetIntArgument(11,xWidth);
   gput->SetIntArgument(12,yWidth);
-  gput->SetIntArgument(13,a);
-  gput->SetIntArgument(14,b);
+  gput->SetIntArgument(13,chunkX);
+  gput->SetIntArgument(14,chunkY);
   gput->SetIntArgument(15,6*gws); //stack level size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
@@ -952,8 +911,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->SetIntArgument(9,roffsetX);
     gput->SetIntArgument(10,xWidth);
     gput->SetIntArgument(11,yWidth);
-    gput->SetIntArgument(12,a);
-    gput->SetIntArgument(13,b);
+    gput->SetIntArgument(12,chunkX);
+    gput->SetIntArgument(13,chunkY);
     gput->SetIntArgument(14,6*gws); //stack level size
 
     #ifdef STAT_RAY_TRIANGLE
@@ -1026,8 +985,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     anotherIntersect->SetIntArgument(10,roffsetX);
     anotherIntersect->SetIntArgument(11,xWidth);
     anotherIntersect->SetIntArgument(12,yWidth);
-    anotherIntersect->SetIntArgument(13,a);
-    anotherIntersect->SetIntArgument(14,b);
+    anotherIntersect->SetIntArgument(13,chunkX);
+    anotherIntersect->SetIntArgument(14,chunkY);
     anotherIntersect->SetIntArgument(15,6*gws); //stack level size
 
     offsetGID = 0;
@@ -1259,8 +1218,8 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
   gput->SetIntArgument(11, yWidth);
-  gput->SetIntArgument(12,a);
-  gput->SetIntArgument(13,b);
+  gput->SetIntArgument(12,chunkX);
+  gput->SetIntArgument(13,chunkY);
   gput->SetIntArgument(14, 6*(gws+lws)); //stack level size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
@@ -1327,7 +1286,7 @@ RayBVH *CreateRayBVH(const vector<Reference<Primitive> > &prims,
     int height = ps.FindOneInt("height",3);
     int BVHheight = ps.FindOneInt("BVHheight",3);
     int maxBVHPrim = ps.FindOneInt("maxBVHPrim",1);
-    string node = ps.FindOneString("node", "sphere_uv");
+    string node = ps.FindOneString("node", "box_dir");
     string splitMethod = ps.FindOneString("splitmethod", "sah");
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
     int scale = ps.FindOneInt("scale",50);

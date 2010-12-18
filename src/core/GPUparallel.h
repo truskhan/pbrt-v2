@@ -198,6 +198,22 @@ class OpenCL {
         Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
       return result;
     }
+    size_t getMaxImage2DWidth(size_t q = 0){
+      size_t result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_IMAGE2D_MAX_WIDTH, sizeof(size_t), &result,0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
+    size_t getMaxImage2DHeight(size_t q = 0){
+      size_t result;
+      cl_int err;
+      err = clGetDeviceInfo(queue[q]->device, CL_DEVICE_IMAGE2D_MAX_HEIGHT, sizeof(size_t), &result,0);
+      if ( err != CL_SUCCESS)
+        Severe("Failed to run clGetDeviceInfo %s %i", stringError(err), err);
+      return result;
+    }
     cl_ulong getMaxConstantBufferSize(size_t q = 0) {
       cl_ulong result;
       cl_int err;

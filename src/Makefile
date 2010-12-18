@@ -30,7 +30,6 @@ OPT=-g3
 DEFS += -DNDEBUG
 
 #statistics
-#STAT_TRIANGLE_CONE - shows only numbers how many times was a cone tested egainst triangle
 #STAT_RAY_TRIANGLE - shows a gray scaled image, brighter pixel - more primary ray triangle tests
 #STAT_PRAY_TRIANGLE - show a gray scaled image, brighter pixel - more shadow ray triangle tests
 #GPU_TIMES - shows summary times for clEnqueueNDRangeKernel, clEnqueueWriteBuffer..
@@ -47,7 +46,7 @@ ifeq ($(HAVE_ATI),1)
 	OPENCLLIBS=-L$(ATISTREAMSDKROOT)/lib/x86 -lOpenCL
 else
 	OPENCLINCLUDE=-I$(NVIDIASDKROOT)/shared/inc -I$(NVIDIASDKROOT)/OpenCL/common/inc
-	OPENCLLIBS=-L$(NVIDIASDKROOT)/OpenCL/common/lib -L$(NVIDIASDKROOT)/shared/lib -loclUtil -lOpenCL  -lshrutil
+	OPENCLLIBS=-L$(NVIDIASDKROOT)/OpenCL/common/lib -L$(NVIDIASDKROOT)/shared/lib -lOpenCL
 endif
 
 #########################################################################

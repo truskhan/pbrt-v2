@@ -133,6 +133,7 @@ OpenCLQueue::~OpenCLQueue(){
   if ( tasks != NULL) delete [] tasks;
   tasks = NULL;
   clReleaseCommandQueue(cmd_queue);
+  Mutex::Destroy(globalmutex);
 }
 
 OpenCLQueue::OpenCLQueue(cl_context & context){
@@ -224,7 +225,7 @@ char* oclLoadProgSource(const char* cFilename, const char* cPreamble, size_t* sz
     fseek(pFileStream, 0, SEEK_SET);
 
     // allocate a buffer for the source code string and read it in
-    char* cSourceString = (char *)malloc(szSourceLength + szPreambleLength + 1);
+    char* cSourceString = new char[szSourceLength + szPreambleLength + 1];
     memcpy(cSourceString, cPreamble, szPreambleLength);
     if (fread((cSourceString) + szPreambleLength, szSourceLength, 1, pFileStream) != 1)
     {
@@ -343,7 +344,7 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
     Severe( "File \"%s\" not found ",cPathAndName);
   }
 
-  // Create the program
+  // Create the program, Valgrind says memory leak is in this function call
   cpPrograms[i] = clCreateProgramWithSource(cxContext, 1, (const char **)&cSourceCL, &szKernelLength, &ciErrNum);
 
 #ifdef HAVE_ATI
@@ -399,7 +400,7 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
   delete [] binary;*/
  //cout << binary << endl;
 
-  functions[i] =  function;
+  functions[i] =  function; delete [] cSourceCL;
 }
 
 OpenCLTask::OpenCLTask(size_t kernel, cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
@@ -802,7 +803,7 @@ OpenCLTask::~OpenCLTask(){
     clReleaseEvent(readEvents[i]);
   delete [] readEvents;
   delete [] sizeBuff;
-  clReleaseEvent(kernelEvent);
+  //clReleaseEvent(kernelEvent);
 }
 
 const char* stringError(cl_int errNum){

@@ -58,9 +58,6 @@ public:
     void Intersect(const RayDifferential* ray, Intersection *isect, bool* hit,
       const int & count, const unsigned int & samplesPerPixel, const int bounce
       ) const;
-    void Preprocess(const Camera* camera, const unsigned samplesPerPixel) const {
-      aggregate->Preprocess(camera, samplesPerPixel);
-    }
     void Preprocess(const Camera* camera, const unsigned samplesPerPixel, const int nx, const int ny) const {
       aggregate->Preprocess(camera, samplesPerPixel, nx, ny);
     }

@@ -119,7 +119,6 @@ void breadthFirst::Render(const Scene *scene) {
     PBRT_STARTED_PREPROCESSING();
     surfaceIntegrator->Preprocess(scene, camera, this);
     volumeIntegrator->Preprocess(scene, camera, this);
-    scene->Preprocess(camera, sampler->samplesPerPixel);
     PBRT_FINISHED_PREPROCESSING();
     PBRT_STARTED_RENDERING();
     // Allocate and initialize _sample_
@@ -203,7 +202,7 @@ void breadthFirst::Li(const Scene *scene, const RayDifferential* ray,
     Spectrum Lv = volumeIntegrator->Li(scene, this, ray[i], &sample[i], rng,
                                        &T[i], arena);
     Ls[i] = T[i] * Lo[i] + Lv;
-    if (Ls[i].HasNaNs()) {
+    if (Ls[i].HasNaNs()) { //valgrind complains here "Conditional jump or move depends on uninitialised value(s)"
         Error("Not-a-number radiance value returned "
               "for image sample.  Setting to black.");
         Ls[i] = Spectrum(0.f);

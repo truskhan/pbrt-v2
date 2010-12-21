@@ -29,7 +29,8 @@ void breadthFirstTask::Run() {
     RNG rng(taskNum);
 
     // Allocate space for samples and intersections
-    int maxSamples = ((breadthFirst*) renderer)->maxRaysPerCall; //(camera->film->xResolution* camera->film->yResolution)
+    int maxSamples = min(((breadthFirst*) renderer)->maxRaysPerCall,
+        ((unsigned)camera->film->xResolution*camera->film->yResolution*sampler->samplesPerPixel));
     Sample *samples = origSample->Duplicate(maxSamples);
 
     // Get samples from \use{Sampler} and update image
@@ -139,14 +140,16 @@ void breadthFirst::Render(const Scene *scene) {
     scene->Preprocess(camera, sampler->samplesPerPixel, nx, ny);
 
     vector<Task *> renderTasks;
-    for (int i = 0; i < nTasks; ++i)
+    for (int i = 0; i < nTasks; ++i){
         renderTasks.push_back(new breadthFirstTask(scene, this, camera,
                                   reporter,
                                     sampler, sample, nTasks-1-i, nTasks));
-    EnqueueTasks(renderTasks);
-    WaitForAllTasks();
-    for (uint32_t i = 0; i < renderTasks.size(); ++i)
-        delete renderTasks[i];
+        EnqueueTasks(renderTasks);
+        WaitForAllTasks();
+        delete renderTasks[0];
+        renderTasks.clear();
+    }
+
     reporter.Done();
     PBRT_FINISHED_RENDERING();
     // Clean up after rendering and store final image

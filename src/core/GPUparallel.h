@@ -1,11 +1,12 @@
-
+/**
+ * @file GPUparallel.h
+ * @author: Hana Truskova hana.truskova@seznam.cz
+ * @description: Auxiliary classes to make OpenCL API more comfortable
+**/
 #ifndef PBRT_CORE_GPUPARALLEL_H
 #define PBRT_CORE_GPUPARALLEL_H
 #define __CL_ENABLE_EXCEPTIONS
-/**Auxiliary classes to make OpenCL API more comfortable
-@todo enable sharing cl_mem buffer among command queues (for vertices...)
-**/
-// core/GPUparallel.h*
+
 #include <iostream>
 #include <fstream>
 #include <string.h>
@@ -14,21 +15,42 @@
 #include "core/error.h"
 
 #ifdef GPU_TIMES
+/** total kernel run times array **/
 extern double* kernel_times;
+/** number of kernel calls' array **/
 extern unsigned int* kernel_calls;
+/** total time spent by transmitting data to OpenCL device **/
 extern double wmem_times;
+/** total time spent by reading data from the OpenCL device **/
 extern double rmem_times;
 #endif
 
+/**
+ * Auxiliary function for translating integer error codes to strings
+ * @param[in] errNum error code
+ * @return string error description
+**/
 const char* stringError(cl_int errNum);
+/**
+ * Auxiliary function for getting kernel run time
+ * @param[in] event the event to get kernel start and end time via clGetEventProfilingInfo
+ * @return kernel run time in seconds
+**/
 double executionTime(cl_event &event);
 
-// Round Up Division function
+/**
+ * Auxiliary function to round up global thread size so that it is divisable by block size
+ * @param[in] group_size local block size
+ * @param[in] global_size global thread size
+ * @return new global size evenly divisable by local block size
+**/
 size_t RoundUp(int group_size, int global_size);
 
 /**Class for holding OpenCL kernel and auxiliary variables**/
 class OpenCLTask {
+    /// index into kernel's array
     size_t kernel;
+    /// dimension of kernel
     cl_uint dim;
     /// # of work-itmes in 1D work group
     size_t szLocalWorkSize[3];
@@ -38,7 +60,9 @@ class OpenCLTask {
     cl_kernel ckKernel;
     /// array of memory buffers
     cl_mem* cmBuffers;
+    /// width array of OpenCL images
     size_t* width;
+    /// hieght array of OpenCL images
     size_t* height;
     /// total number of buffer count
     size_t buffCount;
@@ -52,34 +76,97 @@ class OpenCLTask {
     cl_context context;
     /// reference to the OpenCL command queue
     cl_command_queue queue;
+    /// number of write events to wait on
     cl_uint writeENum;
+    /// nubmer of read events to wait on
     cl_uint readENum;
+    /// pointer to write events to wait on
     cl_event* writeEvents;
+    /// kernel event to wait on
     cl_event kernelEvent;
+    /// pointer to read events to wait on
     cl_event* readEvents;
+    /// mutex to avoid race condition when modifying buffers
     Mutex* globalmutex;
   public:
+    /** OpenCL Task constructor for initializing and allocating necessary arrays
+      @param[in] kernel index into kernel's array
+      @param[in] context OpenCL context needed for OpenCL API calls
+      @param[in] queue OpenCL queue needed for OpenCL API calls
+      @param[in] gm mutex to avoid race condition on shared variables
+      @param[in] cpProgram OpenCL program to kreate kernel
+      @param[in] function which function from cpProgram should be used for kernel
+      @param[in] dim OpenCL kernel dimension
+      @param[in] szLWS local work-group size
+      @param[in] szGWS global work size
+    **/
     OpenCLTask(size_t kernel,cl_context & context, cl_command_queue & queue, Mutex* gm, cl_program & cpProgram,
     const char* function, cl_uint dim, size_t* szLWS, size_t* szGWS);
+    /** OpenCL Task destructor for deallocating arrays, releasing OpenCL events and buffers
+    **/
     ~OpenCLTask();
+    /** Auxiliary function for allocating and initializing arrays
+      @param[in] count number of needed buffers
+    **/
     void InitBuffers(size_t count);
+    /** Auxiliary function for creating constant OpenCL buffers and setting it as kernel argument.
+      @param[in] i buffer position in kernel arguments and buffer array
+      @param[in] size buffer size in bytes
+      @param[in] data pointer to buffer data
+    **/
     void CreateConstantBuffer( size_t i, size_t size, void* data);
     /**
-    Same as other CreateBuffer functions
-    \sa CreateBuffers"(size_t, cl_mem_flags*)"
-    \sa CreateBuffers"("")"
+      Creates one OpenCL buffer and sets it as kernel argument.
+      @param[in] i buffer position in buffer array
+      @param[in] size buffer size in bytes
+      @param[in] flags OpenCL flags (CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY, CL_MEM_READ_WRITE)
+      @param[in] argPos buffer position in kernel arguments if it is different than its
+        position in buffer array
     **/
     void CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos = -1);
-    void CreateBuffers(size_t* size, cl_mem_flags* flags);
+    /**
+      Creates one OpenCL image and sets it as kernel argument.
+      @param[in] i buffer position in buffer array
+      @param[in] flags OpenCL flags (CL_MEM_READ_ONLY, CL_MEM_WRITE_ONLY, CL_MEM_READ_WRITE)
+      @param[in] imageFormat OpenCL image format
+      @param[in] width desired image width
+      @param[in] height desired image height
+      @param[in] host_ptr image data
+      @param[in] argPos buffer position in kernel arguments if it is different than its
+        position in buffer array
+    **/
     void CreateImage2D(size_t i, cl_mem_flags flags, const cl_image_format * imageFormat,
                     size_t width, size_t height, void* host_ptr, int argPos = -1);
+    /**
+      Copys existing OpenCL buffer and sets it as kernel argument.
+      @param[in] src source buffer's index to buffer array
+      @param[in] dst destination buffer's index to buffer array
+      @param[in] oclt OpenCL Task which holds source buffer
+    **/
     void CopyBuffer(size_t src, size_t dst, OpenCLTask* oclt);
+    /**
+      Copys multiple existing OpenCL buffers and sets them as kernel arguments.
+      @param[in] srcstart source buffers' start index to buffer array
+      @param[in] srcend source buffers' end index to buffer array
+      @param[in] dststart destination buffers' index to buffer array
+      @param[in] oclt OpenCL Task which holds source buffers
+    **/
     void CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, OpenCLTask* oclt);
+    /**
+      Function for increasing buffer reference count, so that those buffers won't be
+      destroyed after the OpenCL Task destructor is called.
+      @param[in] i buffer's index to buffer array, which should retain in memory
+    **/
     void SetPersistentBuff( size_t i ) {
       cl_int err = clRetainMemObject(cmBuffers[i]);
       if ( err !=  CL_SUCCESS)
         Severe("Failed at clRetainMemObject at buffer %i, err %i %s", i, err, stringError(err));
     }
+    /**
+      Function for increasing buffers reference's counts, so that those buffers won't be
+      destroyed after the OpenCL Task destructor is called.
+      @param[in] start buffer's index to buffer array, which should retain in memory
+    **/
     void SetPersistentBuffers( size_t start, size_t end){
       cl_int err = CL_SUCCESS;
       for ( size_t i = start; i < end; i++){

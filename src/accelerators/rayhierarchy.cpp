@@ -262,7 +262,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     unsigned int x;
 
     //vertices
-    #define MAX_VERTICES 40000
+    #define MAX_VERTICES 60000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -288,13 +288,15 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
     cout << "Local memory size on OpenCL device: " << ocl->getLocalMemSize() << endl;
     cout << "Constant memory size: " << ocl->getMaxConstantBufferSize() << endl;
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
-    cout << "Max 2D image width: " << ocl->getMaxImage2DWidth() << endl;
+    size_t image_width = ocl->getMaxImage2DWidth();
+    cout << "Max 2D image width: " << image_width << endl;
     cout << "Max 2D image height: " << ocl->getMaxImage2DHeight() << endl;
     cout << "Scene triangle count: " << triangleCount << endl;
 
+    x = image_width*image_width;
     cout << "Needed rays " << xResolution*yResolution*samplesPerPixel << " device maximu rays " << x << endl;
-    x = 60000;
-    return x; //min(x, xResolution*yResolution*samplesPerPixel);
+
+    return 409600; //min(x, xResolution*yResolution*samplesPerPixel);
 }
 
 //classical method for testing one ray

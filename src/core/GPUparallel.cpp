@@ -473,32 +473,6 @@ void OpenCLTask::CopyBuffers(size_t srcstart, size_t srcend, size_t dststart, Op
   }
 }
 
-void OpenCLTask::CreateBuffers( size_t* size, cl_mem_flags* flags){
-  cl_int ciErrNum;
-  MutexLock lock(*globalmutex);
-  for ( size_t it = 0; it < buffCount; it++){
-    sizeBuff[it] = size[it];
-    // Allocate the OpenCL buffer memory objects for source and result on the device GMEM
-    if ( !createBuff[it]) continue;
-    #ifdef DEBUG_OUTPUT
-    cout<<"clCreateBuffer " << it << endl;
-    #endif
-    cmBuffers[it] = clCreateBuffer(context, flags[it], size[it], NULL, &ciErrNum);
-    if ( ciErrNum != CL_SUCCESS){
-      for ( size_t j = 0; j < buffCount; j++)
-        if ( cmBuffers[j]) clReleaseMemObject(cmBuffers[j]);
-      delete [] cmBuffers;
-      cmBuffers = NULL;
-      Severe("clCreateBuffer failed at buffer number %d with error %d %s", it, ciErrNum, stringError(ciErrNum));
-    }
-    ciErrNum = clSetKernelArg(ckKernel, it, sizeof(cl_mem), (void*)&cmBuffers[it]);
-    if (ciErrNum != CL_SUCCESS)
-      Severe("failed setting %i parameter, error: %i %s", it, ciErrNum, stringError(ciErrNum));
-  }
-
-  return;
-}
-
 void OpenCLTask::CreateBuffer( size_t i, size_t size, cl_mem_flags flags, int argPos){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);

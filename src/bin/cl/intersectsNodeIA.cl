@@ -8,7 +8,7 @@ bool intersectsNode ( float4 t_omin, float4 t_omax, float4 t_dmin, float4 t_dmax
   float4 dmin;
   float4 dmax;
   //compute (1/Vx)
-  if ( (dmin.x <= 0 && dmax.x >= 0) || (dmin.y <= 0 && dmax.y >= 0) || (dmin.z <= 0 && dmax.z >= 0) )
+  if ( (t_dmin.x <= 0 && t_dmax.x >= 0) || (t_dmin.y <= 0 && t_dmax.y >= 0) || (t_dmin.z <= 0 && t_dmax.z >= 0) )
      return true;
 
   dmin.x = 1/t_dmax.x;

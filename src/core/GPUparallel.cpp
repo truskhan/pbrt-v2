@@ -574,31 +574,6 @@ void OpenCLTask::SetLocalArgument(const size_t & it, const size_t & size){
   return;
 }
 
-void OpenCLTask::EnqueueWriteBuffer(cl_mem_flags* flags,void** data){
-  size_t it = 0;
-  cl_int ciErrNum;
-  MutexLock lock(*globalmutex);
-  while ( it < buffCount ){
-    if ( !createBuff[it] || flags[it] == CL_MEM_WRITE_ONLY) {
-      ++it;
-      continue;
-    }
-    ciErrNum = clEnqueueWriteBuffer(queue, cmBuffers[it], CL_FALSE, 0, sizeBuff[it] , data[it], 0, NULL, &writeEvents[writeENum++]);
-    //probably useless test, if it is asynchronous?
-    if ( ciErrNum != CL_SUCCESS)
-      Severe("Failed asynchronous data transfer at %i buffer, error: %i %s",it, ciErrNum, stringError(ciErrNum));
-
-    #ifdef GPU_TIMES
-    ciErrNum = clFinish(queue);
-    if ( ciErrNum != CL_SUCCESS)
-      Severe("failed data transfer at %i buffer, error: %i %s",it,ciErrNum, stringError(ciErrNum));
-    wmem_times += executionTime(writeEvents[writeENum - 1]);
-    #endif
-    ++it;
-  }
-  return;
-}
-
 void OpenCLTask::EnqueueWriteBuffer( size_t it, void* data, size_t size){
   cl_int ciErrNum;
   MutexLock lock(*globalmutex);
@@ -731,30 +706,6 @@ void
   #else
   return;
   #endif
-}
-
-void OpenCLTask::EnqueueReadBuffer(cl_mem_flags* flags,void** data){
-  cl_int ciErrNum;
-  size_t it = 0;
-  MutexLock lock(*globalmutex);
-  while ( it < buffCount){
-    if ( flags[it] == CL_MEM_READ_ONLY){
-      it++;
-      continue;
-    }
-    ciErrNum = clEnqueueReadBuffer(queue, cmBuffers[it], CL_FALSE, 0, sizeBuff[it], data[it], 1, &kernelEvent,  &readEvents[readENum++]);
-    if ( ciErrNum != CL_SUCCESS)
-      Severe("failed read %i buffer %i %s", it, ciErrNum, stringError(ciErrNum));
-    it++;
-
-    #ifdef GPU_TIMES
-    ciErrNum = clFinish(queue);
-    if ( ciErrNum != CL_SUCCESS)
-      Severe("failed running kernel %d %s",ciErrNum, stringError(ciErrNum));
-    rmem_times += executionTime(readEvents[readENum - 1]);
-    #endif
-  }
-  return ;
 }
 
 OpenCLTask::~OpenCLTask(){

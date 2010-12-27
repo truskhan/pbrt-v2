@@ -380,7 +380,7 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
     p = bsdf->dgShading.p;
     //Sample light source with multiple importance sampling
     Li[i] = light->Sample_L(p, isect[i].rayEpsilon, lightSample[i], ray[i].time,
-                    &wi[i], &lightPdf[i], &visibility[i]);
+                    &wi[i], &lightPdf[i], &visibility[i]); //traces rays for area lights
     shadowRay[i] = visibility[i].r;
   }
   char* occluded = new char[count];
@@ -428,11 +428,11 @@ void EstimateDirect(const Scene* scene, const Renderer* renderer,
                 Intersection lightIsect;
                 Li[i] = Spectrum(0.f);
                 RayDifferential rays(p, wi[i], isect[i].rayEpsilon, INFINITY, ray[i].time);
-                if (scene->Intersect(rays, &lightIsect)) {
+                /*if (scene->Intersect(rays, &lightIsect)) {
                     if (lightIsect.primitive->GetAreaLight() == light)
                         Li[i] = lightIsect.Le(-wi[i]);
                 }
-                else
+                else*/
                     Li[i] = light->Le(rays);
                 if (!Li[i].IsBlack()) {
                     Li[i] *= renderer->Transmittance(scene, rays, NULL, rng, arena);

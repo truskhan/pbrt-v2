@@ -125,7 +125,7 @@ BBox NaiveAccel::WorldBound() const {
 }
 
 unsigned int NaiveAccel::MaxRaysPerCall(){
-    #define MAX_VERTICES 90000
+    #define MAX_VERTICES 60000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -138,7 +138,7 @@ unsigned int NaiveAccel::MaxRaysPerCall(){
 
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once
-    return 60000;
+    return 409600;
 }
 
 bool NaiveAccel::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
@@ -236,7 +236,6 @@ void NaiveAccel::Intersect(const RayDifferential *r, Intersection *in,
     cl_float* rayBoundsArray = new cl_float[count*2];//ray bounds
     cl_float* tHitArray = new cl_float[count];
     cl_uint* indexArray = new cl_uint[count];//for indexs to shape
-    rayDirArray = new cl_float[count*3];
     for (int k = 0; k < count; ++k) {
         rayDirArray[3*k] = r[k].d[0];
         rayDirArray[3*k+1] = r[k].d[1];

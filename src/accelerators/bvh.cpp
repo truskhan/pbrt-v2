@@ -142,11 +142,12 @@ static inline bool IntersectP(const BBox &bounds, const Ray &ray,
 
 struct TempGPUNode {
   BVHBuildNode* ptr;
+  int parent;
   unsigned int level;
   unsigned int childA;
   unsigned int childB;
   void init(BVHBuildNode* p, unsigned int l){
-    ptr = p; level = l;
+    ptr = p; level = l; parent = -1;
   }
 };
 
@@ -182,6 +183,8 @@ void BVHAccel::GPUbufferWide(BVHBuildNode *root, uint32_t totalNodes, const uint
       count += array[i].ptr->nPrimitives;
       if ( array[i].level <= totalHeight)
         ++topLevelNodes;
+      if ( array[i].parent != -1)
+        gpuNodes[array[i].parent].primOffset = nodeNum;
       gpuNodes[nodeNum].ax = array[i].ptr->bounds.pMin.x;
       gpuNodes[nodeNum].ay = array[i].ptr->bounds.pMin.y;
       gpuNodes[nodeNum].az = array[i].ptr->bounds.pMin.z;
@@ -189,10 +192,10 @@ void BVHAccel::GPUbufferWide(BVHBuildNode *root, uint32_t totalNodes, const uint
       gpuNodes[nodeNum].by = array[i].ptr->bounds.pMax.y;
       gpuNodes[nodeNum].bz = array[i].ptr->bounds.pMax.z;
       gpuNodes[nodeNum].nPrimitives = array[i].ptr->nPrimitives;
+      if ( array[i].ptr->nPrimitives == 0)
+        array[array[i].childA].parent = nodeNum;
       if ( gpuNodes[nodeNum].nPrimitives)
         gpuNodes[nodeNum].primOffset = array[i].ptr->firstPrimOffset;
-      else
-        gpuNodes[nodeNum].primOffset = array[i].childA - skippedNodes;
 
       ++nodeNum;
     }

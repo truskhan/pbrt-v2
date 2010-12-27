@@ -266,29 +266,6 @@ void RayBVH::Preprocess(){
     }
 }
 
-void RayBVH::PreprocessP(const int rays){
-   //do brute force factorization -> compute ideal small rectangle sides sizes
-   vector<unsigned int> primes;
-   unsigned int number = rays;
-
-   for (unsigned int k = 2; k <= number; k++){
-     while ( number % k == 0 )   {
-       primes.push_back(k);
-       number /= k;
-     }
-   }
-
-  //compute sides of small rectangles
-  unsigned int tempXRes, tempYRes;
-  tempXRes = tempYRes = 1;
-  for (unsigned int k = 0; k < primes.size(); k++){
-    if ( k % 2 == 0 ){
-      tempXRes *= primes[k];
-    } else {
-      tempYRes *= primes[k];
-    }
-  }
-}
 
 unsigned int RayBVH::MaxRaysPerCall(){
     worgGroupSize = 64;
@@ -300,7 +277,7 @@ unsigned int RayBVH::MaxRaysPerCall(){
     unsigned int x;
 
     //vertices
-    #define MAX_VERTICES 40000
+    #define MAX_VERTICES 60000
     if ( triangleCount > MAX_VERTICES) {
       parts = (triangleCount + MAX_VERTICES -1 )/MAX_VERTICES;
       trianglePartCount = (triangleCount + parts - 1)/ parts;
@@ -334,9 +311,8 @@ unsigned int RayBVH::MaxRaysPerCall(){
     cout << "Max work group size: " << ocl->getMaxWorkGroupSize() << endl;
 
     cout << "Needed rays " << xResolution*yResolution*samplesPerPixel << " device maximu rays " << x << endl;
-    x = 60000;
     Preprocess();
-    return min(x, xResolution*yResolution*samplesPerPixel);
+    return 409600;
 }
 
 //classical method for testing one ray

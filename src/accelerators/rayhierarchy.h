@@ -54,7 +54,7 @@ public:
   **/
   bool CanIntersect() const { return true; }
   /**
-   * The function is used for primary ray-triangle testes
+   * The function is used for primary ray-triangle tests
    * @param[in] r primary ray's array to test against scene geometry
    * @param[out] in intersection's array to fill with the information needed for shading
    * @param[out] hit array to fill with the information which ray missed the whole scene

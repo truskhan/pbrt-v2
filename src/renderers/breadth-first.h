@@ -1,7 +1,11 @@
-
-
 #ifndef PBRT_RENDERERS_GPURENDERER_H
 #define PBRT_RENDERERS_GPURENDERER_H
+
+/**
+ * @file breadth-first.h
+ * @author: Hana Truskova hana.truskova@seznam.cz
+ * @description: breadth first renderer to inspect more rays at once
+**/
 
 // renderers/breadthFirst.h*
 #include "pbrt.h"

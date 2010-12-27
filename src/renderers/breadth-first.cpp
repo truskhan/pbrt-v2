@@ -1,7 +1,9 @@
+/**
+ * @file breadth-first.cpp
+ * @author: Hana Truskova hana.truskova@seznam.cz
+ * @description: breadth first renderer to inspect more rays at once
+**/
 
-
-
-// renderers/breadthFirst.cpp*
 #include "renderers/breadth-first.h"
 #include "scene.h"
 #include "film.h"

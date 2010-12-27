@@ -616,8 +616,10 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     if ( !hit[k] ) //indicate that the ray is invalid
       rayDirArray[4*k + 3] = -1;
+	#ifdef GPU_TIMES
     else
       ++bounceRays[bounce+1];
+	#endif
   }
 
   workerSemaphore->Wait();
@@ -935,7 +937,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueReadBuffer( 8, picture);
-    uint i = 0;
+    unsigned int i = 0;
     unsigned int temp = 0;
     gput->WaitForRead();
     for (i = 0; i < count; i++){
@@ -946,7 +948,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
       Ls[i] = RainbowColorMapping((float)(picture[i])/(float)scale);
     }
     cout << "Maximum intersection count: " << temp << endl;
-    delete [] ((uint*)picture);
+    delete [] picture;
     workerSemaphore->Post();
     return;
     #endif

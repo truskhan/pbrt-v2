@@ -630,8 +630,10 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
 
     if ( !hit[k] ) //indicate that the ray is invalid
       rayDirArray[4*k + 3] = -1;
+	#ifdef GPU_TIMES
     else
       ++bounceRays[bounce+1];
+	#endif
   }
 
   workerSemaphore->Wait();
@@ -934,14 +936,14 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
 
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueReadBuffer( 9, picture);
-    uint i = 0;
-    uint temp = 0;
+    unsigned int i = 0;
+    unsigned int temp = 0;
     gput->WaitForRead();
     for (i = 0; i < count; i++){
       temp = max(picture[i],temp);
       Ls[i] = RainbowColorMapping((float)(picture[i])/(float)scale);
     }
-    delete [] ((uint*)picture);
+    delete [] picture;
     workerSemaphore->Post();
     return;
     #endif

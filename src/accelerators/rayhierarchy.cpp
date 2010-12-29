@@ -661,7 +661,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   gput->SetIntArgument(12,chunkX);
   gput->SetIntArgument(13,chunkY);
   gput->SetIntArgument(14, trianglePartCount);
-  gput->SetIntArgument(16, 5*gws); //stack size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer(6, tHitArray);
@@ -872,7 +871,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->SetIntArgument(11,chunkX);
     gput->SetIntArgument(12,chunkY);
     gput->SetIntArgument(13,trianglePartCount); //number of uploaded triangles to GPU
-    gput->SetIntArgument(15,5*gws); //stack size
     #ifdef TRIANGLES_PER_THREAD
       gput->SetIntArgument(16,trianlgesPerThread);
     #endif
@@ -972,7 +970,6 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     anotherIntersect->SetIntArgument(12,chunkX);
     anotherIntersect->SetIntArgument(13,chunkY);
     anotherIntersect->SetIntArgument(14,trianglePartCount); //number of uploaded triangles to GPU
-    anotherIntersect->SetIntArgument(16,5*gws); //stack size
     #ifdef TRIANGLES_PER_THREAD
       anotherIntersect->SetIntArgument(17,trianlgesPerThread);
     #endif
@@ -1214,7 +1211,6 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   gput->SetIntArgument(11,chunkX);
   gput->SetIntArgument(12,chunkY);
   gput->SetIntArgument(13, trianglePartCount);
-  gput->SetIntArgument(14, 5*gws); //stack level size
   //int globalPoolNextRay = 2*gws;
   //gput->CreateBuffer(8,sizeof(cl_int),CL_MEM_READ_WRITE,15);
   #ifdef TRIANGLES_PER_THREAD

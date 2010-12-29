@@ -489,7 +489,7 @@ size_t RayBVH::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO,
   gpuray->CreateImage2D(0, CL_MEM_READ_ONLY , &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
   gpuray->CreateImage2D(1, CL_MEM_READ_ONLY , &imageFormat, xResolution*samplesPerPixel, yResolution, 0);
   gpuray->CreateImage2D(2, CL_MEM_WRITE_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0); //for hierarchy nodes
-  gpuray->CreateImage2D(3, CL_MEM_WRITE_ONLY, &hitFormat, 2*globalSize[0], 2*globalSize[1],0); //for storing info about validity
+  gpuray->CreateImage2D(3, CL_MEM_WRITE_ONLY, &hitFormat, 2*globalSize[0], globalSize[1],0); //for storing info about validity
   gpuray->SetIntArgument(4, globalSize[0]);
   gpuray->SetIntArgument(5, globalSize[1]);
   gpuray->SetIntArgument(6, chunkX);
@@ -516,7 +516,7 @@ size_t RayBVH::ConstructRayHierarchyP(cl_float* rayDir, cl_float* rayO,
   gpurayl->CopyBuffer(2,0,gpuray);
   gpurayl->CopyBuffer(3,1,gpuray);
   gpurayl->CreateImage2D(2, CL_MEM_READ_ONLY, &imageFormat, 2*globalSize[0], 2*globalSize[1], 0);
-  gpurayl->CreateImage2D(3, CL_MEM_READ_ONLY, &hitFormat, 2*globalSize[0], 2*globalSize[1], 0);
+  gpurayl->CreateImage2D(3, CL_MEM_READ_ONLY, &hitFormat, 2*globalSize[0], globalSize[1], 0);
 
   for ( cl_uint i = 1; i < height; i++){
     gpurayl->CopyImage2D(0,2,gpurayl);
@@ -671,7 +671,6 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->SetIntArgument(12,yWidth);
   gput->SetIntArgument(13,chunkX);
   gput->SetIntArgument(14,chunkY);
-  gput->SetIntArgument(15,6*gws); //stack level size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer( 6, tHitArray );
@@ -681,10 +680,10 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   double itime;
   #endif
   for ( int i = 0; i < parts - 1; i++){
-    gput->SetIntArgument(16, bvhs[i]->topLevelNodes);
-    gput->SetIntArgument(17, offsetGID); //index offset
+    gput->SetIntArgument(15, bvhs[i]->topLevelNodes);
+    gput->SetIntArgument(16, offsetGID); //index offset
     gput->EnqueueWriteBuffer(9, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
-    gput->EnqueueWriteBuffer( 0, vertices[i], 9*sizeof(float)*bvhs[i]->primitives.size());
+    gput->EnqueueWriteBuffer( 0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
     #ifdef GPU_TIMES
     itime =
     #endif
@@ -696,8 +695,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
     gput->WaitForKernel();
   }
   //last part of vertices
-  gput->SetIntArgument(16, bvhs[parts-1]->topLevelNodes);
-  gput->SetIntArgument(17, offsetGID);
+  gput->SetIntArgument(15, bvhs[parts-1]->topLevelNodes);
+  gput->SetIntArgument(16, offsetGID);
   gput->EnqueueWriteBuffer(9, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
   gput->EnqueueWriteBuffer(0, vertices[parts-1], sizeof(cl_float)*9*bvhs[parts-1]->primitives.size());
   #ifdef GPU_TIMES
@@ -845,7 +844,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     tHitArray[k] = INFINITY; //should initialize on scene size
 
     #ifdef STAT_RAY_TRIANGLE
-    ((cl_uint*)picture)[k] = 0;
+    picture[k] = 0;
     #endif
   }
 
@@ -882,6 +881,7 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->CreateImage2D(4, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0);
     gput->CreateBuffer(5,sizeof(cl_float)*count, CL_MEM_READ_WRITE); // tHit
     gput->CreateBuffer(6,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
+    cout << count << endl;
     //allocate stack in global memory
     int tempHeight = max(height, BVHheight);
     gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE);
@@ -891,7 +891,6 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->SetIntArgument(11,yWidth);
     gput->SetIntArgument(12,chunkX);
     gput->SetIntArgument(13,chunkY);
-    gput->SetIntArgument(14,6*gws); //stack level size
 
     #ifdef STAT_RAY_TRIANGLE
     gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,18);
@@ -905,8 +904,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     #endif
     cl_int offsetGID = 0;
     for ( int i = 0; i < parts - 1; i++){
-      gput->SetIntArgument(15,bvhs[i]->topLevelNodes);
-      gput->SetIntArgument(16, offsetGID);
+      gput->SetIntArgument(14,bvhs[i]->topLevelNodes);
+      gput->SetIntArgument(15, offsetGID);
       gput->EnqueueWriteBuffer(8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
       gput->EnqueueWriteBuffer(0, vertices[i], 9*sizeof(cl_float)*bvhs[i]->primitives.size());
       #ifdef GPU_TIMES
@@ -920,8 +919,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       gput->WaitForKernel();
     }
     //last part of vertices
-    gput->SetIntArgument(15,bvhs[parts-1]->topLevelNodes);
-    gput->SetIntArgument(16,offsetGID);
+    gput->SetIntArgument(14,bvhs[parts-1]->topLevelNodes);
+    gput->SetIntArgument(15,offsetGID);
     gput->EnqueueWriteBuffer(8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
     gput->EnqueueWriteBuffer(0, vertices[parts-1], 9*sizeof(cl_float)*bvhs[parts-1]->primitives.size());
     #ifdef GPU_TIMES
@@ -932,7 +931,17 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     intersectTimes[0] += itime;
     #endif
     gput->WaitForKernel();
-
+    /*int* stackTemp = new int [(gws+lws)*6*(xWidth*yWidth+8*tempHeight)];
+    gput->EnqueueReadBuffer(7,stackTemp);
+    gput->WaitForRead();
+    for ( int i = 0; i < (gws+lws)*6*(xWidth*yWidth+8*tempHeight);i++){
+      for ( int j = 0; j < 6; j++){
+      cout << stackTemp[i+j] << ' ';
+      }
+      cout << endl;
+      i += 5;
+    }
+    abort();*/
 
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueReadBuffer( 9, picture);
@@ -1198,7 +1207,6 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   gput->SetIntArgument(11, yWidth);
   gput->SetIntArgument(12,chunkX);
   gput->SetIntArgument(13,chunkY);
-  gput->SetIntArgument(14, 6*(gws+lws)); //stack level size
 
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer( 6, occluded );
@@ -1208,11 +1216,11 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   for ( int i = 0; i < parts - 1; i++){
     gput->EnqueueWriteBuffer( 8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
     gput->EnqueueWriteBuffer(0, vertices[i], sizeof(float)*9*bvhs[i]->primitives.size());
-    gput->SetIntArgument(15, bvhs[i]->topLevelNodes);
+    gput->SetIntArgument(14, bvhs[i]->topLevelNodes);
     gput->Run();
     gput->WaitForKernel();
   }
-  gput->SetIntArgument(15, bvhs[parts-1]->topLevelNodes);
+  gput->SetIntArgument(14, bvhs[parts-1]->topLevelNodes);
   gput->EnqueueWriteBuffer( 8, bvhs[parts-1]->gpuNodes, sizeof(GPUNode)*bvhs[parts-1]->nodeNum);
   gput->EnqueueWriteBuffer(0, vertices[parts-1], sizeof(cl_float)*9*bvhs[parts-1]->primitives.size());
   gput->Run();

@@ -11,7 +11,7 @@ __kernel void YetAnotherIntersection (
 ) {
     // find position in global and shared arrays
     int iGID = get_global_id(0);
-
+    return;
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
     GPUNode bvhElem = bvh[iGID];
@@ -28,9 +28,10 @@ __kernel void YetAnotherIntersection (
     int SPindex = 0;
     int wbeginStack = 6*iGID;
 
-    int k, j;
-    for ( int j = 0; j < yWidth; j++){
-      for ( int k = 0; k < xWidth; k++){
+    int k;
+    int j;
+    for ( j = 0; j < yWidth; j++){
+      for ( k = 0; k < xWidth; k++){
         stack[wbeginStack + SPindex] = xWidth ;
         stack[wbeginStack + SPindex + 1] = yWidth;
         stack[wbeginStack + SPindex + 2] = roffsetX;
@@ -41,7 +42,7 @@ __kernel void YetAnotherIntersection (
       }
     }
 
-    while ( SPindex > 0) {
+    while ( SPindex >= stackSize ) {
       SPindex -= stackSize;
       xWidth = stack[wbeginStack + SPindex];
       yWidth = stack[wbeginStack + SPindex + 1];
@@ -85,6 +86,7 @@ __kernel void YetAnotherIntersection (
                     );
             }
         }
+        if (SPindex > 50976) continue;
         //it is a rayhierarchy leaf node but BVH inner node - traverse BVH
         if ( !roffsetX  && !bvhElem.nPrimitives){
           stack[wbeginStack + SPindex] = xWidth;

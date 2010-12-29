@@ -4,7 +4,7 @@ __kernel void IntersectionR2 (
   __global float* tHit,  __global int* index,  __global int* stack,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-    int size, unsigned int offsetGID, int stackSize //, __write_only image2d_t kontrola
+    int size, unsigned int offsetGID //, __write_only image2d_t kontrola
 #ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
@@ -14,6 +14,7 @@ __kernel void IntersectionR2 (
 
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= size) return;
+    int stackSize = 5*size;
 
     // find geometry for the work-item
     float4 e1, e2;
@@ -35,31 +36,30 @@ __kernel void IntersectionR2 (
 
     float4 omin, omax, dmin, dmax;
     uint4 valid;
-    int SPindex = 0;
-    int wbeginStack = 5*iGID;
+    int SPindex = 5*iGID;
 
     int j,k;
     for ( j = 0; j < yWidth; j++){
       for ( k = 0; k < xWidth; k++){
         valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
         if ( valid.x == 0) continue;
-        stack[wbeginStack + SPindex] = xWidth ;
-        stack[wbeginStack + SPindex + 1] = yWidth;
-        stack[wbeginStack + SPindex + 2] = roffsetX;
-        stack[wbeginStack + SPindex + 3] = k;
-        stack[wbeginStack + SPindex + 4] = j;
+        stack[ SPindex] = xWidth ;
+        stack[ SPindex + 1] = yWidth;
+        stack[ SPindex + 2] = roffsetX;
+        stack[ SPindex + 3] = k;
+        stack[ SPindex + 4] = j;
         SPindex += stackSize;
 
       }
     }
 
-    while ( SPindex > 0) {
+    while ( SPindex >= stackSize) {
       SPindex -= stackSize;
-      xWidth = stack[wbeginStack + SPindex];
-      yWidth = stack[wbeginStack + SPindex + 1];
-      roffsetX = stack[wbeginStack + SPindex + 2];
-      k = stack[wbeginStack + SPindex + 3];
-      j = stack[wbeginStack + SPindex + 4];
+      xWidth = stack[ SPindex];
+      yWidth = stack[ SPindex + 1];
+      roffsetX = stack[ SPindex + 2];
+      k = stack[ SPindex + 3];
+      j = stack[ SPindex + 4];
       valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
       if ( valid.x == 0) continue;
 
@@ -82,32 +82,32 @@ __kernel void IntersectionR2 (
                 );
         } else {
           //store the children to the stack
-          stack[wbeginStack + SPindex] = xWidth*2;
-          stack[wbeginStack + SPindex + 1] = yWidth*2;
-          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
-          stack[wbeginStack + SPindex + 3] = 2*k;
-          stack[wbeginStack + SPindex + 4] = 2*j;
+          stack[ SPindex] = xWidth*2;
+          stack[ SPindex + 1] = yWidth*2;
+          stack[ SPindex + 2] = roffsetX - xWidth*2;
+          stack[ SPindex + 3] = 2*k;
+          stack[ SPindex + 4] = 2*j;
           SPindex += stackSize;
 
-          stack[wbeginStack + SPindex] = xWidth*2;
-          stack[wbeginStack + SPindex + 1] = yWidth*2;
-          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
-          stack[wbeginStack + SPindex + 3] = 2*k + 1;
-          stack[wbeginStack + SPindex + 4] = 2*j;
+          stack[ SPindex] = xWidth*2;
+          stack[ SPindex + 1] = yWidth*2;
+          stack[ SPindex + 2] = roffsetX - xWidth*2;
+          stack[ SPindex + 3] = 2*k + 1;
+          stack[ SPindex + 4] = 2*j;
           SPindex += stackSize;
 
-          stack[wbeginStack + SPindex] = xWidth*2;
-          stack[wbeginStack + SPindex + 1] = yWidth*2;
-          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
-          stack[wbeginStack + SPindex + 3] = 2*k + 1;
-          stack[wbeginStack + SPindex + 4] = 2*j + 1;
+          stack[ SPindex] = xWidth*2;
+          stack[ SPindex + 1] = yWidth*2;
+          stack[ SPindex + 2] = roffsetX - xWidth*2;
+          stack[ SPindex + 3] = 2*k + 1;
+          stack[ SPindex + 4] = 2*j + 1;
           SPindex += stackSize;
 
-          stack[wbeginStack + SPindex] = xWidth*2;
-          stack[wbeginStack + SPindex + 1] = yWidth*2;
-          stack[wbeginStack + SPindex + 2] = roffsetX - xWidth*2;
-          stack[wbeginStack + SPindex + 3] = 2*k;
-          stack[wbeginStack + SPindex + 4] = 2*j + 1;
+          stack[ SPindex] = xWidth*2;
+          stack[ SPindex + 1] = yWidth*2;
+          stack[ SPindex + 2] = roffsetX - xWidth*2;
+          stack[ SPindex + 3] = 2*k;
+          stack[ SPindex + 4] = 2*j + 1;
           SPindex += stackSize;
         }
       }

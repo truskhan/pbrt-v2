@@ -5,21 +5,18 @@ __kernel void IntersectionP (
   __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  int topLevelNodes
+  unsigned int topLevelNodes
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
-    int iGID = get_global_id(0);
-    return;
-    if ( iGID > 30000) return;
-    int stackSize = 6*topLevelNodes;
+    unsigned int iGID = get_global_id(0);
 
-    // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
+    // bound check
     if (iGID >= topLevelNodes) return;
-    GPUNode bvhElem = bvh[iGID];
-    if ( !bvhElem.nPrimitives && !bvhElem.primOffset) return;
+    unsigned int stackSize = 6*topLevelNodes;
+    GPUNode bvhElem ;
     uint4 valid;
 
     // find geometry for the work-item
@@ -29,13 +26,14 @@ __kernel void IntersectionP (
     float4 bmin, bmax;
     float4 omin, omax, dmin, dmax;
 
-    int SPindex = 6*iGID;
+    unsigned int SPindex = 6*iGID;
 
-    int k, j;
+    int k;
+    int j;
     for ( j = 0; j < yWidth; j++){
       for ( k = 0; k < xWidth; k++){
         valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
-        if ( valid.x == 0) continue;
+        if ( valid.x != 0) {
         stack[ SPindex] = xWidth ;
         stack[ SPindex + 1] = yWidth;
         stack[ SPindex + 2] = roffsetX;
@@ -43,6 +41,7 @@ __kernel void IntersectionP (
         stack[ SPindex + 4] = j;
         stack[ SPindex + 5] = iGID;
         SPindex += stackSize;
+        }
       }
     }
 
@@ -54,12 +53,10 @@ __kernel void IntersectionP (
       k = stack[ SPindex + 3];
       j = stack[ SPindex + 4];
       valid = read_imageui(validity, imageSampler, (int2)(roffsetX + k, j));
-      if ( valid.x == 0) continue;
+      if ( valid.x != 0) {
 
       iGID = stack[ SPindex + 5];
       bvhElem = bvh[iGID];
-      //en empty BVH node
-      if ( !bvhElem.nPrimitives && !bvhElem.primOffset) continue;
       bmin.x = bvhElem.ax;
       bmin.y = bvhElem.ay;
       bmin.z = bvhElem.az;
@@ -78,7 +75,7 @@ __kernel void IntersectionP (
       {
         //if it is a rayhierarchy leaf node and bvh leaf node
         if ( roffsetX == 0 && bvhElem.nPrimitives > 0){
-            for ( int f = 0; f < bvhElem.nPrimitives; f++){
+            for ( unsigned int f = 0; f < bvhElem.nPrimitives; f++){
               v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
               v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
               v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
@@ -168,7 +165,7 @@ __kernel void IntersectionP (
           stack[ SPindex + 5] = bvhElem.primOffset;
           SPindex += stackSize;
 
-          stack[ SPindex] = xWidth*2;
+         stack[ SPindex] = xWidth*2;
           stack[ SPindex + 1] = yWidth*2;
           stack[ SPindex + 2] = roffsetX - xWidth*2;
           stack[ SPindex + 3] = 2*k;
@@ -213,7 +210,7 @@ __kernel void IntersectionP (
         }
 
       }
-
+      }
 
     }
 }

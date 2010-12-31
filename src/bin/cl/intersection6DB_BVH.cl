@@ -4,20 +4,18 @@ __kernel void IntersectionR (
   __global int* index,  __global int* stack, __global GPUNode* bvh,
   int roffsetX, int xWidth, int yWidth,
   const int lwidth, const int lheight,
-  int topLevelNodes, int offsetGID
+  unsigned int topLevelNodes, unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
 ) {
     // find position in global and shared arrays
-    int iGID = get_global_id(0);
+    unsigned int iGID = get_global_id(0);
     // bound check
     if (iGID >= topLevelNodes) return;
-    //if ( iGID >= 31767) return;
-    int stackSize = 6*topLevelNodes;
 
-    GPUNode bvhElem = bvh[iGID];
-    if ( bvhElem.nPrimitives == 0 && bvhElem.primOffset == 0) return;
+    unsigned int stackSize = 6*topLevelNodes;
+    GPUNode bvhElem;
 
     // find geometry for the work-item
     float4 v1, v2, v3;
@@ -26,7 +24,7 @@ __kernel void IntersectionR (
     float4 bmin, bmax;
     float4 omin, omax, dmin, dmax;
 
-    int SPindex = 6*iGID;
+    unsigned int SPindex = 6*iGID;
     int k;
     int j;
     for ( j = 0; j < yWidth; j++){
@@ -71,19 +69,18 @@ __kernel void IntersectionR (
 
         //if it is a rayhierarchy leaf node and bvh leaf node
         if ( roffsetX == 0 && bvhElem.nPrimitives > 0){
-            for ( int f = 0; f < bvhElem.nPrimitives; f++){
+            for ( unsigned int f = 0; f < bvhElem.nPrimitives; f++){
               v1 = vload4(0, vertex + 9*(bvhElem.primOffset+f));
               v2 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 3);
               v3 = vload4(0, vertex + 9*(bvhElem.primOffset+f) + 6);
               v1.w = 0; v2.w = 0; v3.w = 0;
 
               intersectAllLeaves( dir, o, bounds, index, tHit, v1,v2,v3,v2 - v1,v3 - v1,
-                    xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , offsetGID + bvhElem.primOffset+f
+                    xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , offsetGID + bvhElem.primOffset +f
                     #ifdef STAT_RAY_TRIANGLE
                     , stat_rayTriangle
                     #endif
                     );
-
             }
         }
 

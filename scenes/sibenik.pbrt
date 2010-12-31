@@ -1,0 +1,42 @@
+SurfaceIntegrator "directlighting" 
+#SurfaceIntegrator "path" "integer maxdepth" [5]
+PixelFilter "box" "float xwidth" [.4]  "float ywidth" [.4]
+Sampler "stratified" "integer xsamples" [4] "integer ysamples" [4]
+Renderer "breadth-first" 
+#Accelerator "kdtree"
+
+Accelerator "ray-bvh" "integer chunkXSize" [32] "integer chunkYSize" [2] "integer height" [5] "integer BVHheight" [5] "string node" ["box_dir"] 
+#Accelerator "rayhierarchy" "integer chunkXSize" [100] "integer chunkYSize" [4] "integer height" [3] "string node" ["box_dir"] 
+#Accelerator "naive" #"string method" ["Ray"]
+#Accelerator "bvh"
+Film "image" "string filename" ["sibenik_temp.tga"] 
+#	"integer xresolution" [64] "integer yresolution" [64] 
+	"integer xresolution" [128] "integer yresolution" [128] 
+#	"integer xresolution" [256] "integer yresolution" [256] 
+#	"integer xresolution" [512] "integer yresolution" [512]
+#	"integer xresolution" [1024] "integer yresolution" [1024]
+
+# persp & ortho
+LookAt 27 0 6    0 0 4  0 0 1 
+# env
+#LookAt 10 0 7 0 0 4 0 0 1
+
+Camera "perspective" "float fov" [50]
+
+
+WorldBegin
+
+# Front lights
+LightSource "spot" "point from" [-6 0 16] "point to" [-5 0 0] "color I" [200 200 200] "float coneangle" [60] "float conedeltaangle" [40]
+LightSource "spot" "point from" [0 0 16] "point to" [0 0 0] "color I" [200 200 200] "float coneangle" [60] "float conedeltaangle" [40]
+# Middle lights
+LightSource "spot" "point from" [10 -1 14] "point to" [10 -1 0] "color I" [100 100 100] "float coneangle" [60] "float conedeltaangle" [40]
+LightSource "spot" "point from" [10 1 14] "point to" [10 1 0] "color I" [100 100 100] "float coneangle" [60] "float conedeltaangle" [40]
+LightSource "spot" "point from" [15 1 14] "point to" [15 1 0] "color I" [100 100 100] "float coneangle" [60] "float conedeltaangle" [40]
+LightSource "spot" "point from" [15 -1 14] "point to" [15 -1 0] "color I" [100 100 100] "float coneangle" [60] "float conedeltaangle" [40]
+
+
+
+Include "geometry/sibenik_noText.pbrt"
+
+WorldEnd

@@ -1,14 +1,21 @@
-#SurfaceIntegrator "directlighting" 
-SurfaceIntegrator "path" "integer maxdepth" [4]
+Film "image" "string filename" ["elephant_temp.tga"]
+#	"integer xresolution" [64] "integer yresolution" [64] 
+	"integer xresolution" [128] "integer yresolution" [128] 
+#	"integer xresolution" [256] "integer yresolution" [256] 
+#	"integer xresolution" [512] "integer yresolution" [512]
+#	"integer xresolution" [1024] "integer yresolution" [1024]
+
 PixelFilter "box" "float xwidth" [.4]  "float ywidth" [.4]
-Sampler "lowdiscrepancy" "integer pixelsamples" [4]
+#Accelerator "kdtree"
 Renderer "breadth-first" 
+#Accelerator "naive" #"string method" ["RayTri"]
+Accelerator "ray-bvh" "integer chunkXSize" [2] "integer chunkYSize" [2] "integer height" [5] "integer BVHheight" [5] "string node" ["box_dir"] 
+#Accelerator "rayhierarchy" "integer chunkXSize" [100] "integer chunkYSize" [4] "integer height" [5] "string node" ["box_dir"] 
 
-#Accelerator "naive" "bool onGPU" ["true"] "string method" ["TriRay"]
-#Accelerator "ray-bvh" "bool onGPU" ["true"] "integer chunkXSize" [4] "integer chunkYSize" [1] "integer height" [3] "integer BVHheight" [2] "integer maxBVHPrim" [20] "string node" ["ia"] "integer scale" [80479] "string splitmethod" ["sah"]
-Accelerator "rayhierarchy" "integer chunkXSize" [16] "integer chunkYSize" [2] "integer height" [3] "string node" ["ia"]  
+Sampler "stratified" "integer xsamples" [1] "integer ysamples" [1]
 
-Film "image" "string filename" ["temp.tga"] "integer xresolution" [128] "integer yresolution" [128]
+#SurfaceIntegrator "directlighting"
+SurfaceIntegrator "path" "integer maxdepth" [8]
 
 ConcatTransform [ 0.828849 -0.295370 -0.475149 0.000000 -0.559473 -0.437585 -0.703924 0.000000 -0.000000 0.849280 -0.527943 0.000000 0.000000 0.000000 0.000000 1.000000 ]
 Translate -4.860000 -7.200000 -5.400000

@@ -9,7 +9,7 @@ void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
 float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth, const int x, const int y,
-const int offsetGID
+const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global unsigned int* stat_rayTriangle
 #endif
@@ -34,22 +34,21 @@ const int offsetGID
 
       // compute first barycentric coordinate
       b1 = dot(rayo-v1, s) * divisor;
-      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+      if ( b1 > 0.f  && b1 < 1.f) {
 
       // compute second barycentric coordinate
       s = cross(rayo - v1, e1);
       b2 = dot(rayd, s) * divisor;
-      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+      if ( b2 > 0.f && (b1 + b2) < 1.f) {
 
       // Compute _t_ to intersection point
       b1 = dot(e2, s) * divisor;
 
       s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (b1 < s.x ) continue;
-
-      if (b1 > tHit[totalWidth*(y + i) + x + j]) continue;
+      if (b1 > s.x && b1 < tHit[totalWidth*(y + i) + x + j]) {
         tHit[totalWidth*(y + i) + x + j] = b1;
         index[totalWidth*(y + i) + x + j] = offsetGID;
+      } } }
     }
   }
 }
@@ -74,33 +73,33 @@ const unsigned int offsetGID
       atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
       #endif
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
-      if ( rayd.w < 0 ) continue;
+      if ( rayd.w > 0 ) {
       rayd.w = 0;
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
       s = cross(rayd, e2);
       divisor = dot(s, e1);
-      if ( divisor == 0.0f) continue; //degenarate triangle
+      if ( divisor != 0.0f) { //degenarate triangle
       divisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
       b1 = dot(rayo-v1, s) * divisor;
-      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+      if ( b1 > 0.f  && b1 < 1.f) {
 
       // compute second barycentric coordinate
       s = cross(rayo-v1, e1);
       b2 = dot(rayd, s) * divisor;
-      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+      if ( b2 > 0.f && (b1 + b2) < 1.f) {
 
       // Compute _t_ to intersection point
       b1 = dot(e2, s) * divisor;
 
       s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (b1 < s.x ) continue;
-
-      if (b1 > tHit[totalWidth*(y + i) + x + j]) continue;
+      if (b1 > s.x && b1 < tHit[totalWidth*(y + i) + x + j]) {
         tHit[totalWidth*(y + i) + x + j] = b1;
         index[totalWidth*(y + i) + x + j] = offsetGID;
+      }
+      } } } }
     }
   }
 }
@@ -121,7 +120,7 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
   for ( int i = 0; i < lheight; i++){
     for ( int j = 0; j < lwidth; j++) {
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
-      if ( rayd.w < 0 ) continue; //not a valid ray
+      if ( rayd.w > 0 ) { //not a valid ray
       rayd.w = 0;
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
@@ -131,24 +130,24 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 
       s = cross(rayd, e2);
       divisor = dot(s, e1);
-      if ( divisor == 0.0f) continue; //degenarate triangle
+      if ( divisor != 0.0f) { //degenarate triangle
       divisor = 1.0f/ divisor;
 
       // compute first barycentric coordinate
       b1 = dot(rayo-v1, s) * divisor;
-      if ( b1 < -1e-3f  || b1 > 1+1e-3f) continue;
+      if ( b1 > 0.f  && b1 < 1.f) {
 
       // compute second barycentric coordinate
       s = cross(rayo-v1, e1);
       b2 = dot(rayd, s) * divisor;
-      if ( b2 < -1e-3f || (b1 + b2) > 1+1e-3f) continue;
+      if ( b2 > 0.f && (b1 + b2) < 1.f) {
 
       // Compute _t_ to intersection point
       b1 = dot(e2, s) * divisor;
       s = read_imagef(bounds, imageSampler, (int2)(x + j, y + i));
-      if (b1 < s.x || b1 > s.y) continue;
-
-      tHit[totalWidth*(y + i) + x + j] = '1';
+      if ( b1 > s.x && b1 < s.y){
+        tHit[totalWidth*(y + i) + x + j] = '1';
+      } } } } }
     }
   }
 

@@ -659,10 +659,10 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   imageFormatBounds.image_channel_data_type = CL_FLOAT;
   imageFormatBounds.image_channel_order = CL_RG;
 
-  int tempHeight = max(height, BVHheight);
+  int tempHeight = max(height, BVHheight)+1;
   gput->CreateBuffer(0,sizeof(cl_float)*9*maxPrims, CL_MEM_READ_ONLY ); //vertices
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0); //ray bounds
-  gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_WRITE_ONLY); //tHit
+  gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_READ_WRITE); //tHit
   gput->CreateBuffer(7,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
   gput->CreateBuffer(8,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE); //stack
   gput->CreateBuffer(9,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
@@ -881,9 +881,8 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->CreateImage2D(4, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0);
     gput->CreateBuffer(5,sizeof(cl_float)*count, CL_MEM_READ_WRITE); // tHit
     gput->CreateBuffer(6,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
-    cout << count << endl;
     //allocate stack in global memory
-    int tempHeight = max(height, BVHheight);
+    int tempHeight = max(height, BVHheight)+1;
     gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE);
     gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
     gput->SetIntArgument(9,roffsetX);
@@ -1199,8 +1198,8 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   #ifdef STAT_PRAY_TRIANGLE
    gput->CreateBuffer(9,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 18);
   #endif
-  int tempHeight = max(height, BVHheight);
-  gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+4+8*tempHeight), CL_MEM_READ_WRITE); //stack
+  int tempHeight = max(height, BVHheight)+1;
+  gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE); //stack
   gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //BVH nodes
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);

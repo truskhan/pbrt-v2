@@ -203,6 +203,11 @@ private:
     #ifdef STAT_RAY_TRIANGLE
     /** total number of ray-triangle test's count **/
     size_t intersectionCount;
+    cl_uint nodeTri;
+    #endif
+    #ifdef STAT_ALL
+    cl_uint rayTri[11];
+    cl_uint nodeTri[11];
     #endif
 };
 

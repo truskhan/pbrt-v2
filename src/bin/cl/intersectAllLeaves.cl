@@ -13,10 +13,16 @@ const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global unsigned int* stat_rayTriangle
 #endif
+#ifdef STAT_ALL
+, __global unsigned int* stats
+#endif
  ){
   float4 s, rayd, rayo;
   float divisor, b1, b2;
   // process all rays in the cone
+  #ifdef STAT_ALL
+    atom_add(stats,lheight*lwidth);
+  #endif
 
   //read the tile
   for ( int i = 0; i < lheight; i++){
@@ -61,10 +67,16 @@ const unsigned int offsetGID
 #ifdef STAT_RAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
+#ifdef STAT_ALL
+, __global unsigned int* stats
+#endif
  ){
   float4 s, rayd, rayo;
   float divisor, b1, b2;
   // process all rays in the cone
+  #ifdef STAT_ALL
+    atom_add(stats,lheight*lwidth);
+  #endif
 
   //read the tile
   for ( int i = 0; i < lheight; i++){
@@ -111,11 +123,16 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
 #ifdef STAT_PRAY_TRIANGLE
 , __global int* stat_rayTriangle
 #endif
+#ifdef STAT_ALL
+, __global unsigned int* stats
+#endif
  ){
   float4 s, rayd, rayo;
   float divisor, b1, b2;
   // process all rays in the cone
-
+  #ifdef STAT_ALL
+    atom_add(stats,lheight*lwidth);
+  #endif
   //read the tile
   for ( int i = 0; i < lheight; i++){
     for ( int j = 0; j < lwidth; j++) {

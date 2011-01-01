@@ -376,7 +376,10 @@ void OpenCL::CompileProgram(const char* cPathAndName, const char* function,
   #ifdef STAT_TRIANGLE_CONE
     "-DSTAT_TRIANGLE_CONE",
   #endif
-  #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE)
+  #ifdef STAT_ALL
+    "-DSTAT_ALL",
+  #endif
+  #if ( !defined STAT_RAY_TRIANGLE && !defined STAT_TRIANGLE_CONE && !defined STAT_PRAY_TRIANGLE && !STAT_ALL)
     "-cl-nv-verbose -cl-nv-maxrregcount=90 -Werror",
   #endif
 	#ifdef WIN32
@@ -728,7 +731,7 @@ OpenCLTask::~OpenCLTask(){
     clReleaseEvent(readEvents[i]);
   delete [] readEvents;
   delete [] sizeBuff;
-  //clReleaseEvent(kernelEvent);
+  clReleaseEvent(kernelEvent);
 }
 
 const char* stringError(cl_int errNum){

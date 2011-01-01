@@ -9,6 +9,9 @@ __kernel void IntersectionP (
 #ifdef STAT_PRAY_TRIANGLE
  , __global int* stat_rayTriangle
 #endif
+#ifdef STAT_ALL
+ , __global unsigned int* stats
+#endif
 ) {
     // find position in global and shared arrays
     unsigned int iGID = get_global_id(0);
@@ -71,6 +74,10 @@ __kernel void IntersectionP (
       omax.y = dmax.w;
       omax.z = dmin.w;
 
+      #ifdef STAT_ALL
+        atom_add(stats+1,1);
+      #endif
+
       if ( intersectsNode(omin, omax, dmin, dmax, bmin, bmax) )
       {
         //if it is a rayhierarchy leaf node and bvh leaf node
@@ -84,6 +91,9 @@ __kernel void IntersectionP (
                 xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight
                 #ifdef STAT_PRAY_TRIANGLE
                 , stat_rayTriangle
+                #endif
+                #ifdef STAT_ALL
+                , stats
                 #endif
                 );
             }

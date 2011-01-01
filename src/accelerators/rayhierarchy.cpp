@@ -219,6 +219,11 @@ RayHieararchy::RayHieararchy(const vector<Reference<Primitive> > &p, bool onG, i
     #ifdef STAT_RAY_TRIANGLE
     intersectionCount = 0;
     #endif
+    #ifdef STAT_ALL
+      for ( int i = 0; i < 11; i++){
+        rayTri[i] = nodeTri[i] = 0;
+      }
+    #endif
 }
 
 RayHieararchy::~RayHieararchy() {
@@ -233,7 +238,12 @@ RayHieararchy::~RayHieararchy() {
     cout << "rays at " << i << " .bounce " << bounceRays[i] << endl;
   #endif
   #ifdef STAT_RAY_TRIANGLE
-  cout << "total intersections: " << intersectionCount << endl;
+  cout << "total ray-triangle intersections: " << intersectionCount << endl;
+  cout << "total node-triangle intersections: " << nodeTri << endl;
+  #endif
+  #ifdef STAT_ALL
+  for ( int i = 0; i < 11; i++)
+    cout << "rayTri " << rayTri[i] << " nodeTri " << nodeTri[i] << endl;
   #endif
   delete ocl;
   delete [] vertices;
@@ -303,6 +313,7 @@ unsigned int RayHieararchy::MaxRaysPerCall(){
 bool RayHieararchy::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
                            Vector &dpdu, Vector &dpdv, float& tu, float &tv,
                            float uvs[3][2], const Point p[3], float* coord) const {
+return false;
     // Get triangle vertices in _p1_, _p2_, and _p3_
     const TriangleMesh* mesh = shape->GetMeshPtr();
     const Point &p1 = mesh->p[shape->v[0]];
@@ -638,6 +649,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
   unsigned int c = 9;
+  #ifdef STAT_ALL
+   c = 10;
+  #endif
   gput->InitBuffers(c);
 
   gput->CopyBuffer(0,1,gpuray); //ray dir
@@ -655,6 +669,9 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   gput->CreateBuffer(6,sizeof(cl_float)*count, CL_MEM_WRITE_ONLY); //tHit
   gput->CreateBuffer(7,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
   gput->CreateBuffer(8,sizeof(cl_int)*(gws+lws)*5*(xWidth*yWidth+5*height), CL_MEM_READ_WRITE); //stack
+  #ifdef STAT_ALL
+    gput->CreateBuffer(9,sizeof(cl_uint)*2, CL_MEM_WRITE_ONLY,16);
+  #endif
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
   gput->SetIntArgument(11, yWidth);
@@ -665,6 +682,11 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer(6, tHitArray);
   gput->EnqueueWriteBuffer(7, indexArray);
+  #ifdef STAT_ALL
+    cl_uint stats[2];
+    stats[0] = stats[1] = 0;
+    gput->EnqueueWriteBuffer(9,stats);
+  #endif
   #ifdef GPU_TIMES
   double itime;
   #endif
@@ -697,6 +719,13 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 
   gput->SetPersistentBuffers(0,3);
   gput->SetPersistentBuff(7);
+
+  #ifdef STAT_ALL
+  gput->EnqueueReadBuffer(9,stats);
+  gput->WaitForRead();
+  rayTri[bounce+2] += stats[0];
+  nodeTri[bounce+2] += stats[1];
+  #endif
 
   gput->WaitForRead();
   gws = count;
@@ -843,9 +872,12 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
     #ifdef STAT_RAY_TRIANGLE
-    c = 9;
+    c = 10;
     #else
     c = 8;
+    #endif
+    #ifdef STAT_ALL
+    c = 9;
     #endif
     gput->InitBuffers(c);
 
@@ -871,19 +903,17 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->SetIntArgument(11,chunkX);
     gput->SetIntArgument(12,chunkY);
     gput->SetIntArgument(13,trianglePartCount); //number of uploaded triangles to GPU
-    #ifdef TRIANGLES_PER_THREAD
-      gput->SetIntArgument(16,trianlgesPerThread);
-    #endif
     /*cl_image_format imageFormat;
     imageFormat.image_channel_data_type = CL_FLOAT;
     imageFormat.image_channel_order = CL_RGBA;
     gput->CreateImage2D(7, CL_MEM_WRITE_ONLY, &imageFormat, xResolution*samplesPerPixel, yResolution, 0, 16);*/
 
-    #if (defined STAT_RAY_TRIANGLE && !defined TRIANGLES_PER_THREAD)
-    gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,16);
+    #if (defined STAT_RAY_TRIANGLE )
+    gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY,15);
+    gput->CreateBuffer(9,sizeof(cl_uint), CL_MEM_WRITE_ONLY,16);
     #endif
-    #if (defined TRIANGLES_PER_THREAD && defined TRIANGLES_PER_THREAD)
-    gput->CreateBuffer(8, sizeof(cl_int)*count, CL_MEM_WRITE_ONLY, 17);
+    #ifdef STAT_ALL
+    gput->CreateBuffer(8,sizeof(cl_uint)*2, CL_MEM_WRITE_ONLY, 15);
     #endif
 
     //if (!gput->EnqueueWriteBuffer( 4, rayBoundsArray ))exit(EXIT_FAILURE);
@@ -892,6 +922,13 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     gput->EnqueueWriteBuffer( 6, indexArray );
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueWriteBuffer( 8, picture);
+    nodeTri = 0;
+    gput->EnqueueWriteBuffer( 9, &nodeTri);
+    #endif
+    #ifdef STAT_ALL
+    cl_uint stats[2];
+    stats[0] = stats[1] = 0;
+    gput->EnqueueWriteBuffer(8,stats);
     #endif
     for ( int i = 0; i < parts - 1; i++){
       gput->SetIntArgument(14,(cl_uint)i*trianglePartCount); //offset
@@ -933,16 +970,21 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
     cout << endl;
   }*/
 
+    #ifdef STAT_ALL
+    gput->EnqueueReadBuffer(8,stats);
+    gput->WaitForRead();
+    rayTri[1] += stats[0];
+    nodeTri[1] += stats[1];
+    #endif
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueReadBuffer( 8, picture);
+    gput->EnqueueReadBuffer( 9, &nodeTri);
     unsigned int i = 0;
     unsigned int temp = 0;
     gput->WaitForRead();
     for (i = 0; i < count; i++){
       temp = max(picture[i],temp);
-      #ifdef STAT_RAY_TRIANGLE
-      intersectionCount += temp;
-      #endif
+      intersectionCount += picture[i];
       Ls[i] = RainbowColorMapping((float)(picture[i])/(float)scale);
     }
     cout << "Maximum intersection count: " << temp << endl;
@@ -1098,6 +1140,7 @@ void RayHieararchy::Intersect(const RayDifferential *r, Intersection *in,
 }
 
 bool RayHieararchy::Intersect(const Ray &ray, Intersection *isect) const {
+  return false;
     if (primitives.size() == 0) return false;
     bool hit = false;
     for (uint32_t it = 0; it < primitives.size(); ++it) {
@@ -1110,6 +1153,7 @@ bool RayHieararchy::Intersect(const Ray &ray, Intersection *isect) const {
 
 
 bool RayHieararchy::IntersectP(const Ray &ray) const {
+  return true;
     if (primitives.size() == 0) return false;
     bool hit = false;
     for (uint32_t it = 0; it < primitives.size(); ++it) {
@@ -1184,6 +1228,9 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   #ifdef STAT_PRAY_TRIANGLE
    c = 9;
   #endif
+  #ifdef STAT_ALL
+   c = 9;
+  #endif
   gput->InitBuffers(c);
 
   gput->CopyBuffer(0,1,gpuray); //ray dir
@@ -1201,35 +1248,33 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   gput->CreateImage2D(5, CL_MEM_READ_ONLY , &imageFormatBounds, xResolution*samplesPerPixel, yResolution, 0);
   gput->CreateBuffer(6,sizeof(cl_char)*count, CL_MEM_WRITE_ONLY); //tHit
   #ifdef STAT_PRAY_TRIANGLE
-   gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 15);
+   gput->CreateBuffer(8,sizeof(cl_uint)*count, CL_MEM_WRITE_ONLY, 14);
+  #endif
+  #ifdef STAT_ALL
+   gput->CreateBuffer(8,sizeof(cl_uint)*2, CL_MEM_WRITE_ONLY, 14);
   #endif
   gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*5*(xWidth*yWidth+5*height), CL_MEM_READ_WRITE);
-  //Assert(gput->SetLocalArgument(7,sizeof(cl_int)*(64*5*(4 + 3*(height-1)))));
   gput->SetIntArgument(8, roffsetX);
   gput->SetIntArgument(9, xWidth);
   gput->SetIntArgument(10, yWidth);
   gput->SetIntArgument(11,chunkX);
   gput->SetIntArgument(12,chunkY);
   gput->SetIntArgument(13, trianglePartCount);
-  //int globalPoolNextRay = 2*gws;
-  //gput->CreateBuffer(8,sizeof(cl_int),CL_MEM_READ_WRITE,15);
-  #ifdef TRIANGLES_PER_THREAD
-    gput->SetIntArgument(15,trianlgesPerThread);
-  #endif
-
-  //if (!gput->EnqueueWriteBuffer( 5, rayBoundsArray ))exit(EXIT_FAILURE);
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer( 6, occluded );
   #ifdef STAT_PRAY_TRIANGLE
     gput->EnqueueWriteBuffer( 8, picture);
   #endif
+  #ifdef STAT_ALL
+    cl_uint stats[2];
+    stats[0] = stats[1] = 0;
+    gput->EnqueueWriteBuffer(8,stats);
+  #endif
   for ( int i = 0; i < parts - 1; i++){
     gput->EnqueueWriteBuffer(0, vertices + 9*i*trianglePartCount);
-    //gput->EnqueueWriteBuffer(8,&globalPoolNextRay);
     gput->Run();
     gput->WaitForKernel();
   }
-  //gput->EnqueueWriteBuffer(8,&globalPoolNextRay);
   gput->EnqueueWriteBuffer(0, vertices + 9*(parts-1)*trianglePartCount, sizeof(cl_float)*9*triangleLastPartCount);
   gput->SetIntArgument(13,(cl_int)triangleLastPartCount);
   gput->Run();
@@ -1237,6 +1282,12 @@ void RayHieararchy::IntersectP(const Ray* r, char* occluded, const size_t count,
   gput->EnqueueReadBuffer( 6, occluded );
   #ifdef STAT_PRAY_TRIANGLE
     gput->EnqueueReadBuffer( 8, picture);
+  #endif
+  #ifdef STAT_ALL
+    gput->EnqueueReadBuffer( 8 , stats);
+    gput->WaitForRead();
+    rayTri[0] += stats[0];
+    nodeTri[0] += stats[1];
   #endif
 
   gput->WaitForRead();

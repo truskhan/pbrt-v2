@@ -7,6 +7,10 @@ __kernel void IntersectionR (
     int size, unsigned int offsetGID //, __write_only image2d_t kontrola
 #ifdef STAT_RAY_TRIANGLE
  , __global unsigned int* stat_rayTriangle
+ , __global unsigned int* stat_nodeTriangle
+#endif
+#ifdef STAT_ALL
+ , __global unsigned int* stats
 #endif
 ) {
     // find position in global and shared arrays
@@ -38,6 +42,7 @@ __kernel void IntersectionR (
 
       }
     }
+
     while ( SPindex >= stackSize) {
       SPindex -= stackSize;
       xWidth = stack[  SPindex];
@@ -53,6 +58,13 @@ __kernel void IntersectionR (
       omax.y = dmax.w;
       omax.z = dmin.w;
 
+      #ifdef STAT_RAY_TRIANGLE
+        atom_add(stat_nodeTriangle, 1);
+      #endif
+      #ifdef STAT_ALL
+        atom_add(stats+1,1);
+      #endif
+
       if ( intersectsTri(omin, omax, dmin, dmax, v1,v2,v3) )
       {
         //if it is a leaf node
@@ -61,6 +73,9 @@ __kernel void IntersectionR (
                 xWidth*lwidth, lheight, lwidth, k*lwidth, j*lheight , get_global_id(0)+offsetGID
                 #ifdef STAT_RAY_TRIANGLE
                 , stat_rayTriangle
+                #endif
+                #ifdef STAT_ALL
+                , stats
                 #endif
                 );
         } else {

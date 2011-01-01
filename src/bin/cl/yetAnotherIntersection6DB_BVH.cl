@@ -12,10 +12,10 @@ __kernel void YetAnotherIntersection (
     // find position in global and shared arrays
     int iGID = get_global_id(0);
     return;
+
     // bound check (equivalent to the limit on a 'for' loop for standard/serial C code
     if (iGID >= topLevelNodes) return;
-    GPUNode bvhElem = bvh[iGID];
-    if ( !bvhElem.nPrimitives && !bvhElem.primOffset) return;
+    GPUNode bvhElem ;
 
     // find geometry for the work-item
     float4 e1, e2;
@@ -86,7 +86,6 @@ __kernel void YetAnotherIntersection (
                     );
             }
         }
-        if (SPindex > 50976) continue;
         //it is a rayhierarchy leaf node but BVH inner node - traverse BVH
         if ( !roffsetX  && !bvhElem.nPrimitives){
           stack[wbeginStack + SPindex] = xWidth;

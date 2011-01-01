@@ -179,6 +179,10 @@ private:
     double intersectTimes[10];
     size_t bounceRays[10];
     #endif
+    #ifdef STAT_ALL
+    cl_uint rayTri[11];
+    cl_uint nodeTri[11];
+    #endif
 };
 
 /** Method for creating ray-bvh hierarchy accelerator.

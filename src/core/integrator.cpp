@@ -270,10 +270,10 @@ void EstimateDirect(const Scene *scene, const Renderer *renderer,
         Intersection lightIsect;
         Li[i] = Spectrum(0.f);
         RayDifferential ray(p[i], wi[i], rayEpsilon[i], INFINITY, time[i]);
-        if ( scene->Intersect(ray, &lightIsect)){
+       /* if ( scene->Intersect(ray, &lightIsect)){
           if ( lightIsect.primitive->GetAreaLight() == light[i])
             Li[i] = lightIsect.Le(-wi[i]);
-        } else
+        } else*/
           Li[i] = light[i]->Le(ray);
         }
         if (!Li[i].IsBlack()) {

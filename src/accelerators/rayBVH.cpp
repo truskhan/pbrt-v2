@@ -157,6 +157,11 @@ RayBVH::RayBVH(const vector<Reference<Primitive> > &prim, bool onG, int chunkX, 
       bounceRays[i] = 0;
     }
    #endif
+  #ifdef STAT_ALL
+    for ( int i = 0; i < 11; i++){
+      rayTri[i] = nodeTri[i] = 0;
+    }
+  #endif
 }
 
 RayBVH::~RayBVH() {
@@ -166,6 +171,10 @@ RayBVH::~RayBVH() {
     cout << "intersection " << i << " .bounce " << intersectTimes[i] << endl;
   for ( int i = 0; i < 10; i++)
     cout << "rays at " << i << " .bounce " << bounceRays[i] << endl;
+  #endif
+  #ifdef STAT_ALL
+  for ( int i = 0; i < 11; i++)
+    cout << "rayTri " << rayTri[i] << " nodeTri " << nodeTri[i] << endl;
   #endif
   delete ocl;
   for ( size_t i = 0 ; i < parts; i++){
@@ -319,6 +328,7 @@ unsigned int RayBVH::MaxRaysPerCall(){
 bool RayBVH::Intersect(const Triangle* shape, const Ray &ray, float *tHit,
                            Vector &dpdu, Vector &dpdv, float& tu, float &tv,
                            float uvs[3][2], const Point p[3], float* coord) const {
+                             return false;
     // Get triangle vertices in _p1_, _p2_, and _p3_
     const TriangleMesh* mesh = shape->GetMeshPtr();
     const Point &p1 = mesh->p[shape->v[0]];
@@ -647,6 +657,9 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   OpenCLTask* gput = ocl->getTask(tn2,cmd);
 
   unsigned int c = 10;
+  #ifdef STAT_ALL
+   c = 11;
+  #endif
   gput->InitBuffers(c);
 
   gput->CopyBuffer(0,1,gpuray); //ray dir
@@ -666,6 +679,9 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->CreateBuffer(7,sizeof(cl_int)*count, CL_MEM_WRITE_ONLY); //index array
   gput->CreateBuffer(8,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE); //stack
   gput->CreateBuffer(9,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
+  #ifdef STAT_ALL
+    gput->CreateBuffer(10,sizeof(cl_uint)*2, CL_MEM_WRITE_ONLY,17);
+  #endif
   gput->SetIntArgument(10,roffsetX);
   gput->SetIntArgument(11,xWidth);
   gput->SetIntArgument(12,yWidth);
@@ -675,6 +691,11 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
   gput->EnqueueWrite2DImage(5, rayBoundsArray);
   gput->EnqueueWriteBuffer( 6, tHitArray );
   gput->EnqueueWriteBuffer( 7, indexArray );
+  #ifdef STAT_ALL
+    cl_uint stats[2];
+    stats[0] = stats[1] = 0;
+    gput->EnqueueWriteBuffer(10,stats);
+  #endif
   cl_int offsetGID = 0;
   #ifdef GPU_TIMES
   double itime;
@@ -712,6 +733,13 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in, bool* hit,
 
   gput->SetPersistentBuffers(0,3); //vertices, ray dir, ray orig
   gput->SetPersistentBuff(7); //indexArray
+
+  #ifdef STAT_ALL
+  gput->EnqueueReadBuffer(10,stats);
+  gput->WaitForRead();
+  rayTri[bounce+2] += stats[0];
+  nodeTri[bounce+2] += stats[1];
+  #endif
 
   gput->WaitForRead();
   gws = count;
@@ -866,6 +894,9 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     #ifdef STAT_RAY_TRIANGLE
     c = 10;
     #endif
+    #ifdef STAT_ALL
+    c = 10;
+    #endif
     gput->InitBuffers(c);
 
     gput->CopyBuffer(0,1,gpuray); //ray dir
@@ -885,6 +916,9 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     int tempHeight = max(height, BVHheight)+1;
     gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE);
     gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //bvh nodes
+    #ifdef STAT_ALL
+    gput->CreateBuffer(9,sizeof(cl_uint)*2, CL_MEM_WRITE_ONLY, 16);
+    #endif
     gput->SetIntArgument(9,roffsetX);
     gput->SetIntArgument(10,xWidth);
     gput->SetIntArgument(11,yWidth);
@@ -900,6 +934,11 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
     gput->EnqueueWriteBuffer( 6, indexArray );
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueWriteBuffer( 9, picture);
+    #endif
+    #ifdef STAT_ALL
+    cl_uint stats[2];
+    stats[0] = stats[1] = 0;
+    gput->EnqueueWriteBuffer(9,stats);
     #endif
     cl_int offsetGID = 0;
     for ( int i = 0; i < parts - 1; i++){
@@ -941,7 +980,12 @@ void RayBVH::Intersect(const RayDifferential *r, Intersection *in,
       i += 5;
     }
     abort();*/
-
+    #ifdef STAT_ALL
+    gput->EnqueueReadBuffer(9,stats);
+    gput->WaitForRead();
+    rayTri[1] += stats[0];
+    nodeTri[1] += stats[1];
+    #endif
     #ifdef STAT_RAY_TRIANGLE
     gput->EnqueueReadBuffer( 9, picture);
     unsigned int i = 0;
@@ -1180,6 +1224,9 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   #ifdef STAT_PRAY_TRIANGLE
    c = 10;
   #endif
+  #ifdef STAT_ALL
+   c = 10;
+  #endif
   gput->InitBuffers(c);
 
   gput->CopyBuffer(0,1,gpuray); //ray dir
@@ -1201,6 +1248,9 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   int tempHeight = max(height, BVHheight)+1;
   gput->CreateBuffer(7,sizeof(cl_int)*(gws+lws)*6*(xWidth*yWidth+8*tempHeight), CL_MEM_READ_WRITE); //stack
   gput->CreateBuffer(8,sizeof(GPUNode)*bvhNodesMax, CL_MEM_READ_ONLY); //BVH nodes
+  #ifdef STAT_ALL
+   gput->CreateBuffer(9,sizeof(cl_uint)*2, CL_MEM_WRITE_ONLY, 15);
+  #endif
   gput->SetIntArgument(9, roffsetX);
   gput->SetIntArgument(10, xWidth);
   gput->SetIntArgument(11, yWidth);
@@ -1211,6 +1261,11 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   gput->EnqueueWriteBuffer( 6, occluded );
   #ifdef STAT_PRAY_TRIANGLE
     gput->EnqueueWriteBuffer( 9, picture);
+  #endif
+  #ifdef STAT_ALL
+    cl_uint stats[2];
+    stats[0] = stats[1] = 0;
+    gput->EnqueueWriteBuffer(9,stats);
   #endif
   for ( int i = 0; i < parts - 1; i++){
     gput->EnqueueWriteBuffer( 8, bvhs[i]->gpuNodes, sizeof(GPUNode)*bvhs[i]->nodeNum);
@@ -1227,6 +1282,12 @@ void RayBVH::IntersectP(const Ray* r, char* occluded, const size_t count, const 
   gput->EnqueueReadBuffer( 6, occluded );
   #ifdef STAT_PRAY_TRIANGLE
     gput->EnqueueReadBuffer( 9, picture);
+  #endif
+  #ifdef STAT_ALL
+    gput->EnqueueReadBuffer( 9 , stats);
+    gput->WaitForRead();
+    rayTri[0] += stats[0];
+    nodeTri[0] += stats[1];
   #endif
 
   gput->WaitForRead();

@@ -75,7 +75,7 @@ const unsigned int offsetGID
   float divisor, b1, b2;
   // process all rays in the cone
   #ifdef STAT_ALL
-    atom_add(stats,lheight*lwidth);
+    unsigned int count = 0;
   #endif
 
   //read the tile
@@ -86,6 +86,9 @@ const unsigned int offsetGID
       #endif
       rayd = read_imagef(dir, imageSampler, (int2)(x + j, y + i));
       if ( rayd.w > 0 ) {
+      #ifdef STAT_ALL
+        ++count;
+      #endif
       rayd.w = 0;
       rayo = read_imagef(o, imageSampler, (int2)(x + j, y + i));
 
@@ -114,6 +117,10 @@ const unsigned int offsetGID
       } } } }
     }
   }
+
+  #ifdef STAT_ALL
+  atom_add(stats,count);
+  #endif
 }
 
 void intersectAllLeavesP (
@@ -131,7 +138,7 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
   float divisor, b1, b2;
   // process all rays in the cone
   #ifdef STAT_ALL
-    atom_add(stats,lheight*lwidth);
+    unsigned int count = 0;
   #endif
   //read the tile
   for ( int i = 0; i < lheight; i++){
@@ -144,7 +151,9 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
       #ifdef STAT_PRAY_TRIANGLE
       atom_add(stat_rayTriangle + totalWidth*(y + i) + x + j, 1);
       #endif
-
+      #ifdef STAT_ALL
+        ++count;
+      #endif
       s = cross(rayd, e2);
       divisor = dot(s, e1);
       if ( divisor != 0.0f) { //degenarate triangle
@@ -167,7 +176,9 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
       } } } } }
     }
   }
-
+  #ifdef STAT_ALL
+  atom_add(stats,count);
+  #endif
 }
 
 void yetAnotherIntersectAllLeaves (

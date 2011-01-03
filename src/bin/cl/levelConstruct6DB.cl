@@ -1,8 +1,12 @@
+/**
+ * @file levelConstruct6DB.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-
+/** method for constructing primary ray hierarchy level in texture */
 //takes for nodes and merge them
 //offsetX and offsetY says where to begin with storing
 __kernel void levelConstruct(

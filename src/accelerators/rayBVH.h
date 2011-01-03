@@ -143,37 +143,63 @@ private:
                   Vector &dpdu, Vector &dpdv, float &tu, float &tv, float uv[3][2],const Point p[3]
                   ,float* coord) const;
 
-    // RayBVH Private Methods
+    /** pointers to BVH */
     BVHAccel** bvhs;
+    /** although BVH are more or less the same size, the differ, remember top level node's maximum **/
     cl_uint bvhTopLevelNodesMax;
+    /** maximum number of BVH nodes**/
     cl_uint bvhNodesMax;
+    /** maximum number of triangles stored in BVH**/
     cl_uint maxPrims;
-
+    /** split method for building BVH **/
     string splitMethod;
+    /** total number of scene triangles **/
     size_t triangleCount;
+    /** number of triangle part that can be stored on OpenCL device **/
     size_t trianglePartCount;
+    /** number of last triangle part count **/
     size_t triangleLastPartCount;
     #if (defined STAT_RAY_TRIANGLE || defined STAT_PRAY_TRIANGLE)
+    /** maximum number of rainbow scale **/
     int scale;
     #endif
+    /** number of parts that triangles were split into **/
     unsigned int parts;
-    cl_float** vertices; cl_float** uvs;
+    /** pointers to linear arrays holding vertices **/
+    cl_float** vertices;
+    /** pointers to linear arrays holding uvs **/
+    cl_float** uvs;
+    /** indicates wheter the algorithm should run on GPU **/
     bool onGPU;
+    /** desired height of rayhierarchy **/
     cl_uint height;
+    /** desired height of BVH **/
     cl_uint BVHheight;
+    /** maximum number of triangles stored in BVH leaf **/
     cl_uint maxBVHPrim;
+    /** string  defining split method for building BVH **/
     string sm;
+    /** variables defining ray count in rayhierarchy leaf **/
     cl_uint chunkX, chunkY;
+    /** pointer to auxiliary class which simplyfies OpenCL API **/
     OpenCL* ocl; //pointer to OpenCL auxiliary functions
+    /** pointer to OpenCL Command queue **/
     size_t cmd; //index to command queue
+    /** stores samples per pixel count **/
     unsigned samplesPerPixel;
-    cl_uint worgGroupSize;
+    /** generated picture width resolution (or width resolution of picutre part) **/
     mutable unsigned int xResolution;
+    /** generated picture height resolution (or height resolution of picutre part) **/
     unsigned int yResolution;
+    /** semaphore to run only one kernel at time on OpenCL device **/
     Semaphore *workerSemaphore;
+    /** node type to use for ray hierarchy**/
     string node;
+    /** stored rayhierarchy node size **/
     size_t nodeSize;
+    /** box enclosing all the scene primitives **/
     BBox bbox;
+    /** vector for holding scene geometry **/
     vector<Reference<Primitive> > p;
     #ifdef GPU_TIMES
     double intersectTimes[10];

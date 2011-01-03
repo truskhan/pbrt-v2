@@ -1,10 +1,14 @@
+/**
+ * @file intersectAllLeaves.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics: enable
 #pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics: enable
 #define EPS 0.002
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-
+/** method for intersecting all triangles with primary rays hiearchy leaf*/
 void intersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
@@ -58,7 +62,7 @@ const unsigned int offsetGID
     }
   }
 }
-
+/** method for intersecting all triangles with rays after multiple bounce hiearchy leaf*/
 void intersectAllLeaves2 (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global int* index, __global float* tHit, float4 v1, float4 v2, float4 v3,
@@ -122,7 +126,7 @@ const unsigned int offsetGID
   atom_add(stats,count);
   #endif
 }
-
+/** method for intersecting all triangles with shadow rays hiearchy leaf*/
 void intersectAllLeavesP (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global char* tHit, float4 v1, float4 v2, float4 v3,
@@ -180,7 +184,7 @@ float4 e1, float4 e2, const int totalWidth, const int lheight, const int lwidth,
   atom_add(stats,count);
   #endif
 }
-
+/** method for intersecting all triangles with primary rays hiearchy leaf - control method*/
 void yetAnotherIntersectAllLeaves (
   __read_only image2d_t dir, __read_only image2d_t o,
 __read_only image2d_t bounds, __global int* index, __global float* tHit, __global int* changed,

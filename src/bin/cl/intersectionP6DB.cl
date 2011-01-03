@@ -1,3 +1,8 @@
+/**
+ * @file intersectionP6DB.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
+/** method for finding shadow ray-triangle intersections */
 #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #pragma OPENCL EXTENSION cl_khr_local_int32_base_atomics : enable
 __kernel void IntersectionP (

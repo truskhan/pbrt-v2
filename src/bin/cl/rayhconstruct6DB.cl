@@ -1,8 +1,12 @@
+/**
+ * @file rayhconstruct6DB.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-
+/** method for constructing primary ray hierarchy leafs in texture */
 __kernel void rayhconstruct(__read_only image2d_t dir, __read_only image2d_t o,
   __write_only image2d_t nodes, const int globalWidth, const int globalHeight,
   const int lwidth, const int lheight){

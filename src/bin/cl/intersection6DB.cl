@@ -1,3 +1,8 @@
+/**
+ * @file intersection6DB.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
+/** method for finding primary ray-triangle intersections */
 __kernel void IntersectionR (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,

@@ -1,3 +1,8 @@
+/**
+ * @file intersectsNode6DB.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
+/** method for deciding if 6DB node - triangle can intersects */
 bool intersectsNode(float4 omin, float4 omax, float4 uvmin, float4 uvmax, float4 bmin, float4 bmax) {
  float4 ocenter;
  float4 ray;

@@ -277,7 +277,6 @@ void RayBVH::Preprocess(){
 
 
 unsigned int RayBVH::MaxRaysPerCall(){
-    worgGroupSize = 64;
 
     //TODO: check the OpenCL device and decide, how many rays can be processed at one thread
     // check how many threads can be proccessed at once

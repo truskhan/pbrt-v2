@@ -49,10 +49,15 @@ int main(int argc, char *argv[]) {
     }
 
     size_t len = strlen(argv[0]) - 1; // minus name of the program "pbrt"
-    while(argv[0][len] != '/' && argv[0][len] != '\\' ) --len;
+    while(argv[0][len] != '/' && argv[0][len] != '\\' && len != 0 ) --len;
+    if ( len != 0) {
     options.pbrtPath = new char[len + 2];
     strncpy(options.pbrtPath, argv[0], len + 1);
     options.pbrtPath[len+1] = '\0';
+    } else { //pbrt runs in the current directory
+      option.pbrtPath = new char[1];
+      options.pbrtPath[0] = '\0';
+    }
 
     // Print welcome banner
     if (!options.quiet) {

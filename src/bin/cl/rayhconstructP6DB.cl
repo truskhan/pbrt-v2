@@ -1,8 +1,12 @@
+/**
+ * @file rayhconstructP6DB.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
 #pragma OPENCL EXTENSION cl_khr_byte_addressable_store : enable
 #define EPS 0.000002f
 
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-
+/** method for constructing shadow ray or rays after multiple bounces hierarchy leafs in texture */
 __kernel void rayhconstructP(__read_only image2d_t dir, __read_only image2d_t o,
   __write_only image2d_t nodes, __write_only image2d_t validity,
   const int globalWidth, const int globalHeight,

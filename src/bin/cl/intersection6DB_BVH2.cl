@@ -1,3 +1,8 @@
+/**
+ * @file intersection6DB_BVH2.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
+/** method for finding ray after multiple bounces - triangle intersections */
 __kernel void IntersectionR2 (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t validity, __read_only image2d_t bounds,

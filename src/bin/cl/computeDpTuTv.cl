@@ -1,5 +1,10 @@
+/**
+ * @file computeDpTuTv.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
 sampler_t imageSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 
+/** method for computing information needed for shading, already knows intersection details*/
 __kernel void computeDpTuTv (const __global float* vertex,
                              __read_only image2d_t dir, __read_only image2d_t o,
                              const __global int* index, const __global float* uvs,

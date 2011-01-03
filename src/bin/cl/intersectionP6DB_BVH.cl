@@ -1,3 +1,8 @@
+/**
+ * @file intersectionP6DB_BVH.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
+/** method for finding shadow ray-triangle intersections */
 __kernel void IntersectionP (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t validity,

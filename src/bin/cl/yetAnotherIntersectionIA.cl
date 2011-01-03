@@ -1,3 +1,8 @@
+/**
+ * @file yetAntoherIntersectionIA.cl
+ * @author: Hana Truskova hana.truskova@seznam.cz
+**/
+/** method for finding primary ray-triangle intersections - control method*/
 __kernel void YetAnotherIntersection (
   const __global float* vertex, __read_only image2d_t dir, __read_only image2d_t o,
   __read_only image2d_t nodes, __read_only image2d_t bounds, __global float* tHit,

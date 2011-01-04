@@ -1,4 +1,4 @@
-Film "image" "string filename" ["elephant_temp.tga"]
+Film "image" "string filename" ["teapot.tga"]
 #	"integer xresolution" [64] "integer yresolution" [64] 
 	"integer xresolution" [128] "integer yresolution" [128] 
 #	"integer xresolution" [256] "integer yresolution" [256] 
@@ -9,8 +9,8 @@ PixelFilter "box" "float xwidth" [.4]  "float ywidth" [.4]
 #Accelerator "kdtree"
 Renderer "breadth-first" 
 #Accelerator "naive" #"string method" ["RayTri"]
-Accelerator "ray-bvh" "integer chunkXSize" [2] "integer chunkYSize" [2] "integer height" [5] "integer BVHheight" [5] "string node" ["box_dir"] 
-#Accelerator "rayhierarchy" "integer chunkXSize" [100] "integer chunkYSize" [4] "integer height" [5] "string node" ["box_dir"] 
+#Accelerator "ray-bvh" "integer chunkXSize" [2] "integer chunkYSize" [2] "integer height" [5] "integer BVHheight" [5] "string node" ["box_dir"] 
+Accelerator "rayhierarchy" "integer chunkXSize" [100] "integer chunkYSize" [4] "integer height" [4] "string node" ["ia"] 
 
 Sampler "stratified" "integer xsamples" [1] "integer ysamples" [1]
 

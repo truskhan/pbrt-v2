@@ -5,11 +5,11 @@ Sampler "stratified" "integer xsamples" [4] "integer ysamples" [4]
 Renderer "breadth-first" 
 #Accelerator "kdtree"
 
-Accelerator "ray-bvh" "integer chunkXSize" [32] "integer chunkYSize" [2] "integer height" [5] "integer BVHheight" [5] "string node" ["box_dir"] 
-#Accelerator "rayhierarchy" "integer chunkXSize" [100] "integer chunkYSize" [4] "integer height" [3] "string node" ["box_dir"] 
+#Accelerator "ray-bvh" "integer chunkXSize" [32] "integer chunkYSize" [2] "integer height" [5] "integer BVHheight" [5] "string node" ["box_dir"] 
+Accelerator "rayhierarchy" "integer chunkXSize" [100] "integer chunkYSize" [4] "integer height" [4] "string node" ["ia"] 
 #Accelerator "naive" #"string method" ["Ray"]
 #Accelerator "bvh"
-Film "image" "string filename" ["sibenik_temp.tga"] 
+Film "image" "string filename" ["sibenik.tga"] 
 #	"integer xresolution" [64] "integer yresolution" [64] 
 	"integer xresolution" [128] "integer yresolution" [128] 
 #	"integer xresolution" [256] "integer yresolution" [256] 

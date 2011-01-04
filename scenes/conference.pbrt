@@ -1,8 +1,8 @@
-Film "image" "string filename" ["conference_IA.tga"]
+Film "image" "string filename" ["conference.tga"]
 #"integer xresolution" [64] "integer yresolution" [64]
-#	"integer xresolution" [128] "integer yresolution" [128] 
+	"integer xresolution" [128] "integer yresolution" [128] 
 #	"integer xresolution" [256] "integer yresolution" [256] 
-	"integer xresolution" [512] "integer yresolution" [512] 
+#	"integer xresolution" [512] "integer yresolution" [512] 
 #	"integer xresolution" [1024] "integer yresolution" [1024] 
 Sampler "stratified" "integer xsamples" [5] "integer ysamples" [5]
 Renderer "breadth-first" 
